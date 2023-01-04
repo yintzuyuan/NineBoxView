@@ -52,7 +52,7 @@ class NineBoxView(NSView):
 		return glyph
 
 	def drawRect_(self, rect):
-		self.wrapper._backColour.set() # 填充背景色
+		self.wrapper.backColour.set() # 填充背景色
 		NSBezierPath.fillRect_(rect)
 
 		lineSpace = 8
@@ -73,7 +73,7 @@ class NineBoxView(NSView):
 			m = font.masters[0]
 		fullPath = NSBezierPath.alloc().init()
 		advance = 0
-		self.wrapper._foreColour.set() # 設定前景色
+		self.wrapper.foreColour.set() # 設定前景色
 
 		## 主要字
 		#------------------------
@@ -101,12 +101,11 @@ class NineBoxView(NSView):
 
 			transform = NSAffineTransform.transform()
 			transform.scaleBy_(s/upm) # 縮放尺寸(顯示大小/原始大小)
-			transform.translateXBy_yBy_(tab*upm/s+s*upm/s, (h-2*s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小)*原始大小/顯示大小)
+			transform.translateXBy_yBy_((tab+s)*upm/s, (h-2*s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小)*原始大小/顯示大小)
 			previewPath.transformUsingAffineTransform_( transform )
 
 			## 填滿路徑
 			#------------------------
-			NSColor.blackColor().set() # 字符顏色：黑色
 			previewPath.fill()
 
 		except:
@@ -149,7 +148,7 @@ class NineBoxView(NSView):
 				#------------------------------
 				transform = NSAffineTransform.transform()
 				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s+s*upm/s, (h-s)*upm/s)
+				transform.translateXBy_yBy_((tab+s)*upm/s, (h-s)*upm/s)
 				fullPath.transformUsingAffineTransform_(transform)
 				fullPath.fill() # 填滿顏色
 				transform.invert()
@@ -157,7 +156,7 @@ class NineBoxView(NSView):
 				#------------------------------
 				transform = NSAffineTransform.transform()
 				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s+2*s*upm/s, (h-s)*upm/s)
+				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-s)*upm/s)
 				fullPath.transformUsingAffineTransform_(transform)
 				fullPath.fill() # 填滿顏色
 				transform.invert()
@@ -173,7 +172,7 @@ class NineBoxView(NSView):
 				#------------------------------
 				transform = NSAffineTransform.transform()
 				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s+2*s*upm/s, (h-2*s)*upm/s)
+				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-2*s)*upm/s)
 				fullPath.transformUsingAffineTransform_(transform)
 				fullPath.fill() # 填滿顏色
 				transform.invert()
@@ -189,7 +188,7 @@ class NineBoxView(NSView):
 				#------------------------------
 				transform = NSAffineTransform.transform()
 				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s+s*upm/s, (h-3*s)*upm/s)
+				transform.translateXBy_yBy_((tab+s)*upm/s, (h-3*s)*upm/s)
 				fullPath.transformUsingAffineTransform_(transform)
 				fullPath.fill() # 填滿顏色
 				transform.invert()
@@ -197,7 +196,7 @@ class NineBoxView(NSView):
 				#------------------------------
 				transform = NSAffineTransform.transform()
 				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s+2*s*upm/s, (h-3*s)*upm/s)
+				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-3*s)*upm/s)
 				fullPath.transformUsingAffineTransform_(transform)
 				fullPath.fill() # 填滿顏色
 				transform.invert()
@@ -212,8 +211,8 @@ class TheView(VanillaBaseObject):
 
 	def __init__(self, posSize):
 		self._glyphsList = []
-		self._foreColour = None
-		self._backColour = None
+		self.foreColour = None
+		self.backColour = None
 		self._instanceIndex = 0
 		self._setupView(self.nsGlyphPreviewClass, posSize)
 		self._nsObject.wrapper = self
@@ -227,14 +226,17 @@ class ____PluginClassName____(GeneralPlugin):
 	def settings(self): # 預設選項
 		self.name = Glyphs.localize({ # 外掛名稱
 		'en': u'Nine Box View',
-		'zh-Hant': u'九宮格預覽'
+		'zh-Hant': u'九宮格預覽',
+		'zh-Hans': u'九宫格预览',
+		'jp': u'九宮格プレビュー',
+		'kr': u'구궁격 미리보기'
 		})
-		if Glyphs.versionNumber < 3: # Glyphs版本 3
+		if Glyphs.versionNumber < 3: # Glyphs版本 2
 			Glyphs.registerDefaults({
 			"com.YinTzuYuan.NineBoxView.foreColour": [0, 0, 0, 1], # 預設前景色 黑色
 			"com.YinTzuYuan.NineBoxView.backColour": [1, 1, 1, 1] # 預設背景色 白色
 			})
-		else: # Glyphs版本 2
+		else: # Glyphs版本 3
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = NSColor.blackColor()
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSColor.whiteColor()
 
@@ -258,19 +260,14 @@ class ____PluginClassName____(GeneralPlugin):
 			insList.insert(0, 'Current Master')
 			self.w.edit = EditText( (spX, spY, (-spX*3-clX*2)-80, edY), text="東", callback=self.textChanged_)
 			self.w.edit.getNSTextField().setNeedsLayout_(True)
-			defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
-			defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
-			self.w.foreColour = ColorWell((-spX*2-clX*2, spY, clX, edY), color=defaultBlack, callback=self.uiChange_)
-			self.w.backColour = ColorWell((-spX-clX, spY, clX, edY), color=defaultWhite, callback=self.uiChange_)
-			# self.w.refresh = Button((-spX-138, spY, 80, edY), "Refresh", callback=self.textChanged_)
+			self.w.refresh = Button((-spX-clX*2, spY, clX*2, edY), "◐", callback=self.uiChange_) # 明暗模式切換
 			self.w.instancePopup = PopUpButton((spX, spY*2+edY, -spX, edY), insList, callback=self.changeInstance_)
-			self.w.preview = TheView((0, spX*3+edY*2, -0, -0))
-			self.w.preview._foreColour = defaultBlack
-			self.w.preview._backColour = defaultWhite
+			self.w.preview = TheView((0, spX*3+edY*2, -0, -0)) # 預覽畫面
+			self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1) # 預覽畫面前景色
+			self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1) # 預覽畫面背景色
 			self.w.preview.instances = {}
 			self.loadPrefs()
 			self.w.open()
-			self.uiChange_(None)
 			self.changeInstance_(self.w.instancePopup)
 			self.textChanged_(self.w.edit)
 			Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
@@ -278,22 +275,22 @@ class ____PluginClassName____(GeneralPlugin):
 		except:
 			print(traceback.format_exc())
 
-	@objc.python_method # 載入預設值方法
+	@objc.python_method # 載入儲存值
 	def loadPrefs(self):
 		try:
 			editText = Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"]
 			if editText:
 				self.w.edit.set(editText)
-			if Glyphs.versionNumber < 3: # Glyphs版本 3
+			if Glyphs.versionNumber < 3: # Glyphs版本 2
 				R_f, G_f, B_f, A_f = Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.foreColour.set(NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_f), float(G_f), float(B_f), float(A_f)))
+				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_f), float(G_f), float(B_f), float(A_f))
 				R_b, G_b, B_b, A_b = Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.backColour.set(NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_b), float(G_b), float(B_b), float(A_b)))
-			else: # Glyphs版本 2
+				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_b), float(G_b), float(B_b), float(A_b))
+			else: # Glyphs版本 3
 				f = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.foreColour.set(f)
+				self.w.preview.foreColour = f
 				b = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.backColour.set(b)
+				self.w.preview.backColour = b
 		except:
 			print(traceback.format_exc())
 
@@ -338,7 +335,7 @@ class ____PluginClassName____(GeneralPlugin):
 				if filtered:
 					return filtered
 		except:
-			print("Waterfall Error (makeList)", traceback.format_exc())
+			print("NineBoxView Error (makeList)", traceback.format_exc())
 			Glyphs.showMacroWindow()
 
 	def textChanged_(self, sender): # 修改輸入文本
@@ -347,20 +344,26 @@ class ____PluginClassName____(GeneralPlugin):
 
 	def uiChange_(self, sender): # 修改顏色
 		try:
-			NSC_f = self.w.foreColour.get()
-			NSC_b = self.w.backColour.get()
-			self.w.preview._foreColour = NSC_f
-			self.w.preview._backColour = NSC_b
+			defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
+			defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
+			if self.w.preview.foreColour == defaultBlack:
+				self.w.preview.foreColour = defaultWhite
+				self.w.preview.backColour = defaultBlack
+			else:
+				self.w.preview.foreColour = defaultBlack
+				self.w.preview.backColour = defaultWhite
+			f = self.w.preview.foreColour
+			b = self.w.preview.backColour
 			self.w.preview.redraw()
 			try:
 				if Glyphs.versionNumber < 3:
-					R_f, G_f, B_f, A_f = NSC_f.redComponent(), NSC_f.greenComponent(), NSC_f.blueComponent(), NSC_f.alphaComponent()
-					R_b, G_b, B_b, A_b = NSC_b.redComponent(), NSC_b.greenComponent(), NSC_b.blueComponent(), NSC_b.alphaComponent()
+					R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
+					R_b, G_b, B_b, A_b = b.redComponent(), b.greenComponent(), b.blueComponent(), b.alphaComponent()
 					Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"] = (R_f, G_f, B_f, A_f)
 					Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"] = (R_b, G_b, B_b, A_b)
 				else:
-					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = NSC_f
-					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSC_b
+					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = f
+					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = b
 			except:
 				print(traceback.format_exc())
 		except:
