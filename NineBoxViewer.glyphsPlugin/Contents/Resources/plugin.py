@@ -27,6 +27,10 @@ surrogate_pairs = re.compile(u'[\ud800-\udbff][\udc00-\udfff]', re.UNICODE)
 surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
 emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
 
+defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
+defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
+DisplayMode = "Light"
+
 # def getKernValue(layer1, layer2):
 # 	if Glyphs.buildNumber > 3000:
 # 		return layer1.nextKerningForLayer_direction_(layer2, LTR)
@@ -241,12 +245,14 @@ class ____PluginClassName____(GeneralPlugin):
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSColor.whiteColor()
 
 	def showWindow_(self, sender): # 開啟視窗動作
+		global defaultWhite
+		global defaultBlack
 		try:
-			edY = 22
-			clX = 22
+			edY = 22 # 行高
+			clX = 44 # 明暗模式按鈕寬度
 			spX = 8
 			spY = 8
-			btnY = 17
+			# btnY = 17
 			self.windowWidth = 300
 			self.windowHeight = 240
 			self.currentDocument = Glyphs.currentDocument
@@ -258,17 +264,17 @@ class ____PluginClassName____(GeneralPlugin):
 			self.w.bind("close", self.windowClosed_)
 			insList = [i.name for i in Glyphs.font.instances]
 			insList.insert(0, 'Current Master')
-			self.w.edit = EditText( (spX, spY, (-spX*3-clX*2)-80, edY), text="東", callback=self.textChanged_)
+			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.textChanged_)
 			self.w.edit.getNSTextField().setNeedsLayout_(True)
-			self.w.refresh = Button((-spX-clX*2, spY, clX*2, edY), "◐", callback=self.uiChange_) # 明暗模式切換
-			self.w.instancePopup = PopUpButton((spX, spY*2+edY, -spX, edY), insList, callback=self.changeInstance_)
-			self.w.preview = TheView((0, spX*3+edY*2, -0, -0)) # 預覽畫面
-			self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1) # 預覽畫面前景色
-			self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1) # 預覽畫面背景色
+			self.w.refresh = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
+			self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽畫面
+			self.w.preview.foreColour = defaultBlack # 預覽畫面前景色
+			self.w.preview.backColour = defaultWhite # 預覽畫面背景色
 			self.w.preview.instances = {}
 			self.loadPrefs()
 			self.w.open()
-			self.changeInstance_(self.w.instancePopup)
+			# self.uiChange_(None)
+			self.changeInstance_([i.name for i in Glyphs.font.instances])
 			self.textChanged_(self.w.edit)
 			Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
 			Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
@@ -343,29 +349,24 @@ class ____PluginClassName____(GeneralPlugin):
 		self.w.preview.redraw()
 
 	def uiChange_(self, sender): # 修改顏色
+		global defaultWhite
+		global defaultBlack
+		global DisplayMode
 		try:
-			defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
-			defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
-			if self.w.preview.foreColour == defaultBlack:
-				self.w.preview.foreColour = defaultWhite
-				self.w.preview.backColour = defaultBlack
-			else:
+			if DisplayMode == "Light":
 				self.w.preview.foreColour = defaultBlack
 				self.w.preview.backColour = defaultWhite
-			f = self.w.preview.foreColour
-			b = self.w.preview.backColour
-			self.w.preview.redraw()
-			try:
-				if Glyphs.versionNumber < 3:
-					R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
-					R_b, G_b, B_b, A_b = b.redComponent(), b.greenComponent(), b.blueComponent(), b.alphaComponent()
-					Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"] = (R_f, G_f, B_f, A_f)
-					Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"] = (R_b, G_b, B_b, A_b)
-				else:
-					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = f
-					Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = b
-			except:
-				print(traceback.format_exc())
+				pass
+			elif DisplayMode == "Dark":
+				self.w.preview.foreColour = defaultWhite
+				self.w.preview.backColour = defaultBlack
+				pass
+
+			if DisplayMode == "Light":
+				DisplayMode = "Dark"
+			else:
+				DisplayMode = "Light"
+			self.w.preview.redraw() # 重新繪製預覽畫面
 		except:
 			print(traceback.format_exc())
 
@@ -374,21 +375,17 @@ class ____PluginClassName____(GeneralPlugin):
 		Update when current document changes (choosing another open Font)
 		"""
 		self.w.preview.instances = {}
-		# self.w.instancePopup.setItems([])
 		self.w.preview._instanceIndex = 0
 		self.w.preview.redraw()
-		self.changeInstance_(self.w.instancePopup)
+		self.changeInstance_([i.name for i in Glyphs.font.instances])
 		(None)
 
 	def changeInstance_(self, sender): # 修改主板/匯出實體
-		currentIndex = self.w.instancePopup.get()
-		insList = [i.name for i in Glyphs.font.instances]
-		insList.insert(0, 'Current Master')
-		if insList != self.w.instancePopup.getItems():
-			self.w.instancePopup.setItems(insList)
-			currentIndex = 0
-		self.w.preview._instanceIndex = currentIndex
-		self.w.preview.redraw()
+		currentIndex = 0 # 當前索引被賦值為零
+		insList = [i.name for i in Glyphs.font.instances] # 主板選單被賦值為當前主板
+		insList.insert(0, 'Current Master') # 主板選單變為當前主板
+		self.w.preview._instanceIndex = currentIndex # 預覽畫面被賦值為當前索引
+		self.w.preview.redraw() # 重新繪製預覽畫面
 
 	@objc.python_method
 	def start(self):
@@ -403,6 +400,14 @@ class ____PluginClassName____(GeneralPlugin):
 
 	def windowClosed_(self, sender):
 		Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"] = self.w.edit.get()
+		if Glyphs.versionNumber < 3:
+			R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
+			R_b, G_b, B_b, A_b = b.redComponent(), b.greenComponent(), b.blueComponent(), b.alphaComponent()
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"] = (R_f, G_f, B_f, A_f)
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"] = (R_b, G_b, B_b, A_b)
+		else:
+			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = self.w.preview.foreColour
+			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = self.w.preview.backColour
 
 	## 以下程式碼務必保留置底
 	#------------------------------
