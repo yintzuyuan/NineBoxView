@@ -214,21 +214,29 @@ class ____PluginClassName____(GeneralPlugin):
 			clX = 44 # 明暗模式按鈕寬度
 			spX = 8
 			spY = 8
+
+			# 視窗框架
 			self.windowWidth = 300
 			self.windowHeight = 240
 			self.thisfont = Glyphs.font
 			self.w = FloatingWindow((self.windowWidth, self.windowWidth), self.name,
 				autosaveName = "com.YinTzuYuan.NineBoxView.mainwindow",
 				minSize=(self.windowWidth, self.windowWidth + 20))
+
+			# 按鈕
 			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.textChanged_)
-			self.w.uiMode = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
-			self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽畫面
+			self.w.uiToggleButton = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiToggle) # 明暗模式切換
+
+			# 預覽畫面
+		 	self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽大小
 			self.w.preview.foreColour = NSColor.blackColor() # 預覽畫面前景色
 			self.w.preview.backColour = NSColor.whiteColor() # 預覽畫面背景色
+
+			# 載入行為
 			self.LoadPreferences() # 載入偏好設定
 			self.w.open()
 			self.textChanged_(self.w.edit)
-			self.uiChange_(None)
+			self.uiToggle(None)
 			# Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
 			# Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
 		except:
@@ -238,7 +246,7 @@ class ____PluginClassName____(GeneralPlugin):
 		try:
 			# 將當前設定值存入偏好設定
 			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.edit"] = self.w.edit.get()
-			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = self.w.preview.foreColour.get()
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = uiMode_Light()
 
 			return True
 		except:
@@ -267,24 +275,36 @@ class ____PluginClassName____(GeneralPlugin):
 		self.w.preview._glyphsList = self.w.edit.get()
 		self.w.preview.redraw()
 
-	def uiChange_(self, sender): # 修改顏色
+	def uiToggle(self, sender): # 修改顏色
+		self.w.makeKey()
+		self.isPlaying = not self.isPlaying # False白 True黑
+		if self.w.preview.foreColour == NSColor.blackColor():
+			uiMode_Dark()
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = "Dark"
+			# self.play_(None)
+		else:
+			uiMode_Light()
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = "Light"
+
 		try:
 			if self.w.preview.foreColour == NSColor.blackColor():
 				uiMode_Dark()
+				Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = "Dark"
 			else:
 				uiMode_Light()
+				Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = "Light"
 			self.w.preview.redraw() # 重新繪製預覽畫面
 		except:
 			print(traceback.format_exc())
 
 	@objc.python_method # 明暗模式顏色設定
 	def uiMode_Light(self): # 亮色模式
-		self.w.preview.foreColour = NSColor.blackColor()
-		self.w.preview.backColour = NSColor.whiteColor()
+		self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
+		self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
 
 	def uiMode_Dark(self): # 暗色模式
-		self.w.preview.foreColour = NSColor.whiteColor()
-		self.w.preview.backColour = NSColor.blackColor()
+		self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
+		self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
 
 	@objc.python_method # 關閉外掛行為方法
 	# def __del__(self):
