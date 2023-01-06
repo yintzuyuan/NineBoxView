@@ -31,12 +31,6 @@ defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
 defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
 DisplayMode = "Light"
 
-# def getKernValue(layer1, layer2):
-# 	if Glyphs.buildNumber > 3000:
-# 		return layer1.nextKerningForLayer_direction_(layer2, LTR)
-# 	else:
-# 		return layer1.rightKerningForLayer_(layer2)
-
 
 class NineBoxView(NSView):
 
@@ -51,8 +45,8 @@ class NineBoxView(NSView):
 			if len(glyph_unicode) == 10:
 				glyph_unicode = glyph_unicode[5:].upper()
 			glyph = f.glyphForUnicode_(glyph_unicode)
-		if glyph is None:
-			glyph = font.glyphs['.notdef']
+		# if glyph is None:
+		# 	glyph = font.glyphs['.notdef']
 		return glyph
 
 	def drawRect_(self, rect):
@@ -125,9 +119,16 @@ class NineBoxView(NSView):
 					layer = glyph.layers[m.id]
 
 					layerPath = layer.completeBezierPath
-					kernValue = 0
 					# kerning check
-					#------------------------------
+					if i + 1 < len(glyphNames): # 如果字數大於一
+						nextGlyphName = glyphNames[i + 1]
+						nextGlyph = self.glyphForName(nextGlyphName, font)
+						if nextGlyph:
+							nextLayer = nextGlyph.layers[m.id]
+							if nextLayer:
+								kernValue = getKernValue(layer, nextLayer)
+								if kernValue > 10000:
+									kernValue = 0
 
 					fullPath.appendBezierPath_(layerPath)
 		except:
@@ -301,51 +302,8 @@ class ____PluginClassName____(GeneralPlugin):
 			print(traceback.format_exc())
 
 	@objc.python_method # 修改輸入設定方法
-	def makeList(self, string):
-		try:
-			newList = [c for c in string.encode('utf-8', 'surrogatepass').decode('utf-8', 'replace')]
-			# print(newList)
-			if newList:
-				filtered = []
-				skip = 0
-				for i, c in enumerate(newList):
-					if i < skip:
-						continue
-					if surrogate_start.match(c):
-						codepoint = surrogate_pairs.findall(c+newList[i+1])[0]
-						# skip over emoji skin tone modifiers
-						if codepoint in [u'🏻', u'🏼', u'🏽', u'🏾', u'🏿']:
-							continue
-						filtered.append(codepoint)
-					elif surrogate_start.match(newList[i-1]):
-						continue
-					elif emoji_variation_selector.match(newList[i]):
-						continue
-					else:
-						if c == "/":
-							if i+1 > len(newList)-1:
-								filtered.append(c)
-								continue
-							j = i
-							longest = ''.join(newList[i+1:])
-							while True:
-								if Glyphs.font.glyphs[longest]:
-									filtered.append(longest)
-									skip = j + len(longest) + 1
-									break
-								longest = longest[:-1]
-								if len(longest) <= 1:
-									break
-						else:
-							filtered.append(c)
-				if filtered:
-					return filtered
-		except:
-			print("NineBoxView Error (makeList)", traceback.format_exc())
-			Glyphs.showMacroWindow()
-
 	def textChanged_(self, sender): # 修改輸入文本
-		self.w.preview._glyphsList = self.makeList(self.w.edit.get())
+		self.w.preview._glyphsList = self.w.edit.get()
 		self.w.preview.redraw()
 
 	def uiChange_(self, sender): # 修改顏色
