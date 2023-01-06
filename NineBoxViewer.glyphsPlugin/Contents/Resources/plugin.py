@@ -21,34 +21,11 @@ from vanilla import *
 from AppKit import NSAffineTransform, NSRectFill, NSView, NSNoBorder, NSColor, NSBezierPath, NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSFloatingWindowLevel
 from Foundation import NSWidth, NSHeight, NSMidX, NSMidY
 import traceback
-import re, objc
-
-surrogate_pairs = re.compile(u'[\ud800-\udbff][\udc00-\udfff]', re.UNICODE)
-surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
-emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
-
-defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
-defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
-DisplayMode = "Light"
 
 
 class NineBoxView(NSView):
 
 	@objc.python_method
-	def glyphForName(self, name, font):
-		if len(name) == 1:
-			glyph_unicode = "%.4X" % ord(name)
-		else:
-			glyph_unicode = name.encode('unicode-escape')
-		glyph = font.glyphs[glyph_unicode]
-		if glyph is None:
-			if len(glyph_unicode) == 10:
-				glyph_unicode = glyph_unicode[5:].upper()
-			glyph = f.glyphForUnicode_(glyph_unicode)
-		# if glyph is None:
-		# 	glyph = font.glyphs['.notdef']
-		return glyph
-
 	def drawRect_(self, rect):
 		self.wrapper.backColour.set() # 填充背景色
 		NSBezierPath.fillRect_(rect)
@@ -245,7 +222,7 @@ class ____PluginClassName____(GeneralPlugin):
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = NSColor.blackColor()
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSColor.whiteColor()
 
-	def showWindow_(self, sender): # 開啟視窗動作
+	def showWindow_(self, sender): # 開啟視窗執行的指令
 		global defaultWhite
 		global defaultBlack
 		try:
@@ -356,7 +333,7 @@ class ____PluginClassName____(GeneralPlugin):
 		except:
 			self.logError(traceback.format_exc())
 
-	def windowClosed_(self, sender):
+	def windowClosed_(self, sender): # 關閉視窗執行的指令
 		Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"] = self.w.edit.get()
 		if Glyphs.versionNumber < 3:
 			R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
@@ -367,13 +344,13 @@ class ____PluginClassName____(GeneralPlugin):
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = self.w.preview.foreColour
 			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = self.w.preview.backColour
 
+	@objc.python_method
+	def __del__(self): # 關閉程式碼前執行的指令
+		Glyphs.removeCallback( self.changeGlyph_, UPDATEINTERFACE )
+
 	## 以下程式碼務必保留置底
 	#------------------------------
 	@objc.python_method # 關閉外掛行為方法
-	def __del__(self):
-		Glyphs.removeCallback(self.changeInstance_, UPDATEINTERFACE)
-		Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
-
 	def __file__(self):
 		"""Please leave this method unchanged"""
 		return __file__
