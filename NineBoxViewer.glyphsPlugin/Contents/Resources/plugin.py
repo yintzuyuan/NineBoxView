@@ -27,7 +27,7 @@ class NineBoxView(NSView):
 
 	@objc.python_method
 	def drawRect_(self, rect):
-		self.wrapper.backColour.set() # 填充背景色
+		self.wrapper._backColour.set() # 設定背景色
 		NSBezierPath.fillRect_(rect)
 
 		lineSpace = 8
@@ -35,20 +35,9 @@ class NineBoxView(NSView):
 		w = NSWidth(self.frame())
 		h = NSHeight(self.frame())
 		glyphNames = self.wrapper._glyphsList
-		insIndex = self.wrapper._instanceIndex
-		if insIndex == 0:
-			font = Glyphs.font
-			m = font.selectedFontMaster
-		else:
-			instance = Glyphs.font.instances[insIndex-1]
-			font = self.wrapper.instances.get(instance.name)
-			if font is None:
-				font = instance.interpolatedFont
-				self.wrapper.instances[instance.name] = font
-			m = font.masters[0]
+
 		fullPath = NSBezierPath.alloc().init()
-		advance = 0
-		self.wrapper.foreColour.set() # 設定前景色
+		self.wrapper._foreColour.set() # 設定前景色
 
 		## 主要字
 		#------------------------
@@ -192,10 +181,9 @@ class TheView(VanillaBaseObject):
 	nsGlyphPreviewClass = NineBoxView # NSView的class檔名
 
 	def __init__(self, posSize):
-		self._glyphsList = []
-		self.foreColour = None
-		self.backColour = None
-		self._instanceIndex = 0
+		self._glyphsList = [] # 參考字導出到GUI
+		self._foreColour = None # 前景色導出到GUI
+		self._backColour = None # 背景色導出到GUI
 		self._setupView(self.nsGlyphPreviewClass, posSize)
 		self._nsObject.wrapper = self
 
@@ -213,70 +201,66 @@ class ____PluginClassName____(GeneralPlugin):
 		'jp': u'九宮格プレビュー',
 		'kr': u'구궁격 미리보기'
 		})
-		if Glyphs.versionNumber < 3: # Glyphs版本 2
-			Glyphs.registerDefaults({
-			"com.YinTzuYuan.NineBoxView.foreColour": [0, 0, 0, 1], # 預設前景色 黑色
-			"com.YinTzuYuan.NineBoxView.backColour": [1, 1, 1, 1] # 預設背景色 白色
-			})
-		else: # Glyphs版本 3
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = NSColor.blackColor()
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSColor.whiteColor()
 
-	def showWindow_(self, sender): # 開啟視窗執行的指令
-		global defaultWhite
-		global defaultBlack
+	@objc.python_method
+	def start(self):
+		newMenuItem = NSMenuItem(self.name, self.showWindow)
+		Glyphs.menu[WINDOW_MENU].append(newMenuItem)
+
+	@objc.python_method
+	def showWindow(self, sender): # 開啟視窗執行的指令
 		try:
 			edY = 22 # 行高
 			clX = 44 # 明暗模式按鈕寬度
 			spX = 8
 			spY = 8
-			# btnY = 17
 			self.windowWidth = 300
 			self.windowHeight = 240
-			self.currentDocument = Glyphs.currentDocument
 			self.thisfont = Glyphs.font
-			# self.thisfont = GlyphsApp.currentFont()
 			self.w = FloatingWindow((self.windowWidth, self.windowWidth), self.name,
 				autosaveName = "com.YinTzuYuan.NineBoxView.mainwindow",
 				minSize=(self.windowWidth, self.windowWidth + 20))
-			self.w.bind("close", self.windowClosed_)
-			insList = [i.name for i in Glyphs.font.instances]
-			insList.insert(0, 'Current Master')
 			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.textChanged_)
-			self.w.edit.getNSTextField().setNeedsLayout_(True)
-			self.w.refresh = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
+			self.w.uiMode = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
 			self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽畫面
-			self.w.preview.foreColour = defaultBlack # 預覽畫面前景色
-			self.w.preview.backColour = defaultWhite # 預覽畫面背景色
-			self.w.preview.instances = {}
-			self.loadPrefs()
+			self.w.preview.foreColour = NSColor.blackColor() # 預覽畫面前景色
+			self.w.preview.backColour = NSColor.whiteColor() # 預覽畫面背景色
+			self.LoadPreferences() # 載入偏好設定
 			self.w.open()
-			# self.uiChange_(None)
-			self.changeInstance_([i.name for i in Glyphs.font.instances])
 			self.textChanged_(self.w.edit)
-			Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
-			Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
+			self.uiChange_(None)
+			# Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
+			# Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
 		except:
 			print(traceback.format_exc())
 
-	@objc.python_method # 載入儲存值
-	def loadPrefs(self):
+	def SavePreferences(self, sender=None): # 儲存偏好設定
 		try:
-			editText = Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"]
-			if editText:
-				self.w.edit.set(editText)
-			if Glyphs.versionNumber < 3: # Glyphs版本 2
-				R_f, G_f, B_f, A_f = Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_f), float(G_f), float(B_f), float(A_f))
-				R_b, G_b, B_b, A_b = Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_b), float(G_b), float(B_b), float(A_b))
-			else: # Glyphs版本 3
-				f = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.preview.foreColour = f
-				b = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.preview.backColour = b
+			# 將當前設定值存入偏好設定
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.edit"] = self.w.edit.get()
+			Glyphs.defaults["com.YinTzuYuan.NineBoxView.mainwindow.uiMode"] = self.w.preview.foreColour.get()
+
+			return True
 		except:
+			import traceback
 			print(traceback.format_exc())
+			return False
+
+	@objc.python_method
+	def LoadPreferences(self): # 載入偏好設定
+		try:
+			# register defaults:
+			Glyphs.registerDefault("com.YinTzuYuan.NineBoxView.edit", "東")
+			Glyphs.registerDefault("com.YinTzuYuan.NineBoxView.uiMode", "Light")
+
+			# load previously written prefs:
+			self.w.edit.set(Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"])
+			self.w.preview.foreColour.set(Glyphs.defaults["com.YinTzuYuan.NineBoxView.uiMode"])
+			return True
+		except:
+			import traceback
+			print(traceback.format_exc())
+			return False
 
 	@objc.python_method # 修改輸入設定方法
 	def textChanged_(self, sender): # 修改輸入文本
@@ -284,73 +268,32 @@ class ____PluginClassName____(GeneralPlugin):
 		self.w.preview.redraw()
 
 	def uiChange_(self, sender): # 修改顏色
-		global defaultWhite
-		global defaultBlack
-		global DisplayMode
 		try:
-			if DisplayMode == "Light":
-				self.w.preview.foreColour = defaultBlack
-				self.w.preview.backColour = defaultWhite
-				pass
-			elif DisplayMode == "Dark":
-				self.w.preview.foreColour = defaultWhite
-				self.w.preview.backColour = defaultBlack
-				pass
-
-			if DisplayMode == "Light":
-				DisplayMode = "Dark"
+			if self.w.preview.foreColour == NSColor.blackColor():
+				uiMode_Dark()
 			else:
-				DisplayMode = "Light"
+				uiMode_Light()
 			self.w.preview.redraw() # 重新繪製預覽畫面
 		except:
 			print(traceback.format_exc())
 
-	def changeDocument_(self, sender): # 修改文件？
-		"""
-		Update when current document changes (choosing another open Font)
-		"""
-		self.w.preview.instances = {}
-		self.w.preview._instanceIndex = 0
-		self.w.preview.redraw()
-		self.changeInstance_([i.name for i in Glyphs.font.instances])
-		(None)
+	@objc.python_method # 明暗模式顏色設定
+	def uiMode_Light(self): # 亮色模式
+		self.w.preview.foreColour = NSColor.blackColor()
+		self.w.preview.backColour = NSColor.whiteColor()
 
-	def changeInstance_(self, sender): # 修改主板/匯出實體
-		currentIndex = 0 # 當前索引被賦值為零
-		insList = [i.name for i in Glyphs.font.instances] # 主板選單被賦值為當前主板
-		insList.insert(0, 'Current Master') # 主板選單變為當前主板
-		self.w.preview._instanceIndex = currentIndex # 預覽畫面被賦值為當前索引
-		self.w.preview.redraw() # 重新繪製預覽畫面
+	def uiMode_Dark(self): # 暗色模式
+		self.w.preview.foreColour = NSColor.whiteColor()
+		self.w.preview.backColour = NSColor.blackColor()
 
-	@objc.python_method
-	def start(self):
-		newMenuItem = NSMenuItem(self.name, self.showWindow_)
-		Glyphs.menu[WINDOW_MENU].append(newMenuItem)
-
-	def setWindowController_(self, windowController):
-		try:
-			self._windowController = windowController
-		except:
-			self.logError(traceback.format_exc())
-
-	def windowClosed_(self, sender): # 關閉視窗執行的指令
-		Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"] = self.w.edit.get()
-		if Glyphs.versionNumber < 3:
-			R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
-			R_b, G_b, B_b, A_b = b.redComponent(), b.greenComponent(), b.blueComponent(), b.alphaComponent()
-			Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"] = (R_f, G_f, B_f, A_f)
-			Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"] = (R_b, G_b, B_b, A_b)
-		else:
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = self.w.preview.foreColour
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = self.w.preview.backColour
-
-	@objc.python_method
-	def __del__(self): # 關閉程式碼前執行的指令
-		Glyphs.removeCallback( self.changeGlyph_, UPDATEINTERFACE )
+	@objc.python_method # 關閉外掛行為方法
+	# def __del__(self):
+		# Glyphs.removeCallback(self.changeInstance_, UPDATEINTERFACE)
+		# Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
 
 	## 以下程式碼務必保留置底
 	#------------------------------
-	@objc.python_method # 關閉外掛行為方法
+
 	def __file__(self):
 		"""Please leave this method unchanged"""
 		return __file__
