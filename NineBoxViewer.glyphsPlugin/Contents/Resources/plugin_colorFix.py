@@ -23,27 +23,26 @@ from Foundation import NSWidth, NSHeight, NSMidX, NSMidY
 import traceback
 import re, objc
 
-surrogate_pairs = re.compile(u'[\ud800-\udbff][\udc00-\udfff]', re.UNICODE)
-surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
-emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
-
+# surrogate_pairs = re.compile(u'[\ud800-\udbff][\udc00-\udfff]', re.UNICODE)
+# surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
+# emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
 
 class NineBoxView(NSView):
 
-	@objc.python_method
-	def glyphForName(self, name, font):
-		if len(name) == 1:
-			glyph_unicode = "%.4X" % ord(name)
-		else:
-			glyph_unicode = name.encode('unicode-escape')
-		glyph = font.glyphs[glyph_unicode]
-		if glyph is None:
-			if len(glyph_unicode) == 10:
-				glyph_unicode = glyph_unicode[5:].upper()
-			glyph = f.glyphForUnicode_(glyph_unicode)
-		# if glyph is None:
-		# 	glyph = font.glyphs['.notdef']
-		return glyph
+	# @objc.python_method
+	# def glyphForName(self, name, font):
+	# 	if len(name) == 1:
+	# 		glyph_unicode = "%.4X" % ord(name)
+	# 	else:
+	# 		glyph_unicode = name.encode('unicode-escape')
+	# 	glyph = font.glyphs[glyph_unicode]
+	# 	if glyph is None:
+	# 		if len(glyph_unicode) == 10:
+	# 			glyph_unicode = glyph_unicode[5:].upper()
+	# 		glyph = f.glyphForUnicode_(glyph_unicode)
+	# 	# if glyph is None:
+	# 	# 	glyph = font.glyphs['.notdef']
+	# 	return glyph
 
 	def drawRect_(self, rect):
 		self.wrapper.backColour.set() # 填充背景色
@@ -53,21 +52,21 @@ class NineBoxView(NSView):
 		tab = 30
 		w = NSWidth(self.frame())
 		h = NSHeight(self.frame())
-		glyphNames = self.wrapper._glyphsList
-		insIndex = self.wrapper._instanceIndex
-		if insIndex == 0:
-			font = Glyphs.font
-			m = font.selectedFontMaster
-		else:
-			instance = Glyphs.font.instances[insIndex-1]
-			font = self.wrapper.instances.get(instance.name)
-			if font is None:
-				font = instance.interpolatedFont
-				self.wrapper.instances[instance.name] = font
-			m = font.masters[0]
+		# glyphNames = self.wrapper._glyphsList
+		# insIndex = self.wrapper._instanceIndex
+		# if insIndex == 0:
+		# 	font = Glyphs.font
+		# 	m = font.selectedFontMaster
+		# else:
+		# 	instance = Glyphs.font.instances[insIndex-1]
+		# 	font = self.wrapper.instances.get(instance.name)
+		# 	if font is None:
+		# 		font = instance.interpolatedFont
+		# 		self.wrapper.instances[instance.name] = font
+		# 	m = font.masters[0]
 		fullPath = NSBezierPath.alloc().init()
-		advance = 0
 		self.wrapper.foreColour.set() # 設定前景色
+
 
 		## 主要字
 		#------------------------
@@ -82,13 +81,14 @@ class NineBoxView(NSView):
 			thisGlyph = Glyphs.font.selectedLayers[0]
 		except:
 			print(traceback.format_exc())
+		#------------------------
 
 		if thisGlyph is None:
 			return
 
 		try:
 			sSum = 0
-			upm = float(font.upm)
+			upm = float(Glyphs.font.upm)
 			for i, s in enumerate([120]): # 顯示字型大小
 				sSum += s # 顯示大小+(顯示大小/4)
 			previewPath = thisGlyph.completeBezierPath
@@ -107,102 +107,118 @@ class NineBoxView(NSView):
 
 		## 參考字
 		#------------------------
-		try: # 選擇字符
-			for i, glyphName in enumerate(glyphNames):
+		# try: # 選擇字符
+		# 	for i, glyphName in enumerate(glyphNames):
+		#
+		# 		glyph = self.glyphForName(glyphName, font)
+		# 		if glyph:
+		# 			layer = glyph.layers[m.id]
+		#
+		# 			layerPath = layer.completeBezierPath
+		# 			# kerning check
+		# 			if i + 1 < len(glyphNames): # 如果字數大於一
+		# 				nextGlyphName = glyphNames[i + 1]
+		# 				nextGlyph = self.glyphForName(nextGlyphName, font)
+		# 				if nextGlyph:
+		# 					nextLayer = nextGlyph.layers[m.id]
+		# 					if nextLayer:
+		# 						kernValue = getKernValue(layer, nextLayer)
+		# 						if kernValue > 10000:
+		# 							kernValue = 0
+		#
+		# 			fullPath.appendBezierPath_(layerPath)
+		# except:
+		# 	print(traceback.format_exc())
+		#------------------------
+		#------------------------
+		if Glyphs.font is None:
+			return
 
-				glyph = self.glyphForName(glyphName, font)
-				if glyph:
-					layer = glyph.layers[m.id]
+		if not Glyphs.font.selectedLayers:
+			return
 
-					layerPath = layer.completeBezierPath
-					# kerning check
-					if i + 1 < len(glyphNames): # 如果字數小於一
-						nextGlyphName = glyphNames[i + 1]
-						nextGlyph = self.glyphForName(nextGlyphName, font)
-						if nextGlyph:
-							nextLayer = nextGlyph.layers[m.id]
-							if nextLayer:
-								kernValue = getKernValue(layer, nextLayer)
-								if kernValue > 10000:
-									kernValue = 0
-
-					fullPath.appendBezierPath_(layerPath)
+		thisGlyph = None
+		try:
+			thisGlyph = Glyphs.font.selectedLayers[0]
 		except:
 			print(traceback.format_exc())
+		#------------------------
 
 		if fullPath is None: # 判斷如果沒有找到路徑就返回
 			return
 
 		try: # 顯示位置
 			sSum = 0
-			upm = float(font.upm)
+			upm = float(Glyphs.font.upm)
 			for i, s in enumerate([120]): # 顯示字型大小
 				sSum += s # 顯示大小+顯示大小
+			previewPath = thisGlyph.completeBezierPath
 
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm) # 縮放尺寸(顯示大小/原始大小)
-				transform.translateXBy_yBy_(tab*upm/s, (h-s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小-sSum)*原始大小/顯示大小)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_((tab+s)*upm/s, (h-s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_(tab*upm/s, (h-2*s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-2*s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm) # 縮放尺寸(顯示大小/原始大小)
-				transform.translateXBy_yBy_(tab*upm/s, (h-3*s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小-sSum)*原始大小/顯示大小)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_((tab+s)*upm/s, (h-3*s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
-				transform = NSAffineTransform.transform()
-				transform.scaleBy_(s/upm)
-				transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-3*s)*upm/s)
-				fullPath.transformUsingAffineTransform_(transform)
-				fullPath.fill() # 填滿顏色
-				transform.invert()
-				fullPath.transformUsingAffineTransform_(transform)
-				#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm) # 縮放尺寸(顯示大小/原始大小)
+			transform.translateXBy_yBy_(tab*upm/s, (h-s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小-sSum)*原始大小/顯示大小)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_((tab+s)*upm/s, (h-s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_(tab*upm/s, (h-2*s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-2*s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm) # 縮放尺寸(顯示大小/原始大小)
+			transform.translateXBy_yBy_(tab*upm/s, (h-3*s)*upm/s) # 移動位置(tab*原始大小/顯示大小, (視窗高度-顯示大小-sSum)*原始大小/顯示大小)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_((tab+s)*upm/s, (h-3*s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+			transform = NSAffineTransform.transform()
+			transform.scaleBy_(s/upm)
+			transform.translateXBy_yBy_((tab+2*s)*upm/s, (h-3*s)*upm/s)
+			fullPath.transformUsingAffineTransform_(transform)
+			fullPath.fill() # 填滿顏色
+			transform.invert()
+			fullPath.transformUsingAffineTransform_(transform)
+			#------------------------------
+
 		except:
 			print(traceback.format_exc())
 
@@ -233,7 +249,12 @@ class ____PluginClassName____(GeneralPlugin):
 		'kr': u'구궁격 미리보기'
 		})
 
-	def showWindow_(self, sender): # 開啟視窗動作
+	@objc.python_method
+	def start(self):
+		newMenuItem = NSMenuItem(self.name, self.showWindow_)
+		Glyphs.menu[WINDOW_MENU].append(newMenuItem)
+
+	def showWindow_(self, sender): # 開啟視窗
 		try:
 			edY = 22 # 行高
 			clX = 44 # 明暗模式按鈕寬度
@@ -244,32 +265,34 @@ class ____PluginClassName____(GeneralPlugin):
 			self.windowHeight = 240
 			self.currentDocument = Glyphs.currentDocument
 			self.thisfont = Glyphs.font
-			# self.thisfont = GlyphsApp.currentFont()
 			self.w = FloatingWindow((self.windowWidth, self.windowWidth), self.name,
 				autosaveName = "com.YinTzuYuan.NineBoxView.mainwindow",
 				minSize=(self.windowWidth, self.windowWidth + 20))
 			self.w.bind("close", self.windowClosed_)
 			insList = [i.name for i in Glyphs.font.instances]
 			insList.insert(0, 'Current Master')
-			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.textChanged_)
+			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.tempChanged_)
 			self.w.edit.getNSTextField().setNeedsLayout_(True)
-			self.w.uiChangeButton = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
+			self.w.uiChangeButton = Button((-spX-clX, spY, clX, edY), "◐L", callback=self.uiChange_) # 明暗模式切換
+			self.w.setDefaultButton(self.w.uiChangeButton)
 			self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽畫面
 			self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1) # 預覽畫面前景色
 			self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1) # 預覽畫面背景色
+
 			self.w.preview.instances = {}
 			self.LoadPreferences()
 			self.w.open()
-			self.uiChange_(None)
+			# self.w.makeKey()
+			self.uiChange_(self.w.uiChangeButton)
 			self.changeInstance_([i.name for i in Glyphs.font.instances])
-			self.textChanged_(self.w.edit)
+			self.tempChanged_(self.w.edit)
 			Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
-			Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
+			# Glyphs.addCallback(self.changeDocument_, DOCUMENTACTIVATED)
 		except:
 			print(traceback.format_exc())
 
-	@objc.python_method # 載入儲存值
-	def LoadPreferences(self):
+	@objc.python_method
+	def LoadPreferences(self): # 載入儲存值
 		try:
 			# 預設值：
 			Glyphs.registerDefault("com.YinTzuYuan.NineBoxView.edit", "東")
@@ -278,46 +301,35 @@ class ____PluginClassName____(GeneralPlugin):
 			# 載入修改後的偏好設定：
 			self.w.edit.set(Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"])
 			self.w.uiChangeButton.setTitle(Glyphs.defaults["com.YinTzuYuan.NineBoxView.uiChangeButton"])
-			self.uiChange_(self.w.uiChangeButton)
 		except:
 			print(traceback.format_exc())
 
-	@objc.python_method # 修改輸入設定方法
-	def textChanged_(self, sender): # 修改輸入文本
+	@objc.python_method # 輸入設定動作
+	def tempChanged_(self, sender): # 參考字修改
 		self.w.preview._glyphsList = self.w.edit.get()
 		self.w.preview.redraw()
 
-	def uiChange_(self, sender): # 修改顏色
+	def uiChange_(self, sender): # 明暗模式修改
 		try:
 			 # 取得當前模式名稱
 			current_Mode = self.w.uiChangeButton.getTitle()
 
 		    # 判斷當前模式是否為明亮模式
-			is_Light_Mode = (current_Mode == "◐")
+			is_Light_Mode = (current_Mode == "◐L")
 
 		    # 依據當前的模式設定新的模式
 			if is_Light_Mode: # 如果是明亮模式
-				self.w.uiChangeButton.setTitle("◑") # 切換為黑暗模式
+				self.w.uiChangeButton.setTitle("◑D") # 切換為黑暗模式
 				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
 				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
 			else: # 否則
-				self.w.uiChangeButton.setTitle("◐") # 切換為明亮模式
+				self.w.uiChangeButton.setTitle("◐L") # 切換為明亮模式
 				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
 				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
 
 			self.w.preview.redraw() # 重新繪製預覽畫面
 		except:
 			print(traceback.format_exc())
-
-	def changeDocument_(self, sender): # 修改文件？
-		"""
-		Update when current document changes (choosing another open Font)
-		"""
-		self.w.preview.instances = {}
-		self.w.preview._instanceIndex = 0
-		self.w.preview.redraw()
-		self.changeInstance_([i.name for i in Glyphs.font.instances])
-		(None)
 
 	def changeInstance_(self, sender): # 修改主板/匯出實體
 		currentIndex = 0 # 當前索引被賦值為零
@@ -326,18 +338,7 @@ class ____PluginClassName____(GeneralPlugin):
 		self.w.preview._instanceIndex = currentIndex # 預覽畫面被賦值為當前索引
 		self.w.preview.redraw() # 重新繪製預覽畫面
 
-	@objc.python_method
-	def start(self):
-		newMenuItem = NSMenuItem(self.name, self.showWindow_)
-		Glyphs.menu[WINDOW_MENU].append(newMenuItem)
-
-	def setWindowController_(self, windowController):
-		try:
-			self._windowController = windowController
-		except:
-			self.logError(traceback.format_exc())
-
-	def windowClosed_(self, sender):
+	def windowClosed_(self, sender): # 關閉視窗時儲存的設定
 		Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"] = self.w.edit.get()
 		Glyphs.defaults["com.YinTzuYuan.NineBoxView.uiChangeButton"] = self.w.uiChangeButton.getTitle()
 
@@ -346,7 +347,7 @@ class ____PluginClassName____(GeneralPlugin):
 	@objc.python_method # 關閉外掛行為方法
 	def __del__(self):
 		Glyphs.removeCallback(self.changeInstance_, UPDATEINTERFACE)
-		Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
+		# Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
 
 	def __file__(self):
 		"""Please leave this method unchanged"""
