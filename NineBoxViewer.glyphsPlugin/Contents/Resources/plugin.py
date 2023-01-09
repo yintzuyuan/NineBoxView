@@ -27,10 +27,6 @@ surrogate_pairs = re.compile(u'[\ud800-\udbff][\udc00-\udfff]', re.UNICODE)
 surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
 emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
 
-defaultWhite = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
-defaultBlack = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
-DisplayMode = "Light"
-
 
 class NineBoxView(NSView):
 
@@ -120,7 +116,7 @@ class NineBoxView(NSView):
 
 					layerPath = layer.completeBezierPath
 					# kerning check
-					if i + 1 < len(glyphNames): # 如果字數大於一
+					if i + 1 < len(glyphNames): # 如果字數小於一
 						nextGlyphName = glyphNames[i + 1]
 						nextGlyph = self.glyphForName(nextGlyphName, font)
 						if nextGlyph:
@@ -236,18 +232,8 @@ class ____PluginClassName____(GeneralPlugin):
 		'jp': u'九宮格プレビュー',
 		'kr': u'구궁격 미리보기'
 		})
-		if Glyphs.versionNumber < 3: # Glyphs版本 2
-			Glyphs.registerDefaults({
-			"com.YinTzuYuan.NineBoxView.foreColour": [0, 0, 0, 1], # 預設前景色 黑色
-			"com.YinTzuYuan.NineBoxView.backColour": [1, 1, 1, 1] # 預設背景色 白色
-			})
-		else: # Glyphs版本 3
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = NSColor.blackColor()
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = NSColor.whiteColor()
 
 	def showWindow_(self, sender): # 開啟視窗動作
-		global defaultWhite
-		global defaultBlack
 		try:
 			edY = 22 # 行高
 			clX = 44 # 明暗模式按鈕寬度
@@ -267,14 +253,14 @@ class ____PluginClassName____(GeneralPlugin):
 			insList.insert(0, 'Current Master')
 			self.w.edit = EditText( (spX, spY, (-spX*3-clX)-80, edY), text="東", callback=self.textChanged_)
 			self.w.edit.getNSTextField().setNeedsLayout_(True)
-			self.w.refresh = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
+			self.w.uiChangeButton = Button((-spX-clX, spY, clX, edY), "◐", callback=self.uiChange_) # 明暗模式切換
 			self.w.preview = TheView((0, spX*3+edY, -0, -0)) # 預覽畫面
-			self.w.preview.foreColour = defaultBlack # 預覽畫面前景色
-			self.w.preview.backColour = defaultWhite # 預覽畫面背景色
+			self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1) # 預覽畫面前景色
+			self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1) # 預覽畫面背景色
 			self.w.preview.instances = {}
-			self.loadPrefs()
+			self.LoadPreferences()
 			self.w.open()
-			# self.uiChange_(None)
+			self.uiChange_(None)
 			self.changeInstance_([i.name for i in Glyphs.font.instances])
 			self.textChanged_(self.w.edit)
 			Glyphs.addCallback(self.changeInstance_, UPDATEINTERFACE)  # will be called on every change to the interface
@@ -283,21 +269,16 @@ class ____PluginClassName____(GeneralPlugin):
 			print(traceback.format_exc())
 
 	@objc.python_method # 載入儲存值
-	def loadPrefs(self):
+	def LoadPreferences(self):
 		try:
-			editText = Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"]
-			if editText:
-				self.w.edit.set(editText)
-			if Glyphs.versionNumber < 3: # Glyphs版本 2
-				R_f, G_f, B_f, A_f = Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_f), float(G_f), float(B_f), float(A_f))
-				R_b, G_b, B_b, A_b = Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(float(R_b), float(G_b), float(B_b), float(A_b))
-			else: # Glyphs版本 3
-				f = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"]
-				self.w.preview.foreColour = f
-				b = Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"]
-				self.w.preview.backColour = b
+			# 預設值：
+			Glyphs.registerDefault("com.YinTzuYuan.NineBoxView.edit", "東")
+			Glyphs.registerDefault("com.YinTzuYuan.NineBoxView.uiChangeButton", "◐")
+
+			# 載入修改後的偏好設定：
+			self.w.edit.set(Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"])
+			self.w.uiChangeButton.setTitle(Glyphs.defaults["com.YinTzuYuan.NineBoxView.uiChangeButton"])
+			self.uiChange_(self.w.uiChangeButton)
 		except:
 			print(traceback.format_exc())
 
@@ -307,23 +288,23 @@ class ____PluginClassName____(GeneralPlugin):
 		self.w.preview.redraw()
 
 	def uiChange_(self, sender): # 修改顏色
-		global defaultWhite
-		global defaultBlack
-		global DisplayMode
 		try:
-			if DisplayMode == "Light":
-				self.w.preview.foreColour = defaultBlack
-				self.w.preview.backColour = defaultWhite
-				pass
-			elif DisplayMode == "Dark":
-				self.w.preview.foreColour = defaultWhite
-				self.w.preview.backColour = defaultBlack
-				pass
+			 # 取得當前模式名稱
+			current_Mode = self.w.uiChangeButton.getTitle()
 
-			if DisplayMode == "Light":
-				DisplayMode = "Dark"
-			else:
-				DisplayMode = "Light"
+		    # 判斷當前模式是否為明亮模式
+			is_Light_Mode = (current_Mode == "◐")
+
+		    # 依據當前的模式設定新的模式
+			if is_Light_Mode: # 如果是明亮模式
+				self.w.uiChangeButton.setTitle("◑") # 切換為黑暗模式
+				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
+				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
+			else: # 否則
+				self.w.uiChangeButton.setTitle("◐") # 切換為明亮模式
+				self.w.preview.foreColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(0,0,0,1)
+				self.w.preview.backColour = NSColor.colorWithCalibratedRed_green_blue_alpha_(1,1,1,1)
+
 			self.w.preview.redraw() # 重新繪製預覽畫面
 		except:
 			print(traceback.format_exc())
@@ -358,14 +339,7 @@ class ____PluginClassName____(GeneralPlugin):
 
 	def windowClosed_(self, sender):
 		Glyphs.defaults["com.YinTzuYuan.NineBoxView.edit"] = self.w.edit.get()
-		if Glyphs.versionNumber < 3:
-			R_f, G_f, B_f, A_f = f.redComponent(), f.greenComponent(), f.blueComponent(), f.alphaComponent()
-			R_b, G_b, B_b, A_b = b.redComponent(), b.greenComponent(), b.blueComponent(), b.alphaComponent()
-			Glyphs.defaults["com.YinTzuYuan.NineBoxView.foreColour"] = (R_f, G_f, B_f, A_f)
-			Glyphs.defaults["com.YinTzuYuan.NineBoxView.backColour"] = (R_b, G_b, B_b, A_b)
-		else:
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.foreColour"] = self.w.preview.foreColour
-			Glyphs.colorDefaults["com.YinTzuYuan.NineBoxView.backColour"] = self.w.preview.backColour
+		Glyphs.defaults["com.YinTzuYuan.NineBoxView.uiChangeButton"] = self.w.uiChangeButton.getTitle()
 
 	## 以下程式碼務必保留置底
 	#------------------------------
