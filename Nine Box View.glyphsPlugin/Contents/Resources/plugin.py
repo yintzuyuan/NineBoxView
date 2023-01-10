@@ -229,8 +229,8 @@ class NineBoxView(GeneralPlugin):
 		'en': u'Nine Box View',
 		'zh-Hant': u'九宮格預覽',
 		'zh-Hans': u'九宫格预览',
-		'jp': u'九宮格プレビュー',
-		'kr': u'구궁격 미리보기'
+		'ja': u'九宮格プレビュー',
+		'ko': u'구궁격 미리보기'
 		})
 
 	def showWindow_(self, sender): # 開啟視窗動作
