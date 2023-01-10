@@ -28,7 +28,7 @@ surrogate_start = re.compile(u'[\ud800-\udbff]', re.UNICODE)
 emoji_variation_selector = re.compile(u'[\ufe00-\ufe0f]', re.UNICODE)
 
 
-class NineBoxView(NSView):
+class Viwer(NSView):
 
 	@objc.python_method
 	def glyphForName(self, name, font):
@@ -208,7 +208,7 @@ class NineBoxView(NSView):
 
 
 class TheView(VanillaBaseObject):
-	nsGlyphPreviewClass = NineBoxView # NSView的class檔名
+	nsGlyphPreviewClass = Viwer # NSView的class檔名
 
 	def __init__(self, posSize):
 		self._glyphsList = []
@@ -222,7 +222,7 @@ class TheView(VanillaBaseObject):
 		self._nsObject.setNeedsDisplay_(True)
 
 
-class ____PluginClassName____(GeneralPlugin):
+class NineBoxView(GeneralPlugin):
 	@objc.python_method # 設定外掛初始值方法
 	def settings(self): # 預設選項
 		self.name = Glyphs.localize({ # 外掛名稱

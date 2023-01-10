@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- 文件詳細說明：https://github.com/schriftgestalt/GlyphsSDK/tree/Glyphs3/Python%20Templates -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key> <!-- 開發語言 -->
+	<string>zh-Hant</string>
+	<key>CFBundleExecutable</key> <!-- 封包類型 -->
+	<string>plugin</string>
+	<key>CFBundleIdentifier</key> <!-- 封包設定識別碼 -->
+	<string>com.YinTzuYuan.NineBoxView</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
+	<string>Nine Box View</string>
+	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
+	<string>1.0</string>
+	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
+	<string>7</string>
+	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
+	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
+	<key>productPageURL</key> <!-- 產品網頁連結 -->
+	<string>https://github.com/yintzuyuan/NineBoxView</string>
+	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
+	<string>First Release.</string>
+	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
+	<string>Copyright, Tzuyuan Yin, 2023</string>
+	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
+	<string>NineBoxView</string>
+	<key>PyMainFileNames</key>
+	<array>
+		<string>plugin.py</string>
+	</array>
+</dict>
+</plist>
