@@ -49,7 +49,7 @@ class NineBoxPreviewView(NSView):
             self.searchChar = self.wrapper.plugin.lastChar or currentChar
 
             # 可調整參數
-            MARGIN_RATIO = 0.10  # 邊距佔視窗高度的比例
+            MARGIN_RATIO = 0.07  # 邊距佔視窗高度的比例
             SPACING_RATIO = 0.03  # 間距佔字寬的比例
 
             # 計算固定的字形高度和寬度
@@ -84,7 +84,10 @@ class NineBoxPreviewView(NSView):
 
             # 計算九宮格的起始位置（左上角），確保居中
             startX = (rect.size.width - gridWidth) / 2
-            startY = (rect.size.height + gridHeight) / 2
+            
+            # 修改這裡：將九宮格向上移動一些
+            offsetY = rect.size.height * 0.07  # 向上偏移視窗高度的 5%
+            startY = (rect.size.height + gridHeight) / 2 + offsetY
 
             for i in range(9):
                 row = i // 3
@@ -148,7 +151,10 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def settings(self):
-        self.name = Glyphs.localize({'en': u'Nine Box View', 'zh-Hant': u'九宮格預覽'})
+        self.name = Glyphs.localize({
+            'en': u'Nine Box View', 
+            'zh-Hant': u'九宮格預覽'
+            })
 
     @objc.python_method
     def start(self):
