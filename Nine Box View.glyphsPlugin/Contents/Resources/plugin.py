@@ -22,16 +22,6 @@ from vanilla import Window, Group, Button, EditText
 import traceback
 
 class NineBoxPreviewView(NSView):
-    def init(self):
-        self = super(NineBoxPreviewView, self).init()
-        if self:
-            self.cachedWidth = 0
-            self.cachedHeight = 0
-            self.cachedSearchChar = None
-            self.currentLayer = None
-            self.searchChar = None
-        return self
-
     def drawRect_(self, rect):
         try:
             # 設定背景顏色
@@ -52,55 +42,71 @@ class NineBoxPreviewView(NSView):
             MARGIN_RATIO = 0.07  # 邊距佔視窗高度的比例
             SPACING_RATIO = 0.03  # 間距佔字寬的比例
 
-            # 計算固定的字形高度和寬度
-            self.cachedWidth = self.currentLayer.width
+            # 計算固定的字形高度
             self.cachedHeight = Glyphs.font.masters[0].ascender - Glyphs.font.masters[0].descender
 
             # 計算邊距
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
-            # 計算九宮格的可用空間
-            availableWidth = rect.size.width - 2 * MARGIN
-            availableHeight = rect.size.height - 2 * MARGIN
+            # 獲取中間字符和搜尋字符的寬度
+            centerGlyph = self.currentLayer.parent
+            centerWidth = centerGlyph.layers[Glyphs.font.selectedFontMaster.id].width
+            searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
+            searchWidth = searchGlyph.layers[Glyphs.font.selectedFontMaster.id].width
 
-            # 計算單個字形的理想大小和間距
-            idealCellWidth = self.cachedWidth
-            idealCellHeight = self.cachedHeight
-            idealSpacing = idealCellWidth * SPACING_RATIO
-            idealGridWidth = idealCellWidth * 3 + idealSpacing * 2
-            idealGridHeight = idealCellHeight * 3 + idealSpacing * 2
+            # 計算間距
+            SPACING = max(centerWidth, searchWidth) * SPACING_RATIO
 
-            # 計算縮放比例
-            scale = min(availableWidth / idealGridWidth, availableHeight / idealGridHeight)
-
-            # 計算實際的字形大小和間距
-            cellWidth = idealCellWidth * scale
-            cellHeight = idealCellHeight * scale
-            SPACING = idealSpacing * scale
+            # 計算格子寬度
+            searchCellWidth = searchWidth + SPACING
+            centerCellWidth = max(centerWidth, searchWidth) + SPACING
 
             # 計算九宮格的實際大小
-            gridWidth = cellWidth * 3 + SPACING * 2
-            gridHeight = cellHeight * 3 + SPACING * 2
+            gridWidth = centerCellWidth + 2 * searchCellWidth + 2 * SPACING
+            gridHeight = 3 * self.cachedHeight + 2 * SPACING
 
-            # 計算九宮格的起始位置（左上角），確保居中
-            startX = (rect.size.width - gridWidth) / 2
-            
-            # 修改這裡：將九宮格向上移動一些
-            offsetY = rect.size.height * 0.07  # 向上偏移視窗高度的 5%
+            # 確保九宮格不超出可用空間
+            availableWidth = rect.size.width - 2 * MARGIN
+            availableHeight = rect.size.height - 2 * MARGIN
+            scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
+
+            # 應用縮放
+            centerCellWidth *= scale
+            searchCellWidth *= scale
+            gridWidth *= scale
+            gridHeight *= scale
+            SPACING *= scale
+
+            # 計算九宮格的起始位置和列寬度
+            startX = rect.size.width / 2 - gridWidth / 2
+            offsetY = rect.size.height * 0.05
             startY = (rect.size.height + gridHeight) / 2 + offsetY
+            leftColumnCenterX = startX + searchCellWidth / 2
+            middleColumnCenterX = startX + searchCellWidth + SPACING + centerCellWidth / 2
+            rightColumnCenterX = startX + gridWidth - searchCellWidth / 2
 
             for i in range(9):
                 row = i // 3
                 col = i % 3
                 
-                # 計算每個格子的左上角位置
-                x = startX + col * (cellWidth + SPACING)
-                y = startY - (row + 1) * (cellHeight + SPACING)
+                # 計算每個格子的中心位置和大小
+                if col == 0:
+                    centerX = leftColumnCenterX
+                    cellWidth = searchCellWidth
+                elif col == 1:
+                    centerX = middleColumnCenterX
+                    cellWidth = centerCellWidth if i == 4 else searchCellWidth
+                else:
+                    centerX = rightColumnCenterX
+                    cellWidth = searchCellWidth
+                
+                centerY = startY - (row + 0.5) * (gridHeight / 3)
+                cellHeight = gridHeight / 3 - SPACING
 
                 if i == 4:  # 中間格子
-                    glyph = self.currentLayer.parent
+                    glyph = centerGlyph
                 else:
-                    glyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else None
+                    glyph = searchGlyph
 
                 if glyph:
                     layer = glyph.layers[Glyphs.font.selectedFontMaster.id]
@@ -112,17 +118,18 @@ class NineBoxPreviewView(NSView):
                     scaleY = cellHeight / glyphHeight if glyphHeight > 0 else 1
                     glyphScale = min(scaleX, scaleY)
 
+                    # 計算字符的左上角位置
+                    scaledWidth = glyphWidth * glyphScale
+                    scaledHeight = glyphHeight * glyphScale
+                    x = centerX - scaledWidth / 2
+                    y = centerY - scaledHeight / 2
+
+                    # 創建變換矩陣
                     transform = NSAffineTransform.transform()
                     transform.translateXBy_yBy_(x, y)
                     transform.scaleBy_(glyphScale)
 
-                    # 移動字形，使其在格子中居中
-                    scaledWidth = glyphWidth * glyphScale
-                    scaledHeight = glyphHeight * glyphScale
-                    offsetX = (cellWidth - scaledWidth) / 2
-                    offsetY = (cellHeight - scaledHeight) / 2
-                    transform.translateXBy_yBy_(offsetX, offsetY)
-
+                    # 繪製字符
                     bezierPath = layer.completeBezierPath.copy()
                     bezierPath.transformUsingAffineTransform_(transform)
 
@@ -159,11 +166,14 @@ class NineBoxView(GeneralPlugin):
     @objc.python_method
     def start(self):
         try:
+            # 在視窗選單中添加新項目
             newMenuItem = NSMenuItem(self.name, self.showWindow_)
             Glyphs.menu[WINDOW_MENU].append(newMenuItem)
             
+            # 載入偏好設定
             self.loadPreferences()
             
+            # 添加介面更新回調
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
         except:
             self.logToMacroWindow(traceback.format_exc())
@@ -171,6 +181,7 @@ class NineBoxView(GeneralPlugin):
     @objc.python_method
     def showWindow_(self, sender):
         try:
+            # 創建主視窗
             self.w = Window((300, 340), self.name, minSize=(200, 240))
             self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
             self.w.searchField = EditText((10, -30, -100, -10), 
@@ -189,31 +200,37 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def loadPreferences(self):
+        # 從 Glyphs 預設設定中讀取偏好
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
         self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
 
     @objc.python_method
     def savePreferences(self):
+        # 保存偏好設定到 Glyphs 預設設定
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
 
     @objc.python_method
     def __del__(self):
+        # 清理工作：保存偏好設定並移除回調
         self.savePreferences()
         Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
 
     @objc.python_method
     def logToMacroWindow(self, message):
+        # 將消息記錄到巨集視窗
         Glyphs.clearLog()
         print(message)
 
     @objc.python_method
     def updateInterface(self, sender):
+        # 更新介面
         if hasattr(self, 'w') and hasattr(self.w, 'preview'):
             self.w.preview.redraw()
 
     @objc.python_method
     def searchFieldCallback(self, sender):
+        # 處理搜索欄位的輸入
         char = sender.get()
         if len(char) > 0:
             self.lastChar = char[0]
@@ -221,17 +238,16 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def darkModeCallback(self, sender):
+        # 切換深色模式
         self.darkMode = not self.darkMode
         self.updateInterface(None)
 
-    ## 以下程式碼務必保留置底
-    #------------------------------
-    @objc.python_method # 關閉外掛行為方法
+    @objc.python_method
     def __del__(self):
+        # 清理工作：移除回調
         Glyphs.removeCallback(self.changeInstance_, UPDATEINTERFACE)
         Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
 
     def __file__(self):
-        """Please leave this method unchanged"""
+        """請保持此方法不變"""
         return __file__
-
