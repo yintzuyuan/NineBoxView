@@ -187,7 +187,7 @@ class NineBoxView(GeneralPlugin):
             self.w.searchField = EditText((10, -30, -100, -10), 
                                           placeholder="輸入一個字符", 
                                           callback=self.searchFieldCallback)
-            self.w.darkModeButton = Button((-90, -30, -10, -10), "深色模式",
+            self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
                                            callback=self.darkModeCallback)
             self.w.open()
             
@@ -197,6 +197,10 @@ class NineBoxView(GeneralPlugin):
             self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
+
+    @objc.python_method
+    def getDarkModeIcon(self):
+        return "🌙" if self.darkMode else "☀️"
 
     @objc.python_method
     def loadPreferences(self):
@@ -240,6 +244,7 @@ class NineBoxView(GeneralPlugin):
     def darkModeCallback(self, sender):
         # 切換深色模式
         self.darkMode = not self.darkMode
+        sender.setTitle(self.getDarkModeIcon())
         self.updateInterface(None)
 
     @objc.python_method
