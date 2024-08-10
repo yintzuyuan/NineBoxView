@@ -34,25 +34,29 @@ class NineBoxPreviewView(NSView):
             if not Glyphs.font or not Glyphs.font.selectedLayers:
                 return
 
+            # 獲取當前選中的圖層
             self.currentLayer = Glyphs.font.selectedLayers[0]
             currentChar = self.currentLayer.parent.unicode
             self.searchChar = self.wrapper.plugin.lastChar or currentChar
+
+            # 獲取當前選中的主板
+            currentMaster = Glyphs.font.selectedFontMaster
 
             # 可調整參數
             MARGIN_RATIO = 0.07  # 邊距佔視窗高度的比例
             SPACING_RATIO = 0.03  # 間距佔字寬的比例
 
             # 計算固定的字形高度
-            self.cachedHeight = Glyphs.font.masters[0].ascender - Glyphs.font.masters[0].descender
+            self.cachedHeight = currentMaster.ascender - currentMaster.descender
 
             # 計算邊距
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
             # 獲取中間字符和搜尋字符的寬度
             centerGlyph = self.currentLayer.parent
-            centerWidth = centerGlyph.layers[Glyphs.font.selectedFontMaster.id].width
+            centerWidth = self.currentLayer.width
             searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
-            searchWidth = searchGlyph.layers[Glyphs.font.selectedFontMaster.id].width
+            searchWidth = searchGlyph.layers[currentMaster.id].width
 
             # 計算間距
             SPACING = max(centerWidth, searchWidth) * SPACING_RATIO
@@ -104,13 +108,11 @@ class NineBoxPreviewView(NSView):
                 cellHeight = gridHeight / 3 - SPACING
 
                 if i == 4:  # 中間格子
-                    glyph = centerGlyph
+                    layer = self.currentLayer
                 else:
-                    glyph = searchGlyph
+                    layer = searchGlyph.layers[currentMaster.id]
 
-                if glyph:
-                    layer = glyph.layers[Glyphs.font.selectedFontMaster.id]
-                    
+                if layer:
                     # 計算縮放比例
                     glyphWidth = layer.width
                     glyphHeight = self.cachedHeight
@@ -175,6 +177,9 @@ class NineBoxView(GeneralPlugin):
             
             # 添加介面更新回調
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
+
+            # 添加字體主板變更的回調
+            Glyphs.addCallback(self.updateInterface, FONTMASTER_CHANGED)
         except:
             self.logToMacroWindow(traceback.format_exc())
 
@@ -219,12 +224,17 @@ class NineBoxView(GeneralPlugin):
         # 清理工作：保存偏好設定並移除回調
         self.savePreferences()
         Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
+        Glyphs.removeCallback(self.fontMasterChanged, FONTMASTER_CHANGED)
 
     @objc.python_method
     def logToMacroWindow(self, message):
         # 將消息記錄到巨集視窗
         Glyphs.clearLog()
         print(message)
+
+    @objc.python_method
+    def fontMasterChanged(self, info):
+        self.updateInterface(None)
 
     @objc.python_method
     def updateInterface(self, sender):
