@@ -37,7 +37,18 @@ class NineBoxPreviewView(NSView):
             # 獲取當前選中的圖層
             self.currentLayer = Glyphs.font.selectedLayers[0]
             currentChar = self.currentLayer.parent.unicode
-            self.searchChar = self.wrapper.plugin.lastChar or currentChar
+
+            # 檢查搜索欄是否為空
+            if self.wrapper.plugin.w.searchField.get().strip() == "":
+                # 如果搜索欄為空,使用當前選中的字符
+                self.searchChar = currentChar
+            else:
+                # 否則使用上次搜索的字符或當前字符
+                self.searchChar = self.wrapper.plugin.lastChar or currentChar
+
+            # 獲取搜索字符的字形
+            centerGlyph = self.currentLayer.parent
+            searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
 
             # 獲取當前選中的主板
             currentMaster = Glyphs.font.selectedFontMaster
@@ -250,10 +261,11 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def searchFieldCallback(self, sender):
-        # 處理搜索欄位的輸入
         char = sender.get()
         if len(char) > 0:
             self.lastChar = char[0]
+        else:
+            self.lastChar = ""  # 清空 lastChar
         self.updateInterface(None)
 
     @objc.python_method
