@@ -186,14 +186,20 @@ class NineBoxView(GeneralPlugin):
     @objc.python_method
     def showWindow_(self, sender):
         try:
+            # 檢查視窗是否已經存在
+            if hasattr(self, 'w') and self.w.isVisible():
+                # 如果視窗已存在且可見,則將其帶到前面
+                self.w.show()
+                return
+
             # 創建主視窗
             self.w = Window((300, 340), self.name, minSize=(200, 240))
             self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
             self.w.searchField = EditText((10, -30, -100, -10), 
-                                          placeholder="輸入一個字符", 
-                                          callback=self.searchFieldCallback)
+                                        placeholder="輸入一個字符", 
+                                        callback=self.searchFieldCallback)
             self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
-                                           callback=self.darkModeCallback)
+                                        callback=self.darkModeCallback)
             self.w.open()
             
             # 設定視窗永遠浮動於上方
