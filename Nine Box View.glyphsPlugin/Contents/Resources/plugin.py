@@ -70,6 +70,8 @@ class NineBoxPreviewView(NSView):
             # 獲取目前選中的字符層和字符
             self.currentLayer = Glyphs.font.selectedLayers[0]
             currentChar = self.currentLayer.parent.unicode
+            currentMaster = Glyphs.font.selectedFontMaster  # 定義 currentMaster
+
 
             # 決定要搜尋的字符
             if self.wrapper.plugin.w.searchField.get().strip() == "":
@@ -80,7 +82,7 @@ class NineBoxPreviewView(NSView):
             # 獲取中心字符和搜尋字符
             centerGlyph = self.currentLayer.parent
             searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
-            currentMaster = Glyphs.font.selectedFontMaster
+
 
             # 設定邊距和間距比例
             MARGIN_RATIO = 0.07
@@ -261,7 +263,6 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def pickGlyph(self, sender):
-        # 選擇字符的方法
         font = Glyphs.font
         if not font:
             return
@@ -274,7 +275,9 @@ class NineBoxView(GeneralPlugin):
         )
         
         if choice and choice[0]:
-            self.lastChar = choice[0][0].unicode
+            selected_glyph = choice[0][0]
+            # 如果字形有 Unicode 值，使用它；否則使用字形名稱
+            self.lastChar = selected_glyph.unicode or selected_glyph.name
             self.w.searchField.set(self.lastChar)
             self.savePreferences()
             self.updateInterface(None)
@@ -431,11 +434,10 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def searchFieldCallback(self, sender):
-        # 處理搜尋欄位的回調
         char = sender.get()
         if len(char) > 0:
-            self.lastChar = char[0]
-            sender.set(self.lastChar)  # 將輸入欄位限制只能輸入一個字符
+            self.lastChar = char[0]  # 只取第一個字符
+            sender.set(self.lastChar)
         else:
             self.lastChar = ""
         self.savePreferences()
