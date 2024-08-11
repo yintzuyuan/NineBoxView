@@ -17,9 +17,10 @@
 import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
-from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, NSFloatingWindowLevel
-from vanilla import Window, Group, Button, EditText
+from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, NSWorkspace
+from vanilla import FloatingWindow, Group, Button, EditText
 import traceback
+
 
 class NineBoxPreviewView(NSView):
     def drawRect_(self, rect):
@@ -174,51 +175,61 @@ class NineBoxView(GeneralPlugin):
         self.name = Glyphs.localize({
             'en': u'Nine Box View', 
             'zh-Hant': u'九宮格預覽'
-            })
+        })
 
     @objc.python_method
     def start(self):
         try:
-            # 在視窗選單中添加新項目
-            newMenuItem = NSMenuItem(self.name, self.showWindow_)
+            newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
             Glyphs.menu[WINDOW_MENU].append(newMenuItem)
             
-            # 載入偏好設定
             self.loadPreferences()
             
-            # 添加介面更新回調
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
-
-            # 添加字體主板變更的回調
             Glyphs.addCallback(self.updateInterface, FONTMASTER_CHANGED)
+
+            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
+                self,
+                self.applicationActivated_,
+                "NSWorkspaceDidActivateApplicationNotification",
+                None
+            )
+            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
+                self,
+                self.applicationDeactivated_,
+                "NSWorkspaceDidDeactivateApplicationNotification",
+                None
+            )
         except:
             self.logToMacroWindow(traceback.format_exc())
 
     @objc.python_method
-    def showWindow_(self, sender):
+    def toggleWindow_(self, sender):
         try:
-            # 檢查視窗是否已經存在
-            if hasattr(self, 'w') and self.w.isVisible():
-                # 如果視窗已存在且可見,則將其帶到前面
+            if not hasattr(self, 'w') or self.w is None:
+                self.w = FloatingWindow((300, 340), self.name, minSize=(200, 240),
+                        autosaveName="com.YinTzuYuan.NineBoxView.mainwindow",
+                        titleBarHeight=22)  # 增加標題列高度
+                self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
+                self.w.searchField = EditText((10, -30, -100, -10), 
+                                            placeholder="輸入一個字符", 
+                                            callback=self.searchFieldCallback)
+                self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
+                                            callback=self.darkModeCallback)
+                self.w.bind("close", self.windowClosed_)
+                self.w.open()
+            elif self.w.isVisible():
+                self.w.close()
+            else:
                 self.w.show()
-                return
 
-            # 創建主視窗
-            self.w = Window((300, 340), self.name, minSize=(200, 240))
-            self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
-            self.w.searchField = EditText((10, -30, -100, -10), 
-                                        placeholder="輸入一個字符", 
-                                        callback=self.searchFieldCallback)
-            self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
-                                        callback=self.darkModeCallback)
-            self.w.open()
-            
-            # 設定視窗永遠浮動於上方
-            self.w.getNSWindow().setLevel_(NSFloatingWindowLevel)
-            
             self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
+
+    @objc.python_method
+    def windowClosed_(self, sender):
+        self.w = None
 
     @objc.python_method
     def getDarkModeIcon(self):
@@ -226,37 +237,22 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def loadPreferences(self):
-        # 從 Glyphs 預設設定中讀取偏好
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
         self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
 
     @objc.python_method
     def savePreferences(self):
-        # 保存偏好設定到 Glyphs 預設設定
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
 
     @objc.python_method
-    def __del__(self):
-        # 清理工作：保存偏好設定並移除回調
-        self.savePreferences()
-        Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
-        Glyphs.removeCallback(self.fontMasterChanged, FONTMASTER_CHANGED)
-
-    @objc.python_method
     def logToMacroWindow(self, message):
-        # 將消息記錄到巨集視窗
         Glyphs.clearLog()
         print(message)
 
     @objc.python_method
-    def fontMasterChanged(self, info):
-        self.updateInterface(None)
-
-    @objc.python_method
     def updateInterface(self, sender):
-        # 更新介面
-        if hasattr(self, 'w') and hasattr(self.w, 'preview'):
+        if hasattr(self, 'w') and self.w is not None and hasattr(self.w, 'preview'):
             self.w.preview.redraw()
 
     @objc.python_method
@@ -265,22 +261,43 @@ class NineBoxView(GeneralPlugin):
         if len(char) > 0:
             self.lastChar = char[0]
         else:
-            self.lastChar = ""  # 清空 lastChar
+            self.lastChar = ""
         self.updateInterface(None)
 
     @objc.python_method
     def darkModeCallback(self, sender):
-        # 切換深色模式
         self.darkMode = not self.darkMode
         sender.setTitle(self.getDarkModeIcon())
         self.updateInterface(None)
 
     @objc.python_method
+    def applicationActivated_(self, notification):
+        activatedApp = notification.userInfo()["NSWorkspaceApplicationKey"]
+        if activatedApp.bundleIdentifier() == "com.GeorgSeifert.Glyphs3":
+            self.showWindow()
+
+    @objc.python_method
+    def applicationDeactivated_(self, notification):
+        deactivatedApp = notification.userInfo()["NSWorkspaceApplicationKey"]
+        if deactivatedApp.bundleIdentifier() == "com.GeorgSeifert.Glyphs3":
+            self.hideWindow()
+
+    @objc.python_method
+    def showWindow(self):
+        if hasattr(self, 'w') and self.w is not None:
+            self.w.show()
+
+    @objc.python_method
+    def hideWindow(self):
+        if hasattr(self, 'w') and self.w is not None:
+            self.w.hide()
+
+    @objc.python_method
     def __del__(self):
-        # 清理工作：移除回調
-        Glyphs.removeCallback(self.changeInstance_, UPDATEINTERFACE)
-        Glyphs.removeCallback(self.changeDocument_, DOCUMENTACTIVATED)
+        self.savePreferences()
+        Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
+        Glyphs.removeCallback(self.updateInterface, FONTMASTER_CHANGED)
+        NSWorkspace.sharedWorkspace().notificationCenter().removeObserver_(self)
 
     def __file__(self):
-        """請保持此方法不變"""
         return __file__
