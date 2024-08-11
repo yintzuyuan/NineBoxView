@@ -1,81 +1,115 @@
-![NineBoxView window](NineBoxView_image1.png "NineBoxView")
+# 九宮格預覽 | Nine Box Preview
 
-# 繁體中文
-## 九宮格預覽
-這是一個 [字型編輯軟體 Glyphs](http://glyphsapp.com/) 的外掛，用於方塊字製作的即時預覽。有鑒於漢字（東亞方塊字）造型需要同時兼顧直排與橫排，與其不斷切換預覽方式不如同時顯示吧。
+[繁體中文](#繁體中文) | [English](#english)
 
-## 使用方法
-* 從 *視窗* 下拉選單打開 *九宮格預覽* 外掛。
-* 預覽畫面的正中央會即時顯示正在編輯的字符。
-* 使用上方的輸入框可同時修改所有要顯示在周圍的參考字。
-* 使用右上方的按鈕可切換顯示模式（明亮模式 / 黑暗模式）。
+---
 
-## 安裝方式
-從 *視窗* 下拉選單打開 *外掛程式管理員* 點擊左側的 *安裝* 按鈕安裝。退出並重新啟動 Glyphs 即可使用。
+## 繁體中文
 
-🌿 九宮格預覽需要使用 *Vanilla* 模組才能使用。透過 *視窗* 下拉選單打開 *外掛程式管理員* 進入 *模組* 分頁進行安裝。
+![九宮格預覽視窗](NineBoxView_image2.png "九宮格預覽")
 
-## 版本要求
-此外掛在 Glyphs 3 測試。
+這是一個為 [Glyphs 字型編輯軟體](http://glyphsapp.com/) 開發的外掛，專為方塊字製作提供即時預覽功能。考量到漢字（東亞方塊字）的造型需要同時兼顧直排與橫排排版，這個工具讓你不用不斷切換預覽方式，可以一次看到各種排列組合。
 
-## 已知問題
-此外掛還有一些問題尚待解決，短期內不會修正它們。如果有急需願意提供幫忙歡迎使用 [拉取請求](https://github.com/yintzuyuan/NineBoxView/pulls) 的方式提供協助。
-* 字符對齊方式為靠左對齊。因此如果製作的是不等寬字型，將導致主要字與參考字無法居中對齊。
-* 輸入框只支援字元輸入，不支援字符名稱（例：uni6771）。私心希望輸入功能類似於 [Kernkraft](https://github.com/bBoxType/Kernkraft) 外掛可以兩者都支援。
-* 顯示的字符大小固定，無法跟隨視窗縮放變更大小。
-* 在編輯畫面沒有選擇字符的狀況，預覽畫面會完全空白。
+### 主要功能
 
-如果你發現的問題不在這裡，歡迎透過 [問題回報](https://github.com/yintzuyuan/NineBoxView/issues) 功能讓我知道。
+- 即時顯示正在編輯的字符
+- 支援自訂周圍參考字符
+- 提供明亮／黑暗兩種顯示模式
+- 支援縮放功能，方便觀察細節
+- 多國語言支援
 
-## 感謝
-特別感謝 Aaron Bell 的外掛 [RotateView](https://github.com/aaronbell/RotateView) 讓我知道如何即時顯示正在編輯中的字符。以及大曲都市的外掛 [Waterfall](https://github.com/Tosche/Waterfall) 讓我知道如何顯示輸入文字和變更預覽畫面的顯示顏色。
+### 安裝方式
 
-## 版權聲明
-此外掛於2023年1月由殷慈遠發布。詳細版權聲明文件在文末。
+1. 從「視窗」選單開啟「外掛程式管理員」。
+2. 找到「九宮格預覽」並點擊「安裝」按鈕。
+3. 重新啟動 Glyphs 即可使用。
 
-# English
-## NineBoxView
-[Glyphs font editor](http://glyphsapp.com/) plug-in for surround the preview with others when making Chinese characters.
+🌿 注意：「九宮格預覽」需要 *Vanilla* 模組才能運作。請在「外掛程式管理員」的「模組」分頁中安裝 Vanilla。
 
-Code is written by Tzuyuan Yin.
+### 系統需求
 
-## Usage
-* Open the *Nine Box View* plugin from the *Window* menu.
-* The central box will automatically display the currently selected glyph.
-* Use the input box to change the surrounding glyphs at the same time.
-* Use the button can change the display mode (Light/Dark).
+此外掛在 Glyphs 3.2.3 版本中測試通過。字符選擇器功能需要 Glyphs 3.2 或更高版本。
 
-## Installation
-Install by clicking its *Install* button in *Window > Plugin Manager > Plugins* . Restart Glyphs once.
+### 新功能與改進
 
-🌿 Nine Box View depends on the *Vanilla* module. Please install it via *Window > Plugin Manager > Modules* .
+相較於第一版，這次的更新解決了許多問題並新增了實用功能：
 
-## Requirements
-Tested on Glyphs 3.
+- 支援縮放功能，方便觀察字符細節
+- 改善了字符對齊方式，支援不等寬字型
+- 新增字符選擇器，方便快速選擇參考字符（需要 Glyphs 3.2 或更高版本）
+- 優化了介面佈局，自適應視窗大小變化
+- 增加了多國語言支援
+- 改善了效能和穩定性
 
-## known Issues
-This plug-in still has some bugs that not yet to be resolved, and they won't be fixed anytime soon. If you need it and want to help, welcome to use  [Pull requests](https://github.com/yintzuyuan/NineBoxView/pulls) to provide assistance.
-* Glyphs are displayed left-aligned. So if you make a proportional typeface, it will make the main and reference glyphs misaligned.
-* The input box only supports glyph input, not glyph names (e.g., uni6771). Hope that the input function is like [Kernkraft](https://github.com/bBoxType/Kernkraft) can support both.
-* The displayed glyphs size is fixed and cannot be changed with the zoom of the window.
-* When no glyph is selected on the edit view, the Viewer will be completely blank.
+### 回饋與建議
 
-If you find any bugs not above. Let me know by [Issues](https://github.com/yintzuyuan/NineBoxView/issues) .
+如果你在使用過程中發現任何問題或有改進建議，歡迎透過 [GitHub Issues](https://github.com/yintzuyuan/NineBoxView/issues) 回報。我會盡快回應並處理。
 
-## Special Thanks
-Special thanks to Aaron Bell's [RotateView](https://github.com/aaronbell/RotateView) plugin that explained how to automatically display outlines and to Toshi Omagari's [Waterfall](https://github.com/Tosche/Waterfall) plugin that explained how to use input box and change display colors.
+### 致謝
 
-## License
-Copyright 2023 Tzuyuan Yin
+特別感謝 Aaron Bell 的 [RotateView](https://github.com/aaronbell/RotateView) 外掛，讓我了解如何即時顯示正在編輯的字符。也要感謝大曲都市的 [Waterfall](https://github.com/Tosche/Waterfall) 外掛，啟發了我如何處理文字輸入和切換預覽顏色。
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+這次的改版要特別感謝 AI 輔助工具，它幫助我解決了許多技術難題，並提供了寶貴的改進建議。
 
-    http://www.apache.org/licenses/LICENSE-2.0
+最後，感謝所有使用這個外掛並提供回饋的設計師們。你們的意見是推動這個工具不斷進步的動力。
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+### 版權聲明
+
+此外掛由殷慈遠於 2023 年 1 月首次發布，並於 2024 年 8 月進行重大更新。本專案採用 Apache License 2.0 授權。詳細授權條款請參閱專案中的 LICENSE 文件。
+
+---
+
+## English
+
+![Nine Box Preview Window](NineBoxView_image1.png "Nine Box Preview")
+
+This is a plugin developed for [Glyphs font editing software](http://glyphsapp.com/), specifically designed to provide real-time previews for the creation of square characters. Considering that the design of Chinese characters (East Asian square characters) needs to accommodate both vertical and horizontal layouts, this tool allows you to see various combinations at once without constantly switching preview modes.
+
+### How to Use
+
+1. Open the "Nine Box Preview" plugin from the "Window" menu.
+2. The preview screen will display the character currently being edited in the center.
+3. Use the input box at the bottom to modify the reference characters displayed around the center.
+4. Click the button in the lower left corner to switch between Light/Dark display modes.
+5. Use the mouse wheel or touchpad gestures to zoom in and out of the preview.
+6. Double-click the preview area to reset the zoom level.
+7. Use the Glyph Picker button to quickly select reference characters.
+
+### Installation
+
+1. Open the "Plugin Manager" from the "Window" menu.
+2. Find "Nine Box Preview" and click the "Install" button.
+3. Restart Glyphs to use the plugin.
+
+🌿 Note: "Nine Box Preview" requires the *Vanilla* module to function. Please install Vanilla in the "Modules" tab of the "Plugin Manager".
+
+### System Requirements
+
+This plugin has been tested on Glyphs 3.2.3. The Glyph Picker feature requires Glyphs 3.2 or higher.
+
+### New Features and Improvements
+
+Compared to the first version, this update has resolved many issues and added useful features:
+
+- Zoom functionality for detailed character observation
+- Improved character alignment, supporting variable-width fonts
+- Added a Glyph Picker for quick selection of reference characters (requires Glyphs 3.2 or higher)
+- Optimized interface layout, adapting to window size changes
+- Added multi-language support
+- Improved performance and stability
+
+### Feedback and Suggestions
+
+If you encounter any issues or have suggestions for improvement while using the plugin, please report them via [GitHub Issues](https://github.com/yintzuyuan/NineBoxView/issues). I will respond and address them as soon as possible.
+
+### Acknowledgements
+
+Special thanks to Aaron Bell's [RotateView](https://github.com/aaronbell/RotateView) plugin, which helped me understand how to display the character being edited in real-time. Also, thanks to Toshi Omagari's [Waterfall](https://github.com/Tosche/Waterfall) plugin, which inspired me on how to handle text input and switch preview colors.
+
+For this update, I'd like to particularly thank AI-assisted tools, which helped me solve many technical challenges and provided valuable improvement suggestions.
+
+Lastly, thanks to all the designers who use this plugin and provide feedback. Your opinions are the driving force behind the continuous improvement of this tool.
+
+### Copyright Notice
+
+This plugin was first released by Tzuyuan Yin in January 2023 and underwent a major update in August 2024. This project is licensed under the Apache License 2.0. For detailed license terms, please refer to the LICENSE file in the project.
