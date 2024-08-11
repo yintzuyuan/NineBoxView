@@ -295,20 +295,20 @@ class NineBoxView(GeneralPlugin):
                 self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
                 
                 placeholder = Glyphs.localize({
-                    'en': u'Enter a character',
-                    'zh-Hant': u'輸入一個字符',
-                    'zh-Hans': u'输入一个字符形',
-                    'ja': u'文字を入力',
-                    'ko': u'문자 입력',
-                    'ar': u'أدخل حرفًا',
-                    'cs': u'Zadejte znak',
-                    'de': u'Zeichen eingeben',
-                    'es': u'Ingrese un carácter',
-                    'fr': u'Saisissez un caractère',
-                    'it': u'Inserisci un carattere',
-                    'pt': u'Digite um caractere',
-                    'ru': u'Введите символ',
-                    'tr': u'Bir karakter girin'
+                    'en': u'Enter char or leave blank for current',
+                    'zh-Hant': u'輸入或留空顯示目前字符',
+                    'zh-Hans': u'输入或留空显示当前字符形',
+                    'ja': u'文字入力 (空欄で現在の文字)',
+                    'ko': u'문자 입력 또는 공백으로 현재 문자',
+                    'ar': u'أدخل حرفًا أو اتركه فارغًا للحالي',
+                    'cs': u'Zadejte znak nebo nechte prázdné pro aktuální',
+                    'de': u'Zeichen eingeben oder leer für aktuelles',
+                    'es': u'Ingrese carácter o deje en blanco para el actual',
+                    'fr': u"Saisissez un caractère ou laissez vide pour l'actuel",
+                    'it': u"Inserisci carattere o lascia vuoto per l'attuale",
+                    'pt': u'Digite caractere ou deixe em branco para o atual',
+                    'ru': u'Введите символ или оставьте пустым для текущего',
+                    'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
                 
                 self.w.searchField = EditText((10, -30, -140, 22), 
