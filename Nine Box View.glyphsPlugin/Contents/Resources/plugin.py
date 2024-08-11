@@ -247,10 +247,12 @@ class NineBoxView(GeneralPlugin):
                 
                 self.w.bind("close", self.windowClosed_)
                 self.w.open()
+                self.w.makeKeyAndOrderFront_(None)  # 修改為 makeKeyAndOrderFront 以聚焦視窗
             elif self.w.isVisible():
                 self.w.close()
             else:
                 self.w.show()
+                self.w.makeKeyAndOrderFront_(None)  # 修改為 makeKeyAndOrderFront 以聚焦視窗
 
             self.updateInterface(None)
         except:
@@ -295,6 +297,7 @@ class NineBoxView(GeneralPlugin):
         char = sender.get()
         if len(char) > 0:
             self.lastChar = char[0]
+            sender.set(self.lastChar)  # 將輸入欄位限制只能輸入一個字符
         else:
             self.lastChar = ""
         self.savePreferences()
