@@ -2,11 +2,11 @@
 
 [繁體中文](#繁體中文) | [English](#english)
 
+![九宮格預覽視窗](NineBoxView_image2.png "九宮格預覽")
+
 ---
 
 ## 繁體中文
-
-![九宮格預覽視窗](NineBoxView_image2.png "九宮格預覽")
 
 這是一個為 [Glyphs 字型編輯軟體](http://glyphsapp.com/) 開發的外掛，專為方塊字製作提供即時預覽功能。考量到漢字（東亞方塊字）的造型需要同時兼顧直排與橫排排版，這個工具讓你不用不斷切換預覽方式，可以一次看到各種排列組合。
 
@@ -60,8 +60,6 @@
 ---
 
 ## English
-
-![Nine Box Preview Window](NineBoxView_image1.png "Nine Box Preview")
 
 This is a plugin developed for [Glyphs font editing software](http://glyphsapp.com/), specifically designed to provide real-time previews for the creation of square characters. Considering that the design of Chinese characters (East Asian square characters) needs to accommodate both vertical and horizontal layouts, this tool allows you to see various combinations at once without constantly switching preview modes.
 
