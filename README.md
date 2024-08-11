@@ -2,7 +2,7 @@
 
 [繁體中文](#繁體中文) | [English](#english)
 
-![九宮格預覽視窗](NineBoxView_image2.png "九宮格預覽")
+![九宮格預覽視窗](NineBoxView_image1.png "九宮格預覽")
 
 ---
 
