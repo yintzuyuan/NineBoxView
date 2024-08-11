@@ -3,17 +3,18 @@
 ###########################################################################################################
 #
 #
-#    General Plugin
+#    一般插件
 #
-#    Read the docs:
+#    閱讀文檔：
 #    https://github.com/schriftgestalt/GlyphsSDK/tree/master/Python%20Templates/General%20Plugin
 #
 #
 ###########################################################################################################
 
 
-#https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/CocoaViewsGuide/SubclassingNSView/SubclassingNSView.html
+# https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/CocoaViewsGuide/SubclassingNSView/SubclassingNSView.html
 
+# 導入必要的模組
 import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
@@ -32,45 +33,38 @@ class NineBoxPreviewView(NSView):
                 NSColor.whiteColor().set()
             NSRectFill(rect)
 
+            # 檢查是否有選中的字體和圖層
             if not Glyphs.font or not Glyphs.font.selectedLayers:
                 return
 
-            # 獲取當前選中的圖層
+            # 獲取當前選中的圖層和字符
             self.currentLayer = Glyphs.font.selectedLayers[0]
             currentChar = self.currentLayer.parent.unicode
 
-            # 檢查搜索欄是否為空
+            # 處理搜索欄邏輯
             if self.wrapper.plugin.w.searchField.get().strip() == "":
-                # 如果搜索欄為空,使用當前選中的字符
                 self.searchChar = currentChar
             else:
-                # 否則使用上次搜索的字符或當前字符
                 self.searchChar = self.wrapper.plugin.lastChar or currentChar
 
-            # 獲取搜索字符的字形
+            # 獲取中心字形和搜索字形
             centerGlyph = self.currentLayer.parent
             searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
 
             # 獲取當前選中的主板
             currentMaster = Glyphs.font.selectedFontMaster
 
-            # 可調整參數
+            # 設定可調整參數
             MARGIN_RATIO = 0.07  # 邊距佔視窗高度的比例
             SPACING_RATIO = 0.03  # 間距佔字寬的比例
 
-            # 計算固定的字形高度
+            # 計算字形高度和邊距
             self.cachedHeight = currentMaster.ascender - currentMaster.descender
-
-            # 計算邊距
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
-            # 獲取中間字符和搜尋字符的寬度
-            centerGlyph = self.currentLayer.parent
+            # 計算字寬和間距
             centerWidth = self.currentLayer.width
-            searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
             searchWidth = searchGlyph.layers[currentMaster.id].width
-
-            # 計算間距
             SPACING = max(centerWidth, searchWidth) * SPACING_RATIO
 
             # 計算格子寬度
@@ -101,6 +95,7 @@ class NineBoxPreviewView(NSView):
             middleColumnCenterX = startX + searchCellWidth + SPACING + centerCellWidth / 2
             rightColumnCenterX = startX + gridWidth - searchCellWidth / 2
 
+            # 繪製九宮格中的每個字形
             for i in range(9):
                 row = i // 3
                 col = i % 3
@@ -119,6 +114,7 @@ class NineBoxPreviewView(NSView):
                 centerY = startY - (row + 0.5) * (gridHeight / 3)
                 cellHeight = gridHeight / 3 - SPACING
 
+                # 選擇要繪製的圖層
                 if i == 4:  # 中間格子
                     layer = self.currentLayer
                 else:
@@ -172,22 +168,25 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def settings(self):
+        # 設定插件名稱（支援多語言）
         self.name = Glyphs.localize({
             'en': u'Nine Box View', 
             'zh-Hant': u'九宮格預覽'
         })
+        self.loadPreferences()  # 在設定中載入偏好設定
 
     @objc.python_method
     def start(self):
         try:
+            # 在 Glyphs 的視窗選單中添加新的選項
             newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
             Glyphs.menu[WINDOW_MENU].append(newMenuItem)
             
-            self.loadPreferences()
-            
+            # 添加回調函數
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, FONTMASTER_CHANGED)
 
+            # 添加應用程式啟動和停用的觀察者
             NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
                 self,
                 self.applicationActivated_,
@@ -200,19 +199,26 @@ class NineBoxView(GeneralPlugin):
                 "NSWorkspaceDidDeactivateApplicationNotification",
                 None
             )
+            
+            # 確保在啟動時載入偏好設定
+            self.loadPreferences()
         except:
             self.logToMacroWindow(traceback.format_exc())
 
     @objc.python_method
     def toggleWindow_(self, sender):
         try:
+            # 切換視窗的顯示狀態
             if not hasattr(self, 'w') or self.w is None:
+                # 創建新視窗
                 self.w = FloatingWindow((300, 340), self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
                 self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
                 self.w.searchField = EditText((10, -30, -100, -10), 
                                             placeholder="輸入一個字符", 
                                             callback=self.searchFieldCallback)
+                # 設置搜索欄的初始值
+                self.w.searchField.set(self.lastChar)
                 self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
                                             callback=self.darkModeCallback)
                 self.w.bind("close", self.windowClosed_)
@@ -228,72 +234,75 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def windowClosed_(self, sender):
+        # 視窗關閉時的處理
         self.w = None
 
     @objc.python_method
     def getDarkModeIcon(self):
+        # 獲取深色模式圖標
         return "🌙" if self.darkMode else "☀️"
 
     @objc.python_method
     def loadPreferences(self):
+        # 載入使用者偏好設定
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
         self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
+        self.testMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.testMode", False)
 
     @objc.python_method
     def savePreferences(self):
+        # 儲存使用者偏好設定
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"] = self.testMode
 
     @objc.python_method
     def logToMacroWindow(self, message):
+        # 將訊息記錄到巨集視窗
         Glyphs.clearLog()
         print(message)
 
     @objc.python_method
     def updateInterface(self, sender):
+        # 更新介面
         if hasattr(self, 'w') and self.w is not None and hasattr(self.w, 'preview'):
             self.w.preview.redraw()
 
     @objc.python_method
     def searchFieldCallback(self, sender):
+        # 搜索欄回調函數
         char = sender.get()
         if len(char) > 0:
             self.lastChar = char[0]
         else:
             self.lastChar = ""
+        self.savePreferences()  # 保存設定
         self.updateInterface(None)
 
     @objc.python_method
     def darkModeCallback(self, sender):
+        # 深色模式切換回調函數
         self.darkMode = not self.darkMode
         sender.setTitle(self.getDarkModeIcon())
+        self.savePreferences()  # 保存設定
         self.updateInterface(None)
 
     @objc.python_method
-    def applicationActivated_(self, notification):
-        activatedApp = notification.userInfo()["NSWorkspaceApplicationKey"]
-        if activatedApp.bundleIdentifier() == "com.GeorgSeifert.Glyphs3":
-            self.showWindow()
-
-    @objc.python_method
-    def applicationDeactivated_(self, notification):
-        deactivatedApp = notification.userInfo()["NSWorkspaceApplicationKey"]
-        if deactivatedApp.bundleIdentifier() == "com.GeorgSeifert.Glyphs3":
-            self.hideWindow()
-
-    @objc.python_method
     def showWindow(self):
+        # 顯示視窗
         if hasattr(self, 'w') and self.w is not None:
             self.w.show()
 
     @objc.python_method
     def hideWindow(self):
+        # 隱藏視窗
         if hasattr(self, 'w') and self.w is not None:
             self.w.hide()
 
     @objc.python_method
     def __del__(self):
-        self.savePreferences()
+        # 清理工作
+        self.savePreferences()  # 確保在插件被刪除時保存設定
         Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
         Glyphs.removeCallback(self.updateInterface, FONTMASTER_CHANGED)
         NSWorkspace.sharedWorkspace().notificationCenter().removeObserver_(self)
