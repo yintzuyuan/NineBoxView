@@ -210,14 +210,19 @@ class NineBoxView(GeneralPlugin):
         try:
             # 切換視窗的顯示狀態
             if not hasattr(self, 'w') or self.w is None:
-                # 創建新視窗
                 self.w = FloatingWindow((300, 340), self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
                 self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
+                
+                # 本地化搜索欄佔位符
+                placeholder = Glyphs.localize({
+                    'en': u'Enter a character',
+                    'zh-Hant': u'輸入一個字符'
+                })
+                
                 self.w.searchField = EditText((10, -30, -100, -10), 
-                                            placeholder="輸入一個字符", 
+                                            placeholder=placeholder, 
                                             callback=self.searchFieldCallback)
-                # 設置搜索欄的初始值
                 self.w.searchField.set(self.lastChar)
                 self.w.darkModeButton = Button((-90, -30, -10, -10), self.getDarkModeIcon(),
                                             callback=self.darkModeCallback)
