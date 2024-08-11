@@ -208,8 +208,7 @@ class NineBoxView(GeneralPlugin):
         try:
             if not hasattr(self, 'w') or self.w is None:
                 self.w = FloatingWindow((300, 340), self.name, minSize=(200, 240),
-                        autosaveName="com.YinTzuYuan.NineBoxView.mainwindow",
-                        titleBarHeight=22)  # 增加標題列高度
+                                        autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
                 self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
                 self.w.searchField = EditText((10, -30, -100, -10), 
                                             placeholder="輸入一個字符", 
