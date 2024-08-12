@@ -18,6 +18,16 @@
 - 支援縮放功能，方便觀察細節
 - 多國語言支援
 
+## 使用方法
+
+1. 從「視窗」選單中開啟「九宮格預覽」外掛。
+2. 預覽畫面中央會顯示目前正在編輯的字符。
+3. 使用下方的輸入框可同時修改顯示在周圍的參考字。
+4. 點擊左下方的按鈕可切換明亮／黑暗顯示模式。
+5. 使用滑鼠滾輪或觸控板手勢可以縮放預覽畫面。
+6. 在預覽畫面上雙擊可以將縮放比例重置為預設大小。
+7. 使用字符選擇器按鈕可快速選擇參考字符。
+
 ### 安裝方式
 
 1. 從「視窗」選單開啟「外掛程式管理員」。
@@ -71,6 +81,16 @@ This is a plugin developed for [Glyphs font editing software](http://glyphsapp.c
 4. Click the button in the lower left corner to switch between Light/Dark display modes.
 5. Use the mouse wheel or touchpad gestures to zoom in and out of the preview.
 6. Double-click the preview area to reset the zoom level.
+7. Use the Glyph Picker button to quickly select reference characters.
+
+## How to Use
+
+1. Open the "Nine Box Preview" plugin from the "Window" menu.
+2. The preview screen will display the character currently being edited in the center.
+3. Use the input box at the bottom to modify the reference characters displayed around the center.
+4. Click the button in the lower left corner to switch between Light/Dark display modes.
+5. Use the mouse wheel or touchpad gestures to zoom in and out of the preview.
+6. Double-click on the preview area to reset the zoom level to the default size.
 7. Use the Glyph Picker button to quickly select reference characters.
 
 ### Installation
