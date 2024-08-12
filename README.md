@@ -73,6 +73,14 @@
 
 This is a plugin developed for [Glyphs font editing software](http://glyphsapp.com/), specifically designed to provide real-time previews for the creation of square characters. Considering that the design of Chinese characters (East Asian square characters) needs to accommodate both vertical and horizontal layouts, this tool allows you to see various combinations at once without constantly switching preview modes.
 
+## Main Features
+
+- Real-time display of the character being edited
+- Support for customizing surrounding reference characters
+- Light/Dark display modes
+- Zoom functionality for detailed observation
+- Multi-language support
+
 ### How to Use
 
 1. Open the "Nine Box Preview" plugin from the "Window" menu.
@@ -81,16 +89,6 @@ This is a plugin developed for [Glyphs font editing software](http://glyphsapp.c
 4. Click the button in the lower left corner to switch between Light/Dark display modes.
 5. Use the mouse wheel or touchpad gestures to zoom in and out of the preview.
 6. Double-click the preview area to reset the zoom level.
-7. Use the Glyph Picker button to quickly select reference characters.
-
-## How to Use
-
-1. Open the "Nine Box Preview" plugin from the "Window" menu.
-2. The preview screen will display the character currently being edited in the center.
-3. Use the input box at the bottom to modify the reference characters displayed around the center.
-4. Click the button in the lower left corner to switch between Light/Dark display modes.
-5. Use the mouse wheel or touchpad gestures to zoom in and out of the preview.
-6. Double-click on the preview area to reset the zoom level to the default size.
 7. Use the Glyph Picker button to quickly select reference characters.
 
 ### Installation
