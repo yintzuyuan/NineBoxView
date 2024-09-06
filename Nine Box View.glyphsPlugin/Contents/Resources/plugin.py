@@ -3,7 +3,7 @@
 import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
-from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath
+from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, NSFloatingWindowLevel
 from vanilla import Window, Group, Button, EditText
 import traceback
 
@@ -11,7 +11,11 @@ class NineBoxPreviewView(NSView):
     
     def drawRect_(self, rect):
         try:
-            NSColor.whiteColor().set()
+            # 設置背景顏色
+            if self.wrapper.plugin.darkMode:
+                NSColor.blackColor().set()
+            else:
+                NSColor.whiteColor().set()
             NSRectFill(rect)
 
             if not Glyphs.font or not Glyphs.font.selectedLayers:
@@ -21,29 +25,68 @@ class NineBoxPreviewView(NSView):
             currentChar = currentLayer.parent.unicode
             searchChar = self.wrapper.plugin.lastChar or currentChar
 
-            cellSize = min(rect.size.width, rect.size.height) / 3
-            spacing = cellSize / 10
+            # 可調整參數
+            MARGIN_RATIO = 0.05  # 邊距佔總寬度的比例
+            SPACING_RATIO = 0.03  # 間距佔總寬度的比例
 
+            # 計算九宮格的大小（包含邊距）
+            gridSize = min(rect.size.width, rect.size.height)
+            
+            # 計算實際的邊距和間距
+            MARGIN = gridSize * MARGIN_RATIO
+            SPACING = gridSize * SPACING_RATIO
+
+            # 找出要被渲染的字形中最寬的一個
+            maxWidth = 0
+            glyphsToRender = []
             for i in range(9):
-                x = (i % 3) * (cellSize + spacing)
-                y = (2 - i // 3) * (cellSize + spacing)
-
                 if i == 4:  # 中間格子
                     glyph = currentLayer.parent
                 else:
-                    glyph = Glyphs.font.glyphs[searchChar] if searchChar else None
+                    glyph = Glyphs.font.glyphs[searchChar] if searchChar else currentLayer.parent
+                glyphsToRender.append(glyph)
+                if glyph:
+                    layer = glyph.layers[Glyphs.font.selectedFontMaster.id]
+                    maxWidth = max(maxWidth, layer.bounds.size.width)
+
+            # 計算格子大小,使最寬的字形能夠完全顯示
+            cellSize = min((gridSize - 2 * MARGIN - 2 * SPACING) / 3, maxWidth * 1.2)  # 1.2 是一個調整因子,可以根據需要修改
+
+            # 重新計算九宮格的起始位置（左上角）
+            startX = (rect.size.width - (3 * cellSize + 2 * SPACING)) / 2
+            startY = (rect.size.height + (3 * cellSize + 2 * SPACING)) / 2
+
+            for i, glyph in enumerate(glyphsToRender):
+                row = i // 3
+                col = i % 3
+                
+                # 計算每個格子的中心點
+                x = startX + col * (cellSize + SPACING) + cellSize / 2
+                y = startY - row * (cellSize + SPACING) - cellSize / 2
 
                 if glyph:
                     layer = glyph.layers[Glyphs.font.selectedFontMaster.id]
                     
+                    # 計算縮放比例，使字形盡可能填滿格子
+                    glyphWidth = layer.bounds.size.width
+                    glyphHeight = layer.bounds.size.height
+                    scaleX = cellSize / glyphWidth if glyphWidth > 0 else 1
+                    scaleY = cellSize / glyphHeight if glyphHeight > 0 else 1
+                    scale = min(scaleX, scaleY)
+
                     transform = NSAffineTransform.transform()
-                    transform.translateXBy_yBy_(x + cellSize/2, y + cellSize/2)
-                    scale = cellSize / (Glyphs.font.upm * 1.2)
+                    transform.translateXBy_yBy_(x, y)
                     transform.scaleBy_(scale)
+
+                    # 移動字形，使其在格子中居中
+                    offsetX = -layer.bounds.origin.x - glyphWidth / 2
+                    offsetY = -layer.bounds.origin.y - glyphHeight / 2
+                    transform.translateXBy_yBy_(offsetX, offsetY)
 
                     bezierPath = layer.completeBezierPath.copy()
                     bezierPath.transformUsingAffineTransform_(transform)
 
+                    # 設置繪製顏色
                     if self.wrapper.plugin.darkMode:
                         NSColor.whiteColor().set()
                     else:
@@ -93,19 +136,23 @@ class NineBoxView(GeneralPlugin):
             self.w.darkModeButton = Button((-90, -30, -10, -10), "深色模式",
                                            callback=self.darkModeCallback)
             self.w.open()
+            
+            # 設置視窗永遠浮動於上方
+            self.w.getNSWindow().setLevel_(NSFloatingWindowLevel)
+            
             self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
 
     @objc.python_method
     def loadPreferences(self):
-        self.darkMode = Glyphs.defaults.get("com.yourname.NineBoxView.darkMode", False)
-        self.lastChar = Glyphs.defaults.get("com.yourname.NineBoxView.lastChar", "")
+        self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
+        self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
 
     @objc.python_method
     def savePreferences(self):
-        Glyphs.defaults["com.yourname.NineBoxView.darkMode"] = self.darkMode
-        Glyphs.defaults["com.yourname.NineBoxView.lastChar"] = self.lastChar
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
 
     @objc.python_method
     def __del__(self):
