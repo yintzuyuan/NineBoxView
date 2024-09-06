@@ -26,32 +26,7 @@ import traceback  # 新增此行以便進行錯誤追蹤
 class NineBoxPreviewView(NSView):
     def init(self):
         self = super(NineBoxPreviewView, self).init()
-        if self:
-            # 設定雙擊手勢識別器
-            doubleClickRecognizer = NSClickGestureRecognizer.alloc().initWithTarget_action_(self, self.handleDoubleClick_)
-            doubleClickRecognizer.setNumberOfClicksRequired_(2)
-            self.addGestureRecognizer_(doubleClickRecognizer)
-            
-            # 設定縮放手勢識別器
-            magnificationRecognizer = NSMagnificationGestureRecognizer.alloc().initWithTarget_action_(self, self.handleMagnification_)
-            self.addGestureRecognizer_(magnificationRecognizer)
-            
-            # 啟用觸控事件處理
-            self.setAcceptsTouchEvents_(True)
         return self
-    
-    # 處理雙擊事件，重置縮放
-    def handleDoubleClick_(self, sender):
-        self.wrapper.plugin.resetZoom()
-
-    # 處理縮放事件
-    def handleMagnification_(self, sender):
-        sensitivityFactor = 0.1  # 調整縮放靈敏度
-        newZoom = self.wrapper.plugin.zoomFactor * (1 + sender.magnification() * sensitivityFactor)
-        newZoom = max(0.5, min(2.0, newZoom))  # 限制縮放範圍
-        self.wrapper.plugin.zoomFactor = newZoom
-        self.wrapper.plugin.savePreferences()
-        self.wrapper.plugin.updateInterface(None)
 
     # 繪製視圖內容
     def drawRect_(self, rect):
@@ -110,9 +85,9 @@ class NineBoxPreviewView(NSView):
             availableHeight = rect.size.height - 2 * MARGIN
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
 
-            # 應用自定義縮放
-            customScale = self.wrapper.plugin.zoomFactor
-            scale *= customScale
+            # # 應用自定義縮放
+            # customScale = self.wrapper.plugin.zoomFactor
+            # scale *= customScale
 
             # 更新網格尺寸
             centerCellWidth *= scale
@@ -133,7 +108,7 @@ class NineBoxPreviewView(NSView):
             for i in range(9):
                 row = i // 3
                 col = i % 3
-                
+
                 # 決定目前單元格的中心位置和寬度
                 if col == 0:
                     centerX = leftColumnCenterX
@@ -144,7 +119,7 @@ class NineBoxPreviewView(NSView):
                 else:
                     centerX = rightColumnCenterX
                     cellWidth = searchCellWidth
-                
+
                 centerY = startY - (row + 0.5) * (gridHeight / 3)
                 cellHeight = gridHeight / 3 - SPACING
 
@@ -189,7 +164,6 @@ class NineBoxPreviewView(NSView):
 
     # 處理滑鼠點擊事件
     def mouseDown_(self, event):
-        # 當滑鼠在視圖內點擊時，使工具視窗成為關鍵視窗
         self.window().makeKeyWindow()
         self.window().makeFirstResponder_(self)
 
@@ -235,7 +209,7 @@ class NineBoxView(GeneralPlugin):
             # 新增選單項
             newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
             Glyphs.menu[WINDOW_MENU].append(newMenuItem)
-            
+
             # 新增回調函數
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
@@ -253,7 +227,7 @@ class NineBoxView(GeneralPlugin):
                 "NSWorkspaceDidDeactivateApplicationNotification",
                 None
             )
-            
+
             # 載入偏好設定並開啟視窗
             self.loadPreferences()
             self.w.open()
@@ -266,14 +240,14 @@ class NineBoxView(GeneralPlugin):
         font = Glyphs.font
         if not font:
             return
-        
+
         choice = PickGlyphs(
             list(font.glyphs),
             font.selectedFontMaster.id,
             self.lastChar,
             "com.YinTzuYuan.NineBoxView.search"
         )
-        
+
         if choice and choice[0]:
             selected_glyph = choice[0][0]
             # 如果字形有 Unicode 值，使用它；否則使用字形名稱
@@ -286,14 +260,18 @@ class NineBoxView(GeneralPlugin):
     def toggleWindow_(self, sender):
         try:
             if not hasattr(self, 'w') or self.w is None:
-                # 載入上次保存的窗口大小，如果沒有則使用預設值
                 defaultSize = (300, 340)
                 savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
-                
+
                 self.w = FloatingWindow(savedSize, self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
-                self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
-                
+
+                # 使用 vanilla 的 Group 而不是自定義的 NineBoxPreview
+                self.w.preview = Group((0, 0, -0, -40))
+                self.w.preview.view = NineBoxPreviewView.alloc().init()
+                self.w.preview.view.wrapper = self.w.preview
+                self.w.preview.view.plugin = self
+
                 placeholder = Glyphs.localize({
                     'en': u'Enter char or leave blank for current',
                     'zh-Hant': u'輸入或留空顯示目前字符',
@@ -310,12 +288,12 @@ class NineBoxView(GeneralPlugin):
                     'ru': u'Введите символ или оставьте пустым для текущего',
                     'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
-                
-                self.w.searchField = EditText((10, -30, -140, 22), 
-                                            placeholder=placeholder, 
+
+                self.w.searchField = EditText((10, -30, -140, 22),
+                                            placeholder=placeholder,
                                             callback=self.searchFieldCallback)
                 self.w.searchField.set(self.lastChar)
-                
+
                 searchButtonTitle = Glyphs.localize({
                     'en': u'Glyph Picker',
                     'zh-Hant': u'字符選擇器'
@@ -323,19 +301,13 @@ class NineBoxView(GeneralPlugin):
                 })
                 self.w.searchButton = Button((-130, -30, -70, 22), searchButtonTitle,
                                             callback=self.pickGlyph)
-                
+
                 self.w.darkModeButton = Button((-60, -30, -10, 22), self.getDarkModeIcon(),
                                             callback=self.darkModeCallback)
-                
-                self.w.bind("close", self.windowClosed_)
-                self.w.bind("resize", self.windowResized_)
+
                 self.w.open()
-
-            # 調整已存在的元素
-            self.adjustUIElements()
-
-            self.w.makeKey()
-            self.updateInterface(None)
+                self.w.makeKey()
+                self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
 
@@ -388,7 +360,7 @@ class NineBoxView(GeneralPlugin):
         # 當窗口大小改變時，保存新的大小
         newSize = sender.getPosSize()
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = newSize
-        
+
         # 調整UI元素以適應新的窗口大小
         self.adjustUIElements()
 
@@ -402,23 +374,21 @@ class NineBoxView(GeneralPlugin):
     def getDarkModeIcon(self):
         return "◐" if self.darkMode else "◑"
 
-    @objc.python_method
     def loadPreferences(self):
-        # 載入使用者偏好設定
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
         self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
         self.testMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.testMode", False)
         self.searchHistory = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.search", "")
-        self.zoomFactor = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.zoomFactor", 1.0)
+        # 暫時註解掉
+        # self.zoomFactor = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.zoomFactor", 1.0)
 
-    @objc.python_method
     def savePreferences(self):
-        # 儲存使用者偏好設定
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"] = self.testMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"] = self.searchHistory
-        Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"] = self.zoomFactor
+        # 暫時註解掉
+        # Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"] = self.zoomFactor
 
     @objc.python_method
     def logToMacroWindow(self, message):
@@ -428,9 +398,8 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def updateInterface(self, sender):
-        # 更新介面
         if hasattr(self, 'w') and self.w is not None and hasattr(self.w, 'preview'):
-            self.w.preview.redraw()
+            self.w.preview.view.setNeedsDisplay_(True)
 
     @objc.python_method
     def searchFieldCallback(self, sender):
@@ -451,12 +420,12 @@ class NineBoxView(GeneralPlugin):
         self.savePreferences()
         self.updateInterface(None)
 
-    @objc.python_method
+    """
     def resetZoom(self):
-        # 重置縮放
         self.zoomFactor = 1.0
         self.savePreferences()
         self.updateInterface(None)
+    """
 
     @objc.python_method
     def showWindow(self):
