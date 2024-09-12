@@ -24,34 +24,6 @@ import traceback  # 新增此行以便進行錯誤追蹤
 
 # 定義九宮格預覽視圖類別
 class NineBoxPreviewView(NSView):
-    def init(self):
-        self = super(NineBoxPreviewView, self).init()
-        if self:
-            # 設定雙擊手勢識別器
-            doubleClickRecognizer = NSClickGestureRecognizer.alloc().initWithTarget_action_(self, self.handleDoubleClick_)
-            doubleClickRecognizer.setNumberOfClicksRequired_(2)
-            self.addGestureRecognizer_(doubleClickRecognizer)
-            
-            # 設定縮放手勢識別器
-            magnificationRecognizer = NSMagnificationGestureRecognizer.alloc().initWithTarget_action_(self, self.handleMagnification_)
-            self.addGestureRecognizer_(magnificationRecognizer)
-            
-            # 啟用觸控事件處理
-            self.setAcceptsTouchEvents_(True)
-        return self
-    
-    # 處理雙擊事件，重置縮放
-    def handleDoubleClick_(self, sender):
-        self.wrapper.plugin.resetZoom()
-
-    # 處理縮放事件
-    def handleMagnification_(self, sender):
-        sensitivityFactor = 0.1  # 調整縮放靈敏度
-        newZoom = self.wrapper.plugin.zoomFactor * (1 + sender.magnification() * sensitivityFactor)
-        newZoom = max(0.5, min(2.0, newZoom))  # 限制縮放範圍
-        self.wrapper.plugin.zoomFactor = newZoom
-        self.wrapper.plugin.savePreferences()
-        self.wrapper.plugin.updateInterface(None)
 
     # 繪製視圖內容
     def drawRect_(self, rect):
@@ -83,6 +55,10 @@ class NineBoxPreviewView(NSView):
             centerGlyph = self.currentLayer.parent
             searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
 
+            # 檢查 searchGlyph 是否為 None
+            if searchGlyph is None:
+                print(f"Warning: No glyph found for '{self.searchChar}'. Using center glyph instead.")
+                searchGlyph = centerGlyph
 
             # 設定邊距和間距比例
             MARGIN_RATIO = 0.07
@@ -94,7 +70,7 @@ class NineBoxPreviewView(NSView):
 
             # 計算字符寬度和間距
             centerWidth = self.currentLayer.width
-            searchWidth = searchGlyph.layers[currentMaster.id].width
+            searchWidth = searchGlyph.layers[currentMaster.id].width if searchGlyph.layers[currentMaster.id] else centerWidth
             SPACING = max(centerWidth, searchWidth) * SPACING_RATIO
 
             # 計算單元格寬度
@@ -318,8 +294,19 @@ class NineBoxView(GeneralPlugin):
                 
                 searchButtonTitle = Glyphs.localize({
                     'en': u'Glyph Picker',
-                    'zh-Hant': u'字符選擇器'
-                    # 添加其他語言...
+                    'zh-Hant': u'字符選擇器',
+                    'zh-Hans': u'字符形选择器',
+                    'ja': u'グリフ選択ツール',
+                    'ko': u'글리프 선택기',
+                    'ar': u'أداة اختيار المحارف',
+                    'cs': u'Výběr glyfů',
+                    'de': u'Glyphenauswahl',
+                    'es': u'Selector de glifos',
+                    'fr': u'Sélecteur de glyphes',
+                    'it': u'Selettore di glifi',
+                    'pt': u'Seletor de glifos',
+                    'ru': u'Выбор глифа',
+                    'tr': u'Glif Seçici'
                 })
                 self.w.searchButton = Button((-130, -30, -70, 22), searchButtonTitle,
                                             callback=self.pickGlyph)
@@ -434,12 +421,16 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def searchFieldCallback(self, sender):
-        char = sender.get()
-        if len(char) > 0:
-            self.lastChar = char[0]  # 只取第一個字符
-            sender.set(self.lastChar)
+        char = sender.get().strip()
+        if char:
+            glyph = Glyphs.font.glyphs[char]
+            if glyph:
+                self.lastChar = char
+            else:
+                print(f"Warning: No glyph found for '{char}'. Using previous character.")
         else:
             self.lastChar = ""
+        sender.set(self.lastChar)
         self.savePreferences()
         self.updateInterface(None)
 
