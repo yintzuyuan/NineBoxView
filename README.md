@@ -24,7 +24,7 @@
 2. 預覽畫面中央會顯示目前正在編輯的字符。
 3. 使用下方的輸入框可同時修改顯示在周圍的參考字。
 4. 點擊左下方的按鈕可切換明亮／黑暗顯示模式。
-5. 使用滑鼠滾輪或觸控板手勢可以縮放預覽畫面。
+5. 使用滑鼠滾輪或觸控板手勢可以縮放預覽畫面（暫時移除）
 6. 在預覽畫面上雙擊可以將縮放比例重置為預設大小。
 7. 使用字符選擇器按鈕可快速選擇參考字符。
 
@@ -44,7 +44,7 @@
 
 相較於第一版，這次的更新解決了許多問題並新增了實用功能：
 
-- 支援縮放功能，方便觀察字符細節
+- 支援縮放功能，方便觀察字符細節（暫時移除）
 - 改善了字符對齊方式，支援不等寬字型
 - 新增字符選擇器，方便快速選擇參考字符（需要 Glyphs 3.2 或更高版本）
 - 優化了介面佈局，自適應視窗大小變化
@@ -78,7 +78,7 @@ This is a plugin developed for [Glyphs font editing software](http://glyphsapp.c
 - Real-time display of the character being edited
 - Support for customizing surrounding reference characters
 - Light/Dark display modes
-- Zoom functionality for detailed observation
+- Zoom functionality for detailed observation (temporarily removed)
 - Multi-language support
 
 ### How to Use
@@ -107,7 +107,7 @@ This plugin has been tested on Glyphs 3.2.3. The Glyph Picker feature requires G
 
 Compared to the first version, this update has resolved many issues and added useful features:
 
-- Zoom functionality for detailed character observation
+- Zoom functionality for detailed character observation (temporarily removed)
 - Improved character alignment, supporting variable-width fonts
 - Added a Glyph Picker for quick selection of reference characters (requires Glyphs 3.2 or higher)
 - Optimized interface layout, adapting to window size changes
