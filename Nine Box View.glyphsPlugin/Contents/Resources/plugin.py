@@ -16,6 +16,7 @@
 
 # 導入必要的模組
 import objc
+import random
 from GlyphsApp import *
 from GlyphsApp.plugins import *
 from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, NSWorkspace, NSClickGestureRecognizer, NSMagnificationGestureRecognizer
@@ -41,24 +42,10 @@ class NineBoxPreviewView(NSView):
 
             # 獲取目前選中的字符層和字符
             self.currentLayer = Glyphs.font.selectedLayers[0]
-            currentChar = self.currentLayer.parent.unicode
-            currentMaster = Glyphs.font.selectedFontMaster  # 定義 currentMaster
+            currentMaster = Glyphs.font.selectedFontMaster
 
-
-            # 決定要搜尋的字符
-            if self.wrapper.plugin.w.searchField.get().strip() == "":
-                self.searchChar = currentChar
-            else:
-                self.searchChar = self.wrapper.plugin.lastChar or currentChar
-
-            # 獲取中心字符和搜尋字符
-            centerGlyph = self.currentLayer.parent
-            searchGlyph = Glyphs.font.glyphs[self.searchChar] if self.searchChar else centerGlyph
-
-            # 檢查 searchGlyph 是否為 None
-            if searchGlyph is None:
-                print(f"Warning: No glyph found for '{self.searchChar}'. Using center glyph instead.")
-                searchGlyph = centerGlyph
+            # 使用當前的排列，如果沒有有效字符則使用空列表
+            display_chars = self.wrapper.plugin.currentArrangement if self.wrapper.plugin.selectedChars else []
 
             # 設定邊距和間距比例
             MARGIN_RATIO = 0.07
@@ -70,15 +57,21 @@ class NineBoxPreviewView(NSView):
 
             # 計算字符寬度和間距
             centerWidth = self.currentLayer.width
-            searchWidth = searchGlyph.layers[currentMaster.id].width if searchGlyph.layers[currentMaster.id] else centerWidth
-            SPACING = max(centerWidth, searchWidth) * SPACING_RATIO
+            maxWidth = centerWidth
+            if display_chars:
+                # 計算所有字符中的最大寬度
+                for char in display_chars:
+                    glyph = Glyphs.font.glyphs[char]
+                    if glyph and glyph.layers[currentMaster.id]:
+                        maxWidth = max(maxWidth, glyph.layers[currentMaster.id].width)
+
+            SPACING = maxWidth * SPACING_RATIO
 
             # 計算單元格寬度
-            searchCellWidth = searchWidth + SPACING
-            centerCellWidth = max(centerWidth, searchWidth) + SPACING
+            cellWidth = maxWidth + SPACING
 
             # 計算網格總寬度和高度
-            gridWidth = centerCellWidth + 2 * searchCellWidth + 2 * SPACING
+            gridWidth = 3 * cellWidth + 2 * SPACING
             gridHeight = 3 * self.cachedHeight + 2 * SPACING
 
             # 計算縮放比例
@@ -91,8 +84,7 @@ class NineBoxPreviewView(NSView):
             scale *= customScale
 
             # 更新網格尺寸
-            centerCellWidth *= scale
-            searchCellWidth *= scale
+            cellWidth *= scale
             gridWidth *= scale
             gridHeight *= scale
             SPACING *= scale
@@ -101,41 +93,37 @@ class NineBoxPreviewView(NSView):
             startX = rect.size.width / 2 - gridWidth / 2
             offsetY = rect.size.height * 0.05
             startY = (rect.size.height + gridHeight) / 2 + offsetY
-            leftColumnCenterX = startX + searchCellWidth / 2
-            middleColumnCenterX = startX + searchCellWidth + SPACING + centerCellWidth / 2
-            rightColumnCenterX = startX + gridWidth - searchCellWidth / 2
 
             # 繪製九宮格中的字符
             for i in range(9):
                 row = i // 3
                 col = i % 3
-                
-                # 決定目前單元格的中心位置和寬度
-                if col == 0:
-                    centerX = leftColumnCenterX
-                    cellWidth = searchCellWidth
-                elif col == 1:
-                    centerX = middleColumnCenterX
-                    cellWidth = centerCellWidth if i == 4 else searchCellWidth
-                else:
-                    centerX = rightColumnCenterX
-                    cellWidth = searchCellWidth
-                
+
+                # 計算當前單元格的中心位置
+                centerX = startX + (col + 0.5) * cellWidth + col * SPACING
                 centerY = startY - (row + 0.5) * (gridHeight / 3)
-                cellHeight = gridHeight / 3 - SPACING
 
                 # 選擇要繪製的字符層
-                if i == 4:
+                if i == 4:  # 中心位置
                     layer = self.currentLayer
                 else:
-                    layer = searchGlyph.layers[currentMaster.id]
+                    # 當沒有其他字符時，使用當前編輯的字符填充
+                    if not display_chars:
+                        layer = self.currentLayer
+                    else:
+                        char_index = i if i < 4 else i - 1
+                        if char_index < len(display_chars):
+                            glyph = Glyphs.font.glyphs[display_chars[char_index]]
+                            layer = glyph.layers[currentMaster.id] if glyph else None
+                        else:
+                            layer = None
 
                 if layer:
                     # 計算字符縮放比例
                     glyphWidth = layer.width
                     glyphHeight = self.cachedHeight
                     scaleX = cellWidth / glyphWidth if glyphWidth > 0 else 1
-                    scaleY = cellHeight / glyphHeight if glyphHeight > 0 else 1
+                    scaleY = (gridHeight / 3 - SPACING) / glyphHeight if glyphHeight > 0 else 1
                     glyphScale = min(scaleX, scaleY)
 
                     # 計算縮放後的字符尺寸和位置
@@ -204,6 +192,8 @@ class NineBoxView(GeneralPlugin):
             'tr': u'Dokuz Kutu Önizleme'
         })
         self.loadPreferences()
+        self.selectedChars = []  # 儲存選中的字符
+        self.currentArrangement = []  # 儲存當前的排列
 
     @objc.python_method
     def start(self):
@@ -211,7 +201,7 @@ class NineBoxView(GeneralPlugin):
             # 新增選單項
             newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
             Glyphs.menu[WINDOW_MENU].append(newMenuItem)
-            
+
             # 新增回調函數
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
@@ -229,7 +219,7 @@ class NineBoxView(GeneralPlugin):
                 "NSWorkspaceDidDeactivateApplicationNotification",
                 None
             )
-            
+
             # 載入偏好設定並開啟視窗
             self.loadPreferences()
             self.w.open()
@@ -242,14 +232,14 @@ class NineBoxView(GeneralPlugin):
         font = Glyphs.font
         if not font:
             return
-        
+
         choice = PickGlyphs(
             list(font.glyphs),
             font.selectedFontMaster.id,
             self.lastChar,
             "com.YinTzuYuan.NineBoxView.search"
         )
-        
+
         if choice and choice[0]:
             selected_glyph = choice[0][0]
             # 如果字形有 Unicode 值，使用它；否則使用字形名稱
@@ -265,11 +255,11 @@ class NineBoxView(GeneralPlugin):
                 # 載入上次保存的窗口大小，如果沒有則使用預設值
                 defaultSize = (300, 340)
                 savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
-                
+
                 self.w = FloatingWindow(savedSize, self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
                 self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
-                
+
                 placeholder = Glyphs.localize({
                     'en': u'Enter char or leave blank for current',
                     'zh-Hant': u'輸入或留空顯示目前字符',
@@ -286,12 +276,12 @@ class NineBoxView(GeneralPlugin):
                     'ru': u'Введите символ или оставьте пустым для текущего',
                     'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
-                
-                self.w.searchField = EditText((10, -30, -140, 22), 
-                                            placeholder=placeholder, 
+
+                self.w.searchField = EditText((10, -30, -140, 22),
+                                            placeholder=placeholder,
                                             callback=self.searchFieldCallback)
                 self.w.searchField.set(self.lastChar)
-                
+
                 searchButtonTitle = Glyphs.localize({
                     'en': u'Glyph Picker',
                     'zh-Hant': u'字符選擇器',
@@ -310,10 +300,21 @@ class NineBoxView(GeneralPlugin):
                 })
                 self.w.searchButton = Button((-130, -30, -70, 22), searchButtonTitle,
                                             callback=self.pickGlyph)
-                
+
                 self.w.darkModeButton = Button((-60, -30, -10, 22), self.getDarkModeIcon(),
                                             callback=self.darkModeCallback)
-                
+
+                # 新增隨機排列按鈕
+                randomizeButtonTitle = Glyphs.localize({
+                    'en': u'Randomize',
+                    'zh-Hant': u'隨機排列',
+                    'zh-Hans': u'随机排列'
+                    # ... 其他語言翻譯 ...
+                })
+                self.w.randomizeButton = Button((-190, -30, -140, 22),
+                                                          randomizeButtonTitle,
+                                                          callback=self.randomizeCallback)
+
                 self.w.bind("close", self.windowClosed_)
                 self.w.bind("resize", self.windowResized_)
                 self.w.open()
@@ -375,7 +376,7 @@ class NineBoxView(GeneralPlugin):
         # 當窗口大小改變時，保存新的大小
         newSize = sender.getPosSize()
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = newSize
-        
+
         # 調整UI元素以適應新的窗口大小
         self.adjustUIElements()
 
@@ -394,6 +395,8 @@ class NineBoxView(GeneralPlugin):
         # 載入使用者偏好設定
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
         self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
+        self.selectedChars = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.selectedChars", [])
+        self.currentArrangement = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.currentArrangement", [])
         self.testMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.testMode", False)
         self.searchHistory = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.search", "")
         self.zoomFactor = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.zoomFactor", 1.0)
@@ -403,6 +406,8 @@ class NineBoxView(GeneralPlugin):
         # 儲存使用者偏好設定
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"] = self.selectedChars
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.currentArrangement"] = self.currentArrangement
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"] = self.testMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"] = self.searchHistory
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"] = self.zoomFactor
@@ -421,18 +426,97 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def searchFieldCallback(self, sender):
-        char = sender.get().strip()
-        if char:
-            glyph = Glyphs.font.glyphs[char]
-            if glyph:
-                self.lastChar = char
-            else:
-                print(f"Warning: No glyph found for '{char}'. Using previous character.")
+        """
+        處理輸入框的回調函數
+        """
+        input_text = sender.get().strip()
+
+        if input_text:
+            # 解析輸入文字，獲取所有有效字符
+            self.selectedChars = self.parseInputText(input_text)
+            # 生成新的隨機排列
+            self.generateNewArrangement()
+            # 保持輸入框的原始內容
+            sender.set(input_text)
+
+            if not self.selectedChars:
+                print("Warning: No valid glyphs found in input")
         else:
-            self.lastChar = ""
-        sender.set(self.lastChar)
+            self.selectedChars = []
+            self.currentArrangement = []
+            sender.set("")
+
         self.savePreferences()
         self.updateInterface(None)
+
+    @objc.python_method
+    def generateNewArrangement(self):
+        """
+        生成新的隨機排列
+        """
+        display_chars = list(self.selectedChars)  # 複製一份字符列表
+
+        # 如果字符數量超過8個，隨機選擇8個
+        if len(display_chars) > 8:
+            display_chars = random.sample(display_chars, 8)
+        elif display_chars:
+            # 如果字符數量不足8個，從現有字符中隨機選擇來填充
+            while len(display_chars) < 8:
+                display_chars.append(random.choice(display_chars))
+
+        # 隨機打亂順序
+        random.shuffle(display_chars)
+        self.currentArrangement = display_chars
+
+    @objc.python_method
+    def parseInputText(self, text):
+        """
+        解析輸入文字並返回有效的字符列表
+
+        處理規則：
+        1. 漢字/東亞文字：直接連續處理，不需空格分隔
+        2. ASCII字符/字符名稱：需要用空格分隔
+        3. 混合輸入時，保持上述規則
+
+        例如：
+        - 輸入 "顯示文字" -> ['顯', '示', '文', '字']
+        - 輸入 "A B C.ss01" -> ['A', 'B', 'C.ss01']
+        - 輸入 "顯示文字 A B" -> ['顯', '示', '文', '字', 'A', 'B']
+        """
+        chars = []
+
+        # 分割輸入文字，用空格作為分隔符
+        parts = text.strip().split(' ')
+
+        for part in parts:
+            if not part:
+                continue
+
+            # 檢查是否包含漢字/東亞文字
+            if any(ord(c) > 0x4E00 for c in part):
+                # 對於漢字，逐字符處理
+                for char in part:
+                    if Glyphs.font.glyphs[char]:
+                        chars.append(char)
+                    else:
+                        print(f"Warning: No glyph found for '{char}'")
+            else:
+                # 對於ASCII字符名稱，整體處理
+                if Glyphs.font.glyphs[part]:
+                    chars.append(part)
+                else:
+                    print(f"Warning: No glyph found for '{part}'")
+
+        return chars
+
+    @objc.python_method
+    def randomizeCallback(self, sender):
+        """
+        隨機排列按鈕的回調函數
+        """
+        if self.selectedChars:
+            self.generateNewArrangement()
+            self.updateInterface(None)
 
     @objc.python_method
     def darkModeCallback(self, sender):
