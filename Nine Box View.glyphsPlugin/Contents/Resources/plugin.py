@@ -229,24 +229,42 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def pickGlyph(self, sender):
-        font = Glyphs.font
-        if not font:
-            return
+        try:
+            font = Glyphs.font
+            if not font:
+                return
 
-        choice = PickGlyphs(
-            list(font.glyphs),
-            font.selectedFontMaster.id,
-            self.lastChar,
-            "com.YinTzuYuan.NineBoxView.search"
-        )
+            choice = PickGlyphs(
+                list(font.glyphs),
+                font.selectedFontMaster.id,
+                self.lastChar,
+                # None,
+                "com.YinTzuYuan.NineBoxView.search"
+            )
 
-        if choice and choice[0]:
-            selected_glyph = choice[0][0]
-            # 如果字形有 Unicode 值，使用它；否則使用字形名稱
-            self.lastChar = selected_glyph.unicode or selected_glyph.name
-            self.w.searchField.set(self.lastChar)
-            self.savePreferences()
-            self.updateInterface(None)
+            if choice and choice[0]:  # 確保有選擇結果
+                # 收集所有選擇的字符
+                selected_chars = []
+                for selection in choice[0]:  # choice[0] 是選擇的字形列表
+                    if isinstance(selection, GSGlyph):  # 確認是 GSGlyph 物件
+                        # 優先使用 Unicode 值，若無則使用字形名稱
+                        char = selection.unicode or selection.name
+                        selected_chars.append(char)
+                
+                if selected_chars:
+                    # 用空格連接所有字符
+                    current_text = self.w.searchField.get()
+                    cursor_position = self.w.searchField.getSelection()[0]
+                    new_text = current_text[:cursor_position] + ' '.join(selected_chars) + current_text[cursor_position:]
+                    self.w.searchField.set(new_text)
+                    
+                    # 更新游標位置
+                    new_cursor_position = cursor_position + len(' '.join(selected_chars))
+                    self.w.searchField.setSelection((new_cursor_position, new_cursor_position))
+                    
+                    self.updateInterface(None)
+        except Exception as e:
+            print(f"Error in pickGlyph: {str(e)}")
 
     @objc.python_method
     def toggleWindow_(self, sender):
@@ -258,7 +276,7 @@ class NineBoxView(GeneralPlugin):
 
                 self.w = FloatingWindow(savedSize, self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
-                self.w.preview = NineBoxPreview((0, 0, -0, -40), self)
+                self.w.preview = NineBoxPreview((0, 0, -0, -60), self)
 
                 placeholder = Glyphs.localize({
                     'en': u'Enter char or leave blank for current',
@@ -277,28 +295,28 @@ class NineBoxView(GeneralPlugin):
                     'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
 
-                self.w.searchField = EditText((10, -30, -140, 22),
+                self.w.searchField = EditText((10, -55, -10, 22),
                                             placeholder=placeholder,
                                             callback=self.searchFieldCallback)
                 self.w.searchField.set(self.lastChar)
 
                 searchButtonTitle = Glyphs.localize({
-                    'en': u'Glyph Picker',
-                    'zh-Hant': u'字符選擇器',
-                    'zh-Hans': u'字符形选择器',
-                    'ja': u'グリフ選択ツール',
-                    'ko': u'글리프 선택기',
-                    'ar': u'أداة اختيار المحارف',
-                    'cs': u'Výběr glyfů',
-                    'de': u'Glyphenauswahl',
-                    'es': u'Selector de glifos',
-                    'fr': u'Sélecteur de glyphes',
-                    'it': u'Selettore di glifi',
-                    'pt': u'Seletor de glifos',
-                    'ru': u'Выбор глифа',
-                    'tr': u'Glif Seçici'
+                    'en': u'🔣', # Glyph Picker
+                    # 'zh-Hant': u'字符選擇器',
+                    # 'zh-Hans': u'字符形选择器',
+                    # 'ja': u'グリフ選択ツール',
+                    # 'ko': u'글리프 선택기',
+                    # 'ar': u'أداة اختيار المحارف',
+                    # 'cs': u'Výběr glyfů',
+                    # 'de': u'Glyphenauswahl',
+                    # 'es': u'Selector de glifos',
+                    # 'fr': u'Sélecteur de glyphes',
+                    # 'it': u'Selettore di glifi',
+                    # 'pt': u'Seletor de glifos',
+                    # 'ru': u'Выбор глифа',
+                    # 'tr': u'Glif Seçici'
                 })
-                self.w.searchButton = Button((-130, -30, -70, 22), searchButtonTitle,
+                self.w.searchButton = Button((10, -30, 50, 22), searchButtonTitle,
                                             callback=self.pickGlyph)
 
                 self.w.darkModeButton = Button((-60, -30, -10, 22), self.getDarkModeIcon(),
@@ -306,79 +324,22 @@ class NineBoxView(GeneralPlugin):
 
                 # 新增隨機排列按鈕
                 randomizeButtonTitle = Glyphs.localize({
-                    'en': u'Randomize',
-                    'zh-Hant': u'隨機排列',
-                    'zh-Hans': u'随机排列'
+                    'en': u'🔀', # Randomize
+                    # 'zh-Hant': u'隨機排列',
+                    # 'zh-Hans': u'随机排列'
                     # ... 其他語言翻譯 ...
                 })
-                self.w.randomizeButton = Button((-190, -30, -140, 22),
+                self.w.randomizeButton = Button((70, -30, -70, 22),
                                                           randomizeButtonTitle,
                                                           callback=self.randomizeCallback)
 
                 self.w.bind("close", self.windowClosed_)
-                self.w.bind("resize", self.windowResized_)
                 self.w.open()
-
-            # 調整已存在的元素
-            self.adjustUIElements()
 
             self.w.makeKey()
             self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
-
-    @objc.python_method
-    def adjustUIElements(self):
-        # 計算按鈕文字的寬度
-        searchButtonTitle = Glyphs.localize({
-            'en': u'Glyph Picker',
-            'zh-Hant': u'字符選擇器',
-            'zh-Hans': u'字符形选择器',
-            'ja': u'グリフ選択ツール',
-            'ko': u'글리프 선택기',
-            'ar': u'أداة اختيار المحارف',
-            'cs': u'Výběr glyfů',
-            'de': u'Glyphenauswahl',
-            'es': u'Selector de glifos',
-            'fr': u'Sélecteur de glyphes',
-            'it': u'Selettore di glifi',
-            'pt': u'Seletor de glifos',
-            'ru': u'Выбор глифа',
-            'tr': u'Glif Seçici'
-        })
-        buttonFont = NSFont.systemFontOfSize_(NSFont.systemFontSize())
-        buttonWidth = NSString.stringWithString_(searchButtonTitle).sizeWithAttributes_({NSFontAttributeName: buttonFont}).width
-
-        # 設定最小和最大寬度
-        minButtonWidth = 80
-        maxButtonWidth = 150
-        buttonWidth = max(minButtonWidth, min(buttonWidth + 20, maxButtonWidth))  # 加 20 為左右邊距
-
-        # 獲取當前窗口寬度
-        currentSize = self.w.getPosSize()
-        windowWidth = currentSize[2]
-
-        # 調整搜索欄位位置和大小
-        searchFieldWidth = windowWidth - 20 - buttonWidth - 60 - 20  # 20 是左邊距，60 是深色模式按鈕寬度，20 是按鈕間距
-        self.w.searchField.setPosSize((10, -30, searchFieldWidth, 22))
-
-        # 調整按鈕位置和大小
-        buttonX = searchFieldWidth + 20
-        self.w.searchButton.setPosSize((buttonX, -30, buttonWidth + 10, 22))
-        self.w.searchButton.setTitle(searchButtonTitle)
-
-        # 調整深色模式按鈕位置
-        darkModeButtonX = buttonX + buttonWidth + 20
-        self.w.darkModeButton.setPosSize((darkModeButtonX, -30, -10, 22))
-
-    @objc.python_method
-    def windowResized_(self, sender):
-        # 當窗口大小改變時，保存新的大小
-        newSize = sender.getPosSize()
-        Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = newSize
-
-        # 調整UI元素以適應新的窗口大小
-        self.adjustUIElements()
 
     @objc.python_method
     def windowClosed_(self, sender):
@@ -388,7 +349,7 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def getDarkModeIcon(self):
-        return "◐" if self.darkMode else "◑"
+        return "🌙" if self.darkMode else "☀️"
 
     @objc.python_method
     def loadPreferences(self):
