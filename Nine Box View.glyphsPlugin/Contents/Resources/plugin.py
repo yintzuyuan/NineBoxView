@@ -161,22 +161,6 @@ class NineBoxPreviewView(NSView):
                         NSColor.blackColor().set()
                     bezierPath.fill()
 
-                # # === 繪製網格 ===
-                # # 設定網格線顏色
-                # if self.wrapper.plugin.darkMode:
-                #     NSColor.colorWithCalibratedRed_green_blue_alpha_(1, 1, 1, 0.1).set()
-                # else:
-                #     NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 0.1).set()
-
-                # # 繪製單元格邊框
-                # cellRect = NSMakeRect(
-                #     startX + col * (cellWidth + SPACING),
-                #     startY - (row + 1) * (gridHeight / 3),
-                #     cellWidth,
-                #     gridHeight / 3
-                # )
-                # NSBezierPath.strokeRect_(cellRect)
-
         except Exception as e:
             print(traceback.format_exc())
 
