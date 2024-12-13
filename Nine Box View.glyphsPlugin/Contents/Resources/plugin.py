@@ -191,7 +191,15 @@ class NineBoxPreview(Group):
 # === 主要外掛類別 / Main Plugin Class ==
 
 class NineBoxView(GeneralPlugin):
-    """定義主要外掛類別 / Define the main plugin class"""
+    """
+    定義主要外掛類別 / Define the main plugin class
+    - 視窗操作
+    - 界面更新
+    - 事件處理
+    - 配置管理
+    - 工具方法
+    - 清理方法
+    """
 
     @objc.python_method
     def settings(self):
@@ -374,6 +382,11 @@ class NineBoxView(GeneralPlugin):
     def searchFieldCallback(self, sender):
         """處理輸入框的回調函數 / Callback function for the input field"""
 
+        # 檢查是否有開啟字型檔案
+        if not Glyphs.font:
+            print("Warning: No font file is open")
+            return
+
         input_text = sender.get().strip()
 
         if input_text:
@@ -511,6 +524,11 @@ class NineBoxView(GeneralPlugin):
             - Input "A B C.ss01" -> ['A', 'B', 'C.ss01']
             - Input "顯示文字 A B" -> ['顯', '示', '文', '字', 'A', 'B']
         """
+
+        # 檢查是否有開啟字型檔案
+        if not Glyphs.font:
+            print("Warning: No font file is open")
+            return []
 
         chars = []
 
