@@ -14,11 +14,7 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-<<<<<<< HEAD
 	<string>2.2.0</string>
-=======
-	<string>2.1</string>
->>>>>>> origin/main
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
 	<string>8</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
@@ -26,11 +22,7 @@
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-<<<<<<< HEAD
 	<string>Multiple reference glyphs.</string>
-=======
-	<string>Add support for Glyphs 3.2.</string>
->>>>>>> origin/main
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>Copyright, Tzuyuan Yin, 2024</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
