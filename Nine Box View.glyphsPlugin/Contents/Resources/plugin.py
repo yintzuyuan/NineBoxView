@@ -277,37 +277,28 @@ class NineBoxView(GeneralPlugin):
 
                 self.w = FloatingWindow(savedSize, self.name, minSize=(200, 240),
                                         autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
-                self.w.preview = NineBoxPreview((0, 0, -0, -60), self)
+                self.w.preview = NineBoxPreview((0, 0, -0, -35), self)
 
                 placeholder = Glyphs.localize({
-                    'en': u'Enter char or leave blank for current',
-                    'zh-Hant': u'輸入或留空顯示目前字符',
-                    'zh-Hans': u'输入或留空显示当前字符形',
-                    'ja': u'文字入力 (空欄で現在の文字)',
-                    'ko': u'문자 입력 또는 공백으로 현재 문자',
-                    'ar': u'أدخل حرفًا أو اتركه فارغًا للحالي',
-                    'cs': u'Zadejte znak nebo nechte prázdné pro aktuální',
-                    'de': u'Zeichen eingeben oder leer für aktuelles',
-                    'es': u'Ingrese carácter o deje en blanco para el actual',
-                    'fr': u"Saisissez un caractère ou laissez vide pour l'actuel",
-                    'it': u"Inserisci carattere o lascia vuoto per l'attuale",
-                    'pt': u'Digite caractere ou deixe em branco para o atual',
-                    'ru': u'Введите символ или оставьте пустым для текущего',
-                    'tr': u'Karakter girin veya mevcut için boş bırakın'
+                    'en': u'Input glyphs (space-separated) or leave blank',
+                    'zh-Hant': u'輸入字符（以空格分隔）或留空',
+                    'zh-Hans': u'输入字符（用空格分隔）或留空',
+                    'ja': u'文字を入力してください（スペースで区切る）または空欄のまま',
+                    'ko': u'문자를 입력하세요 (공백으로 구분) 또는 비워 두세요',
                 })
 
                 # 使用 lastInput 設定輸入框的初始內容 / Use lastInput to set the initial content of the input field
                 self.w.searchField = EditText(
-                    (10, -55, -10, 22),
+                    (10, -30, -100, 22),
                     text=self.lastInput,  # 使用儲存的最後輸入 / Use the last saved input
                     placeholder=placeholder,
                     callback=self.searchFieldCallback
                 )
 
-                self.w.searchButton = Button((10, -30, 50, 22), "🔣",
+                self.w.searchButton = Button((-95, -30, -55, 22), "🔣",
                                             callback=self.pickGlyph)
 
-                self.w.darkModeButton = Button((-60, -30, -10, 22),
+                self.w.darkModeButton = Button((-50, -30, -10, 22),
                                                 self.getDarkModeIcon(),
                                                 callback=self.darkModeCallback)
 
