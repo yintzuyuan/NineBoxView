@@ -268,6 +268,9 @@ class NineBoxView(GeneralPlugin):
 
         try:
             if not hasattr(self, 'w') or self.w is None:
+                # 確保已載入偏好設定
+                self.loadPreferences()
+
                 # 載入上次保存的窗口大小，如果沒有則使用預設值
                 defaultSize = (300, 340)
                 savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
@@ -293,34 +296,31 @@ class NineBoxView(GeneralPlugin):
                     'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
 
-                self.w.searchField = EditText((10, -55, -10, 22),
-                                            placeholder=placeholder,
-                                            callback=self.searchFieldCallback)
-                self.w.searchField.set(self.lastChar)
+                # 使用 lastInput 設定輸入框的初始內容
+                self.w.searchField = EditText(
+                    (10, -55, -10, 22),
+                    text=self.lastInput,  # 使用保存的最後輸入
+                    placeholder=placeholder,
+                    callback=self.searchFieldCallback
+                )
 
-                searchButtonTitle = Glyphs.localize({
-                    'en': u'🔣', # Glyph Picker
-                    # 'zh-Hant': u'字符選擇器',
-                    # 'zh-Hans': u'字符形选择器',
-                    # 'ja': u'グリフ選択ツール',
-                    # 'ko': u'글리프 선택기',
-                    # 'ar': u'أداة اختيار المحارف',
-                    # 'cs': u'Výběr glyfů',
-                    # 'de': u'Glyphenauswahl',
-                    # 'es': u'Selector de glifos',
-                    # 'fr': u'Sélecteur de glyphes',
-                    # 'it': u'Selettore di glifi',
-                    # 'pt': u'Seletor de glifos',
-                    # 'ru': u'Выбор глифа',
-                    # 'tr': u'Glif Seçici'
-                })
-                self.w.searchButton = Button((10, -30, 50, 22), searchButtonTitle,
+                self.w.searchButton = Button((10, -30, 50, 22), "🔣",
                                             callback=self.pickGlyph)
 
-                self.w.darkModeButton = Button((-60, -30, -10, 22), self.getDarkModeIcon(),
-                                            callback=self.darkModeCallback)                #                                           callback=self.randomizeCallback)
+                self.w.darkModeButton = Button((-60, -30, -10, 22),
+                                                self.getDarkModeIcon(),
+                                                callback=self.darkModeCallback)
 
                 self.w.bind("close", self.windowClosed_)
+
+                # # 如果有保存的字符，重新生成排列
+                # if self.selectedChars:
+                #     self.generateNewArrangement()
+
+                # 如果沒有現有排列但有選中的字符，則生成新排列
+                if self.selectedChars and not self.currentArrangement:
+                    self.generateNewArrangement()
+
                 self.w.open()
 
             self.w.makeKey()
@@ -344,9 +344,15 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def windowClosed_(self, sender):
-        """當窗口關閉時，保存窗口大小。 / Save window size when window is closed."""
+        """當窗口關閉時，保存設定。 / Save settings when the window is closed."""
 
+        # 保存當前輸入內容
+        self.lastInput = self.w.searchField.get()
+        self.savePreferences()
+
+        # 保存窗口大小
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = sender.getPosSize()
+
         self.w = None
 
     @objc.python_method
@@ -371,15 +377,6 @@ class NineBoxView(GeneralPlugin):
         if hasattr(self, 'w') and self.w is not None and hasattr(self.w, 'preview'):
             self.w.preview.redraw()
 
-    # @objc.python_method
-    # def resetZoom(self):
-    #     """
-    #     重置縮放 / Reset zoom
-    #     """
-    #     self.zoomFactor = 1.0
-    #     self.savePreferences()
-    #     self.updateInterface(None)
-
     # === 事件處理 / Event Handling ===
 
     @objc.python_method
@@ -391,22 +388,24 @@ class NineBoxView(GeneralPlugin):
             print("Warning: No font file is open")
             return
 
-        input_text = sender.get().strip()
+        # 獲取當前輸入
+        input_text = sender.get()
+
+        # 儲存當前輸入內容
+        self.lastInput = input_text
 
         if input_text:
             # 解析輸入文字，獲取所有有效字符
-            self.selectedChars = self.parseInputText(input_text)
-            # 生成新的隨機排列
-            self.generateNewArrangement()
-            # 保持輸入框的原始內容
-            sender.set(input_text)
+            new_chars = self.parseInputText(input_text)
 
-            if not self.selectedChars:
-                print("Warning: No valid glyphs found in input")
+            # 檢查字符列表是否有實質變化
+            if new_chars != self.selectedChars:
+                self.selectedChars = new_chars
+                # 只在字符列表變化時執行隨機排列
+                self.generateNewArrangement()
         else:
             self.selectedChars = []
             self.currentArrangement = []
-            sender.set("")
 
         self.savePreferences()
         self.updateInterface(None)
@@ -440,35 +439,29 @@ class NineBoxView(GeneralPlugin):
             choice = PickGlyphs(
                 list(font.glyphs),
                 font.selectedFontMaster.id,
-                self.lastChar,
-                # None,
+                self.searchHistory,
                 "com.YinTzuYuan.NineBoxView.search"
             )
 
-            if choice and choice[0]:  # 確保有選擇結果
-                # 收集所有選擇的字符
+            if choice and choice[0]:
                 selected_chars = []
-                for selection in choice[0]:  # choice[0] 是選擇的字形列表
-                    if isinstance(selection, GSGlyph):  # 確認是 GSGlyph 物件
-                        # 優先使用 Unicode 值，若無則使用字形名稱
+                for selection in choice[0]:
+                    if isinstance(selection, GSGlyph):
                         char = selection.unicode or selection.name
                         selected_chars.append(char)
 
                 if selected_chars:
-                    # 用空格連接所有字符
                     current_text = self.w.searchField.get()
                     cursor_position = self.w.searchField.getSelection()[0]
                     new_text = current_text[:cursor_position] + ' '.join(selected_chars) + current_text[cursor_position:]
                     self.w.searchField.set(new_text)
 
-                    # 更新游標位置
                     new_cursor_position = cursor_position + len(' '.join(selected_chars))
                     self.w.searchField.setSelection((new_cursor_position, new_cursor_position))
 
                     self.updateInterface(None)
         except Exception as e:
             print(f"Error in pickGlyph: {str(e)}")
-
 
     # === 配置管理 / Configuration Management ===
 
@@ -477,7 +470,7 @@ class NineBoxView(GeneralPlugin):
         """載入使用者偏好設定 / Load user preferences"""
 
         self.darkMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.darkMode", False)
-        self.lastChar = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastChar", "")
+        self.lastInput = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.lastInput", "")
         self.selectedChars = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.selectedChars", [])
         self.currentArrangement = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.currentArrangement", [])
         self.testMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.testMode", False)
@@ -489,7 +482,7 @@ class NineBoxView(GeneralPlugin):
         """儲存使用者偏好設定 / Save user preferences"""
 
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.darkMode"] = self.darkMode
-        Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastChar"] = self.lastChar
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastInput"] = self.lastInput
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"] = self.selectedChars
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.currentArrangement"] = self.currentArrangement
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"] = self.testMode
@@ -535,28 +528,30 @@ class NineBoxView(GeneralPlugin):
             return []
 
         chars = []
-
-        # 分割輸入文字，用空格作為分隔符 / Split the input text, use space as the separator
-        parts = text.strip().split(' ')
+        # 移除連續的多餘空格，但保留有意義的單個空格
+        parts = ' '.join(text.split())
+        parts = parts.split(' ')
 
         for part in parts:
             if not part:
                 continue
 
-            # 檢查是否包含漢字/東亞文字 / Check if it contains Chinese characters or East Asian characters
+            # 檢查是否包含漢字/東亞文字
             if any(ord(c) > 0x4E00 for c in part):
-                # 對於漢字，逐字符處理 / For Chinese characters, process character by character
+                # 對於漢字，逐字符處理
                 for char in part:
                     if Glyphs.font.glyphs[char]:
                         chars.append(char)
                     else:
-                        print(f"Warning: No glyph found for '{char}'")
+                        # print(f"Warning: No glyph found for '{char}'")
+                        pass
             else:
-                # 對於 ASCII 字符名稱，整體處理 / For ASCII glyph names, process as a whole
+                # 對於 ASCII 字符名稱，整體處理
                 if Glyphs.font.glyphs[part]:
                     chars.append(part)
                 else:
-                    print(f"Warning: No glyph found for '{part}'")
+                    # print(f"Warning: No glyph found for '{part}'")
+                    pass
 
         return chars
 
