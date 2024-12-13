@@ -38,25 +38,24 @@ class NineBoxPreviewView(NSView):
         """繪製視圖內容 / Draw the content of the view"""
 
         try:
-            # 設定背景顏色
+            # === 設定背景顏色 ===
             if self.wrapper.plugin.darkMode:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 1.0).set()
             else:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 1.0).set()
             NSRectFill(rect)
 
-            # 檢查是否有選中的字符層
-            if not Glyphs.font or not Glyphs.font.selectedLayers:
+            # === 獲取基本參數 ===
+            # 獲取當前字體和主字模
+            if not Glyphs.font:
                 return
 
-            # 獲取目前選中的字符層和字符
-            self.currentLayer = Glyphs.font.selectedLayers[0]
             currentMaster = Glyphs.font.selectedFontMaster
 
-            # 使用當前的排列，如果沒有有效字符則使用空列表
+            # 使用當前的排列
             display_chars = self.wrapper.plugin.currentArrangement if self.wrapper.plugin.selectedChars else []
 
-            # 設定邊距和間距比例
+            # === 設定基本尺寸 ===
             MARGIN_RATIO = 0.07
             SPACING_RATIO = 0.03
 
@@ -64,11 +63,16 @@ class NineBoxPreviewView(NSView):
             self.cachedHeight = currentMaster.ascender - currentMaster.descender
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
-            # 計算字符寬度和間距
-            centerWidth = self.currentLayer.width
-            maxWidth = centerWidth
+            # === 計算網格尺寸 ===
+            # 計算基礎寬度 - 使用當前字體的平均寬度或預設值
+            baseWidth = 500  # 預設基礎寬度
+
+            # 如果有選中的字符層,使用其寬度
+            if Glyphs.font.selectedLayers:
+                baseWidth = Glyphs.font.selectedLayers[0].width
+
+            maxWidth = baseWidth
             if display_chars:
-                # 計算所有字符中的最大寬度
                 for char in display_chars:
                     glyph = Glyphs.font.glyphs[char]
                     if glyph and glyph.layers[currentMaster.id]:
@@ -83,7 +87,7 @@ class NineBoxPreviewView(NSView):
             gridWidth = 3 * cellWidth + 2 * SPACING
             gridHeight = 3 * self.cachedHeight + 2 * SPACING
 
-            # 計算縮放比例
+            # === 計算縮放比例 ===
             availableWidth = rect.size.width - 2 * MARGIN
             availableHeight = rect.size.height - 2 * MARGIN
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
@@ -103,7 +107,7 @@ class NineBoxPreviewView(NSView):
             offsetY = rect.size.height * 0.05
             startY = (rect.size.height + gridHeight) / 2 + offsetY
 
-            # 繪製九宮格中的字符
+            # === 繪製九宮格字符 ===
             for i in range(9):
                 row = i // 3
                 col = i % 3
@@ -113,19 +117,19 @@ class NineBoxPreviewView(NSView):
                 centerY = startY - (row + 0.5) * (gridHeight / 3)
 
                 # 選擇要繪製的字符層
-                if i == 4:  # 中心位置
-                    layer = self.currentLayer
+                layer = None
+                if i == 4 and Glyphs.font.selectedLayers:  # 中心位置
+                    layer = Glyphs.font.selectedLayers[0]
                 else:
                     # 當沒有其他字符時，使用當前編輯的字符填充
                     if not display_chars:
-                        layer = self.currentLayer
+                        if Glyphs.font.selectedLayers:
+                            layer = Glyphs.font.selectedLayers[0]
                     else:
                         char_index = i if i < 4 else i - 1
                         if char_index < len(display_chars):
                             glyph = Glyphs.font.glyphs[display_chars[char_index]]
                             layer = glyph.layers[currentMaster.id] if glyph else None
-                        else:
-                            layer = None
 
                 if layer:
                     # 計算字符縮放比例
@@ -156,6 +160,22 @@ class NineBoxPreviewView(NSView):
                     else:
                         NSColor.blackColor().set()
                     bezierPath.fill()
+
+                # # === 繪製網格 ===
+                # # 設定網格線顏色
+                # if self.wrapper.plugin.darkMode:
+                #     NSColor.colorWithCalibratedRed_green_blue_alpha_(1, 1, 1, 0.1).set()
+                # else:
+                #     NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 0.1).set()
+
+                # # 繪製單元格邊框
+                # cellRect = NSMakeRect(
+                #     startX + col * (cellWidth + SPACING),
+                #     startY - (row + 1) * (gridHeight / 3),
+                #     cellWidth,
+                #     gridHeight / 3
+                # )
+                # NSBezierPath.strokeRect_(cellRect)
 
         except Exception as e:
             print(traceback.format_exc())
