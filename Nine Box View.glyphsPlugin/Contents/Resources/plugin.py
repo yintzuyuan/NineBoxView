@@ -447,21 +447,44 @@ class NineBoxView(GeneralPlugin):
                 selected_chars = []
                 for selection in choice[0]:
                     if isinstance(selection, GSGlyph):
-                        char = selection.unicode or selection.name
-                        selected_chars.append(char)
+                        # 直接使用字符名稱
+                        selected_chars.append(selection.name)
 
                 if selected_chars:
+                    # 取得當前文字
+                    textfield = self.w.searchField.getNSTextField()
+                    editor = textfield.currentEditor()
                     current_text = self.w.searchField.get()
-                    cursor_position = self.w.searchField.getSelection()[0]
-                    new_text = current_text[:cursor_position] + ' '.join(selected_chars) + current_text[cursor_position:]
+
+                    # 獲取游標位置
+                    if editor:
+                        selection_range = editor.selectedRange()
+                        cursor_position = selection_range.location
+                    else:
+                        cursor_position = len(current_text)
+
+                    # 將選中的字符用空格連接
+                    chars_to_insert = ' '.join(selected_chars)
+                    if cursor_position > 0 and current_text[cursor_position-1:cursor_position] != ' ':
+                        chars_to_insert = ' ' + chars_to_insert
+                    if cursor_position < len(current_text) and current_text[cursor_position:cursor_position+1] != ' ':
+                        chars_to_insert = chars_to_insert + ' '
+
+                    # 在游標位置插入新的文字
+                    new_text = current_text[:cursor_position] + chars_to_insert + current_text[cursor_position:]
                     self.w.searchField.set(new_text)
 
-                    new_cursor_position = cursor_position + len(' '.join(selected_chars))
-                    self.w.searchField.setSelection((new_cursor_position, new_cursor_position))
+                    # 更新游標位置到插入內容之後
+                    new_position = cursor_position + len(chars_to_insert)
+                    if editor:
+                        editor.setSelectedRange_((new_position, new_position))
 
-                    self.updateInterface(None)
+                    # 觸發 searchFieldCallback 以更新界面
+                    self.searchFieldCallback(self.w.searchField)
+
         except Exception as e:
             print(f"Error in pickGlyph: {str(e)}")
+            print(traceback.format_exc())
 
     # === 配置管理 / Configuration Management ===
 
