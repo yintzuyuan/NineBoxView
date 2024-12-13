@@ -38,36 +38,36 @@ class NineBoxPreviewView(NSView):
         """繪製視圖內容 / Draw the content of the view"""
 
         try:
-            # === 設定背景顏色 ===
+            # === 設定背景顏色 / Set the background color ===
             if self.wrapper.plugin.darkMode:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 1.0).set()
             else:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 1.0).set()
             NSRectFill(rect)
 
-            # === 獲取基本參數 ===
-            # 獲取當前字體和主字模
+            # === 取得基本參數 / Get basic parameters ===
+            # 取得目前字型和主板 / Get the current font and master
             if not Glyphs.font:
                 return
 
             currentMaster = Glyphs.font.selectedFontMaster
 
-            # 使用當前的排列
+            # 使用目前的排列 / Use the current arrangement
             display_chars = self.wrapper.plugin.currentArrangement if self.wrapper.plugin.selectedChars else []
 
-            # === 設定基本尺寸 ===
+            # === 設定基本尺寸 / Set basic sizes ===
             MARGIN_RATIO = 0.07
             SPACING_RATIO = 0.03
 
-            # 計算字符高度和邊距
+            # 計算字符高度和邊距 / Calculate the character height and margin
             self.cachedHeight = currentMaster.ascender - currentMaster.descender
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
-            # === 計算網格尺寸 ===
-            # 計算基礎寬度 - 使用當前字體的平均寬度或預設值
-            baseWidth = 500  # 預設基礎寬度
+            # === 計算網格尺寸 / Calculate the grid size ===
+            # 計算基礎寬度 - 使用目前字型的平均寬度或預設值 / Calculate the base width - use the average width of the current font or the default value
+            baseWidth = 1000  # 預設基礎寬度 / Default base width
 
-            # 如果有選中的字符層,使用其寬度
+            # 如果有選取的字符層，使用其寬度 / If there is a selected character layer, use its width
             if Glyphs.font.selectedLayers:
                 baseWidth = Glyphs.font.selectedLayers[0].width
 
@@ -80,48 +80,48 @@ class NineBoxPreviewView(NSView):
 
             SPACING = maxWidth * SPACING_RATIO
 
-            # 計算單元格寬度
+            # 計算單元格寬度 / Calculate the cell width
             cellWidth = maxWidth + SPACING
 
-            # 計算網格總寬度和高度
+            # 計算網格總寬度和高度 / Calculate the total width and height of the grid
             gridWidth = 3 * cellWidth + 2 * SPACING
             gridHeight = 3 * self.cachedHeight + 2 * SPACING
 
-            # === 計算縮放比例 ===
+            # === 計算縮放比例 / Calculate the scale ===
             availableWidth = rect.size.width - 2 * MARGIN
             availableHeight = rect.size.height - 2 * MARGIN
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
 
-            # 應用自定義縮放
+            # 應用自定義縮放 / Apply custom scale
             customScale = self.wrapper.plugin.zoomFactor
             scale *= customScale
 
-            # 更新網格尺寸
+            # 更新網格尺寸 / Update the grid size
             cellWidth *= scale
             gridWidth *= scale
             gridHeight *= scale
             SPACING *= scale
 
-            # 計算繪製起始位置
+            # 計算繪製起始位置 / Calculate the starting position for drawing
             startX = rect.size.width / 2 - gridWidth / 2
             offsetY = rect.size.height * 0.05
             startY = (rect.size.height + gridHeight) / 2 + offsetY
 
-            # === 繪製九宮格字符 ===
+            # === 繪製九宮格字符 / Draw the characters in the nine-box grid ===
             for i in range(9):
                 row = i // 3
                 col = i % 3
 
-                # 計算當前單元格的中心位置
+                # 計算目前單元格的中心位置 / Calculate the center position of the current cell
                 centerX = startX + (col + 0.5) * cellWidth + col * SPACING
                 centerY = startY - (row + 0.5) * (gridHeight / 3)
 
-                # 選擇要繪製的字符層
+                # 選擇要繪製的字符層 / Select the character layer to draw
                 layer = None
-                if i == 4 and Glyphs.font.selectedLayers:  # 中心位置
+                if i == 4 and Glyphs.font.selectedLayers:  # 中心位置 / Center position
                     layer = Glyphs.font.selectedLayers[0]
                 else:
-                    # 當沒有其他字符時，使用當前編輯的字符填充
+                    # 當沒有其他字符時，使用目前編輯的字符填充 / When there are no other characters, fill with the currently edited character
                     if not display_chars:
                         if Glyphs.font.selectedLayers:
                             layer = Glyphs.font.selectedLayers[0]
@@ -132,29 +132,29 @@ class NineBoxPreviewView(NSView):
                             layer = glyph.layers[currentMaster.id] if glyph else None
 
                 if layer:
-                    # 計算字符縮放比例
+                    # 計算字符縮放比例 / Calculate the character scale
                     glyphWidth = layer.width
                     glyphHeight = self.cachedHeight
                     scaleX = cellWidth / glyphWidth if glyphWidth > 0 else 1
                     scaleY = (gridHeight / 3 - SPACING) / glyphHeight if glyphHeight > 0 else 1
                     glyphScale = min(scaleX, scaleY)
 
-                    # 計算縮放後的字符尺寸和位置
+                    # 計算縮放後的字符尺寸和位置 / Calculate the scaled character size and position
                     scaledWidth = glyphWidth * glyphScale
                     scaledHeight = glyphHeight * glyphScale
                     x = centerX - scaledWidth / 2
                     y = centerY - scaledHeight / 2
 
-                    # 建立變換矩陣
+                    # 建立變換矩陣 / Create a transformation matrix
                     transform = NSAffineTransform.transform()
                     transform.translateXBy_yBy_(x, y)
                     transform.scaleBy_(glyphScale)
 
-                    # 繪製字符路徑
+                    # 繪製字符路徑 / Draw the character path
                     bezierPath = layer.completeBezierPath.copy()
                     bezierPath.transformUsingAffineTransform_(transform)
 
-                    # 設定填充顏色
+                    # 設定填充顏色 / Set the fill color
                     if self.wrapper.plugin.darkMode:
                         NSColor.whiteColor().set()
                     else:
@@ -197,12 +197,12 @@ class NineBoxPreview(Group):
 class NineBoxView(GeneralPlugin):
     """
     定義主要外掛類別 / Define the main plugin class
-    - 視窗操作
-    - 界面更新
-    - 事件處理
-    - 配置管理
-    - 工具方法
-    - 清理方法
+    - 視窗操作 / Window Operations
+    - 界面更新 / Interface Update
+    - 事件處理 / Event Handling
+    - 配置管理 / Configuration Management
+    - 工具方法 / Utility Methods
+    - 清理方法 / Cleanup
     """
 
     @objc.python_method
@@ -225,8 +225,8 @@ class NineBoxView(GeneralPlugin):
             'tr': u'Dokuz Kutu Önizleme'
         })
         self.loadPreferences()
-        self.selectedChars = []  # 儲存選中的字符 / Store selected characters
-        self.currentArrangement = []  # 儲存當前的排列 / Store current arrangement
+        self.selectedChars = []  # 儲存選取的字符 / Store selected characters
+        self.currentArrangement = []  # 儲存目前的排列 / Store current arrangement
 
     @objc.python_method
     def start(self):
@@ -268,10 +268,10 @@ class NineBoxView(GeneralPlugin):
 
         try:
             if not hasattr(self, 'w') or self.w is None:
-                # 確保已載入偏好設定
+                # 確保已載入偏好設定 / Make sure the preferences are loaded
                 self.loadPreferences()
 
-                # 載入上次保存的窗口大小，如果沒有則使用預設值
+                # 載入上次儲存的視窗大小，如果沒有則使用預設值 / Load the last saved window size, or use the default value
                 defaultSize = (300, 340)
                 savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
 
@@ -296,10 +296,10 @@ class NineBoxView(GeneralPlugin):
                     'tr': u'Karakter girin veya mevcut için boş bırakın'
                 })
 
-                # 使用 lastInput 設定輸入框的初始內容
+                # 使用 lastInput 設定輸入框的初始內容 / Use lastInput to set the initial content of the input field
                 self.w.searchField = EditText(
                     (10, -55, -10, 22),
-                    text=self.lastInput,  # 使用保存的最後輸入
+                    text=self.lastInput,  # 使用儲存的最後輸入 / Use the last saved input
                     placeholder=placeholder,
                     callback=self.searchFieldCallback
                 )
@@ -313,11 +313,7 @@ class NineBoxView(GeneralPlugin):
 
                 self.w.bind("close", self.windowClosed_)
 
-                # # 如果有保存的字符，重新生成排列
-                # if self.selectedChars:
-                #     self.generateNewArrangement()
-
-                # 如果沒有現有排列但有選中的字符，則生成新排列
+                # 如果沒有現有排列但有選取的字符，則生成新排列 / Generate a new arrangement if there is no existing arrangement but there are selected characters
                 if self.selectedChars and not self.currentArrangement:
                     self.generateNewArrangement()
 
@@ -344,13 +340,13 @@ class NineBoxView(GeneralPlugin):
 
     @objc.python_method
     def windowClosed_(self, sender):
-        """當窗口關閉時，保存設定。 / Save settings when the window is closed."""
+        """當視窗關閉時，儲存設定。 / Save settings when the window is closed."""
 
-        # 保存當前輸入內容
+        # 儲存目前輸入內容 / Save the current input content
         self.lastInput = self.w.searchField.get()
         self.savePreferences()
 
-        # 保存窗口大小
+        # 儲存視窗大小 / Save the window size
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = sender.getPosSize()
 
         self.w = None
@@ -388,20 +384,20 @@ class NineBoxView(GeneralPlugin):
             print("Warning: No font file is open")
             return
 
-        # 獲取當前輸入
+        # 取得目前輸入 / Get the current input
         input_text = sender.get()
 
-        # 儲存當前輸入內容
+        # 儲存目前輸入內容 / Save the current input content
         self.lastInput = input_text
 
         if input_text:
-            # 解析輸入文字，獲取所有有效字符
+            # 解析輸入文字，取得所有有效字符 / Parse the input text and get all valid characters
             new_chars = self.parseInputText(input_text)
 
-            # 檢查字符列表是否有實質變化
+            # 檢查字符列表是否有實質變化 / Check if the character list has changed
             if new_chars != self.selectedChars:
                 self.selectedChars = new_chars
-                # 只在字符列表變化時執行隨機排列
+                # 只在字符列表變化時執行隨機排列 / Only perform randomization when the character list changes
                 self.generateNewArrangement()
         else:
             self.selectedChars = []
@@ -447,39 +443,39 @@ class NineBoxView(GeneralPlugin):
                 selected_chars = []
                 for selection in choice[0]:
                     if isinstance(selection, GSGlyph):
-                        # 直接使用字符名稱
+                        # 直接使用字符名稱 / Use the glyph name directly
                         selected_chars.append(selection.name)
 
                 if selected_chars:
-                    # 取得當前文字
+                    # 取得目前文字 / Get the current text
                     textfield = self.w.searchField.getNSTextField()
                     editor = textfield.currentEditor()
                     current_text = self.w.searchField.get()
 
-                    # 獲取游標位置
+                    # 取得游標位置 / Get the cursor position
                     if editor:
                         selection_range = editor.selectedRange()
                         cursor_position = selection_range.location
                     else:
                         cursor_position = len(current_text)
 
-                    # 將選中的字符用空格連接
+                    # 將選取的字符用空格連接 / Join the selected characters with spaces
                     chars_to_insert = ' '.join(selected_chars)
                     if cursor_position > 0 and current_text[cursor_position-1:cursor_position] != ' ':
                         chars_to_insert = ' ' + chars_to_insert
                     if cursor_position < len(current_text) and current_text[cursor_position:cursor_position+1] != ' ':
                         chars_to_insert = chars_to_insert + ' '
 
-                    # 在游標位置插入新的文字
+                    # 在游標位置插入新的文字 / Insert new text at the cursor position
                     new_text = current_text[:cursor_position] + chars_to_insert + current_text[cursor_position:]
                     self.w.searchField.set(new_text)
 
-                    # 更新游標位置到插入內容之後
+                    # 更新游標位置到插入內容之後 / Update the cursor position to after the inserted content
                     new_position = cursor_position + len(chars_to_insert)
                     if editor:
                         editor.setSelectedRange_((new_position, new_position))
 
-                    # 觸發 searchFieldCallback 以更新界面
+                    # 觸發 searchFieldCallback 以更新界面 / Trigger searchFieldCallback to update the interface
                     self.searchFieldCallback(self.w.searchField)
 
         except Exception as e:
@@ -545,13 +541,13 @@ class NineBoxView(GeneralPlugin):
             - Input "顯示文字 A B" -> ['顯', '示', '文', '字', 'A', 'B']
         """
 
-        # 檢查是否有開啟字型檔案
+        # 檢查是否有開啟字型檔案 / Check if a font file is open
         if not Glyphs.font:
             print("Warning: No font file is open")
             return []
 
         chars = []
-        # 移除連續的多餘空格，但保留有意義的單個空格
+        # 移除連續的多餘空格，但保留有意義的單個空格 / Remove consecutive extra spaces, but keep meaningful single spaces
         parts = ' '.join(text.split())
         parts = parts.split(' ')
 
@@ -559,21 +555,19 @@ class NineBoxView(GeneralPlugin):
             if not part:
                 continue
 
-            # 檢查是否包含漢字/東亞文字
+            # 檢查是否包含漢字/東亞文字 / Check if it contains Chinese characters or East Asian characters
             if any(ord(c) > 0x4E00 for c in part):
-                # 對於漢字，逐字符處理
+                # 對於漢字，逐字符處理 / For Chinese characters, process character by character
                 for char in part:
                     if Glyphs.font.glyphs[char]:
                         chars.append(char)
                     else:
-                        # print(f"Warning: No glyph found for '{char}'")
                         pass
             else:
-                # 對於 ASCII 字符名稱，整體處理
+                # 對於 ASCII 字符名稱，整體處理 / For ASCII character names, process as a whole
                 if Glyphs.font.glyphs[part]:
                     chars.append(part)
                 else:
-                    # print(f"Warning: No glyph found for '{part}'")
                     pass
 
         return chars
@@ -584,7 +578,7 @@ class NineBoxView(GeneralPlugin):
         生成新的隨機排列 / Generate a new random arrangement
         """
 
-        display_chars = list(self.selectedChars)  # 複製一份字符列表
+        display_chars = list(self.selectedChars)  # 複製一份字符列表 / Copy the character list
 
         # 如果字符數量超過 8 個，隨機選擇 8 個 / If there are more than 8 characters, randomly select 8
         if len(display_chars) > 8:
