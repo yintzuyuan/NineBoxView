@@ -64,13 +64,10 @@ class NineBoxPreviewView(NSView):
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
 
             # === 計算網格尺寸 / Calculate the grid size ===
-            # 計算基礎寬度 - 使用目前字型的平均寬度或預設值 / Calculate the base width - use the average width of the current font or the default value
-            baseWidth = 1000  # 預設基礎寬度 / Default base width
+            # 使用 getBaseWidth 方法取得基準寬度
+            baseWidth = self.wrapper.plugin.getBaseWidth()
 
-            # 如果有選取的字符層，使用其寬度 / If there is a selected character layer, use its width
-            if Glyphs.font.selectedLayers:
-                baseWidth = Glyphs.font.selectedLayers[0].width
-
+            # 計算最大寬度
             maxWidth = baseWidth
             if display_chars:
                 for char in display_chars:
@@ -501,6 +498,32 @@ class NineBoxView(GeneralPlugin):
 
 
     # === 工具方法 / Utility Methods ===
+
+    @objc.python_method
+    def getBaseWidth(self):
+        """取得基準寬度 / Get the base width"""
+        if not Glyphs.font:
+            return 1000
+
+        currentMaster = Glyphs.font.selectedFontMaster
+
+        # 1. 檢查主板是否有 Default Layer Width 參數 / Check if the master has the Default Layer Width parameter
+        defaultWidth = None
+        if currentMaster.customParameters['Default Layer Width']:
+            defaultWidth = float(currentMaster.customParameters['Default Layer Width'])
+            if defaultWidth > 0:
+                return defaultWidth
+
+        # 2. 使用選取的字符層寬度 / Use the width of the selected character layer
+        if Glyphs.font.selectedLayers:
+            return Glyphs.font.selectedLayers[0].width
+
+        # 4. 使用 em square 寬度
+        if hasattr(currentMaster, 'width'):
+            return max(currentMaster.width, 500)
+
+        # 5. 最後的預設值
+        return 1000
 
     @objc.python_method
     def parseInputText(self, text):
