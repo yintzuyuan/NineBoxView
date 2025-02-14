@@ -251,20 +251,6 @@ class NineBoxView(GeneralPlugin):
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
 
-            # 新增應用程式啟動和停用的觀察者 / Add observers for application activation and deactivation
-            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
-                self,
-                self.applicationActivated_,
-                "NSWorkspaceDidActivateApplicationNotification",
-                None
-            )
-            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
-                self,
-                self.applicationDeactivated_,
-                "NSWorkspaceDidDeactivateApplicationNotification",
-                None
-            )
-
             # 載入偏好設定並開啟視窗 / Load preferences and open window
             self.loadPreferences()
             self.w.open()
@@ -522,22 +508,22 @@ class NineBoxView(GeneralPlugin):
 
         currentMaster = Glyphs.font.selectedFontMaster
 
-        # 1. 檢查主板是否有 Default Layer Width 參數 / Check if the master has the Default Layer Width parameter
+        # 1. 檢查主板是否有 Default Layer Width 參數
         defaultWidth = None
         if currentMaster.customParameters['Default Layer Width']:
             defaultWidth = float(currentMaster.customParameters['Default Layer Width'])
             if defaultWidth > 0:
                 return defaultWidth
 
-        # 2. 使用選取的字符層寬度 / Use the width of the selected character layer
+        # 2. 使用選取的字符層寬度
         if Glyphs.font.selectedLayers:
             return Glyphs.font.selectedLayers[0].width
 
-        # 4. 使用 em square 寬度
-        if hasattr(currentMaster, 'width'):
-            return max(currentMaster.width, 500)
+        # 3. 使用字型的 UPM (units per em) 值
+        if hasattr(Glyphs.font, 'upm'):
+            return max(Glyphs.font.upm, 500)
 
-        # 5. 最後的預設值
+        # 4. 最後的預設值
         return 1000
 
     @objc.python_method
