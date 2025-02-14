@@ -147,16 +147,31 @@ class NineBoxPreviewView(NSView):
                     transform.translateXBy_yBy_(x, y)
                     transform.scaleBy_(glyphScale)
 
-                    # 繪製字符路徑 / Draw the character path
+                    # === 繪製開放和封閉路徑 / Draw open and closed paths ===
+                    # 取得完整路徑的副本 / Get a copy of complete path
                     bezierPath = layer.completeBezierPath.copy()
                     bezierPath.transformUsingAffineTransform_(transform)
 
-                    # 設定填充顏色 / Set the fill color
+                    # 取得開放路徑的副本 / Get a copy of open path
+                    openBezierPath = layer.completeOpenBezierPath.copy()
+                    openBezierPath.transformUsingAffineTransform_(transform)
+
+                    # 設定繪製顏色 / Set drawing color
                     if self.wrapper.plugin.darkMode:
-                        NSColor.whiteColor().set()
+                        fillColor = NSColor.whiteColor()
+                        strokeColor = NSColor.whiteColor()
                     else:
-                        NSColor.blackColor().set()
+                        fillColor = NSColor.blackColor()
+                        strokeColor = NSColor.blackColor()
+
+                    # 繪製封閉路徑（使用填充）/ Draw closed paths (using fill)
+                    fillColor.set()
                     bezierPath.fill()
+
+                    # 繪製開放路徑（使用描邊）/ Draw open paths (using stroke)
+                    strokeColor.set()
+                    openBezierPath.setLineWidth_(1.0)  # 設定線寬 / Set line width
+                    openBezierPath.stroke()
 
         except Exception as e:
             print(traceback.format_exc())
