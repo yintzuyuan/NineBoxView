@@ -147,16 +147,31 @@ class NineBoxPreviewView(NSView):
                     transform.translateXBy_yBy_(x, y)
                     transform.scaleBy_(glyphScale)
 
-                    # 繪製字符路徑 / Draw the character path
+                    # === 繪製開放和封閉路徑 / Draw open and closed paths ===
+                    # 取得完整路徑的副本 / Get a copy of complete path
                     bezierPath = layer.completeBezierPath.copy()
                     bezierPath.transformUsingAffineTransform_(transform)
 
-                    # 設定填充顏色 / Set the fill color
+                    # 取得開放路徑的副本 / Get a copy of open path
+                    openBezierPath = layer.completeOpenBezierPath.copy()
+                    openBezierPath.transformUsingAffineTransform_(transform)
+
+                    # 設定繪製顏色 / Set drawing color
                     if self.wrapper.plugin.darkMode:
-                        NSColor.whiteColor().set()
+                        fillColor = NSColor.whiteColor()
+                        strokeColor = NSColor.whiteColor()
                     else:
-                        NSColor.blackColor().set()
+                        fillColor = NSColor.blackColor()
+                        strokeColor = NSColor.blackColor()
+
+                    # 繪製封閉路徑（使用填充）/ Draw closed paths (using fill)
+                    fillColor.set()
                     bezierPath.fill()
+
+                    # 繪製開放路徑（使用描邊）/ Draw open paths (using stroke)
+                    strokeColor.set()
+                    openBezierPath.setLineWidth_(1.0)  # 設定線寬 / Set line width
+                    openBezierPath.stroke()
 
         except Exception as e:
             print(traceback.format_exc())
@@ -235,20 +250,6 @@ class NineBoxView(GeneralPlugin):
             # 新增回調函數
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
-
-            # 新增應用程式啟動和停用的觀察者 / Add observers for application activation and deactivation
-            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
-                self,
-                self.applicationActivated_,
-                "NSWorkspaceDidActivateApplicationNotification",
-                None
-            )
-            NSWorkspace.sharedWorkspace().notificationCenter().addObserver_selector_name_object_(
-                self,
-                self.applicationDeactivated_,
-                "NSWorkspaceDidDeactivateApplicationNotification",
-                None
-            )
 
             # 載入偏好設定並開啟視窗 / Load preferences and open window
             self.loadPreferences()
@@ -507,22 +508,22 @@ class NineBoxView(GeneralPlugin):
 
         currentMaster = Glyphs.font.selectedFontMaster
 
-        # 1. 檢查主板是否有 Default Layer Width 參數 / Check if the master has the Default Layer Width parameter
+        # 1. 檢查主板是否有 Default Layer Width 參數
         defaultWidth = None
         if currentMaster.customParameters['Default Layer Width']:
             defaultWidth = float(currentMaster.customParameters['Default Layer Width'])
             if defaultWidth > 0:
                 return defaultWidth
 
-        # 2. 使用選取的字符層寬度 / Use the width of the selected character layer
+        # 2. 使用選取的字符層寬度
         if Glyphs.font.selectedLayers:
             return Glyphs.font.selectedLayers[0].width
 
-        # 4. 使用 em square 寬度
-        if hasattr(currentMaster, 'width'):
-            return max(currentMaster.width, 500)
+        # 3. 使用字型的 UPM (units per em) 值
+        if hasattr(Glyphs.font, 'upm'):
+            return max(Glyphs.font.upm, 500)
 
-        # 5. 最後的預設值
+        # 4. 最後的預設值
         return 1000
 
     @objc.python_method
