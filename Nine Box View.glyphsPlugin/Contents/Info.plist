@@ -14,15 +14,15 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>2.2.0</string>
+	<string>3.0.0</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>8</string>
+	<string>9</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>Multiple reference glyphs.</string>
+	<string>效能優化與介面改進：移除 Vanilla 依賴，改為原生 ObjC 介面，新增縮放手勢支援。</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>Copyright, Tzuyuan Yin, 2024</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->

@@ -21,8 +21,21 @@ from __future__ import division, print_function, unicode_literals
 import objc
 from GlyphsApp import *
 from GlyphsApp.plugins import *
-from AppKit import NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, NSWorkspace, NSClickGestureRecognizer, NSMagnificationGestureRecognizer
-from vanilla import FloatingWindow, Group, Button, EditText
+from AppKit import (
+    NSColor, NSFont, NSAffineTransform, NSRectFill, NSView, NSBezierPath, 
+    NSWorkspace, NSClickGestureRecognizer, NSMagnificationGestureRecognizer, 
+    NSPanel, NSWindow, NSButton, NSTextField, NSRect, NSMakeRect, NSScrollView,
+    NSTextView, NSTextAlignment, NSCenterTextAlignment, NSWindowController,
+    NSFloatingWindowLevel, NSTitledWindowMask, NSClosableWindowMask,
+    NSResizableWindowMask, NSMiniaturizableWindowMask, NSLayoutConstraint,
+    NSLayoutAttributeLeft, NSLayoutAttributeRight, NSLayoutAttributeTop, 
+    NSLayoutAttributeBottom, NSLayoutAttributeWidth, NSLayoutAttributeHeight,
+    NSLayoutFormatAlignAllTop, NSLayoutFormatAlignAllLeft, NSLayoutFormatAlignAllRight,
+    NSLayoutRelationEqual, NSPointInRect, NSNotificationCenter, 
+    NSWindowWillCloseNotification, NSWindowDidResizeNotification,
+    NSFontAttributeName, NSForegroundColorAttributeName, NSMakeSize
+)
+from Foundation import NSObject, NSString, NSArray, NSMutableArray, NSMakePoint, NSSize
 import random
 import traceback  # 錯誤追蹤 / Error traceback
 
@@ -34,13 +47,52 @@ class NineBoxPreviewView(NSView):
     Nine Box Preview View Class, responsible for actual drawing work.
     """
 
+    def initWithFrame_plugin_(self, frame, plugin):
+        """初始化視圖 / Initialize the view"""
+        self = super(NineBoxPreviewView, self).initWithFrame_(frame)
+        if self:
+            self.plugin = plugin
+            self.cachedHeight = 0
+            
+            # 註冊 mouseDown 事件，不使用手勢識別 / Register mouseDown event without using gesture recognizers
+            # 簡化事件處理機制，減少 ObjC 互操作問題 / Simplify event handling to reduce ObjC interop issues
+        return self
+    
+    def mouseDown_(self, event):
+        """
+        # 處理滑鼠點擊事件 / Handle mouse click event
+        當滑鼠在視圖中點擊時，觸發隨機排列功能。 / When mouse clicked in view, trigger randomize function.
+        """
+        # 如果是雙擊，執行縮放重置 / If double click, reset zoom
+        if event.clickCount() == 2:
+            self.plugin.zoomFactor = 1.0
+            self.plugin.savePreferences()
+            self.setNeedsDisplay_(True)
+        else:
+            # 單擊時進行隨機排列 / Randomize on single click
+            self.window().makeKeyWindow()
+            self.window().makeFirstResponder_(self)
+            self.plugin.randomizeCallback(self)
+            
+    # 移除滾輪事件處理，避免可能造成的問題
+    # def scrollWheel_(self, event):
+    #     """處理滾輪事件來縮放 / Handle scroll wheel events for zooming"""
+    #     delta = event.deltaY()
+    #     # 滾輪向上放大，向下縮小 / Scroll up to zoom in, down to zoom out
+    #     scaleFactor = 1.0 + (delta * 0.03)  # 調整縮放靈敏度 / Adjust zoom sensitivity
+    #     self.plugin.zoomFactor *= scaleFactor
+    #     # 限制縮放範圍 / Limit zoom range
+    #     self.plugin.zoomFactor = max(0.5, min(2.0, self.plugin.zoomFactor))
+    #     self.plugin.savePreferences()
+    #     self.setNeedsDisplay_(True)
+
     def drawRect_(self, rect):
         """繪製視圖內容 / Draw the content of the view"""
 
         try:
             # === 設定背景顏色 / Set the background color ===
-            if self.wrapper.plugin.darkMode:
-                NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 1.0).set()
+            if self.plugin.darkMode:
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.1, 0.1, 1.0).set()
             else:
                 NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 1.0).set()
             NSRectFill(rect)
@@ -53,7 +105,7 @@ class NineBoxPreviewView(NSView):
             currentMaster = Glyphs.font.selectedFontMaster
 
             # 使用目前的排列 / Use the current arrangement
-            display_chars = self.wrapper.plugin.currentArrangement if self.wrapper.plugin.selectedChars else []
+            display_chars = self.plugin.currentArrangement if self.plugin.selectedChars else []
 
             # === 設定基本尺寸 / Set basic sizes ===
             MARGIN_RATIO = 0.07
@@ -65,7 +117,7 @@ class NineBoxPreviewView(NSView):
 
             # === 計算網格尺寸 / Calculate the grid size ===
             # 使用 getBaseWidth 方法取得基準寬度
-            baseWidth = self.wrapper.plugin.getBaseWidth()
+            baseWidth = self.plugin.getBaseWidth()
 
             # 計算最大寬度
             maxWidth = baseWidth
@@ -90,7 +142,7 @@ class NineBoxPreviewView(NSView):
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
 
             # 應用自定義縮放 / Apply custom scale
-            customScale = self.wrapper.plugin.zoomFactor
+            customScale = min(max(self.plugin.zoomFactor, 0.5), 2.0)  # 確保縮放值在有效範圍內
             scale *= customScale
 
             # 更新網格尺寸 / Update the grid size
@@ -157,7 +209,7 @@ class NineBoxPreviewView(NSView):
                     openBezierPath.transformUsingAffineTransform_(transform)
 
                     # 設定繪製顏色 / Set drawing color
-                    if self.wrapper.plugin.darkMode:
+                    if self.plugin.darkMode:
                         fillColor = NSColor.whiteColor()
                         strokeColor = NSColor.whiteColor()
                     else:
@@ -173,36 +225,184 @@ class NineBoxPreviewView(NSView):
                     openBezierPath.setLineWidth_(1.0)  # 設定線寬 / Set line width
                     openBezierPath.stroke()
 
+                    # 新增：繪製格子編號 / New: Draw grid number
+                    if self.plugin.showNumbers:
+                        # 直接在這裡繪製數字 / Draw number directly here
+                        numberText = NSString.stringWithString_(str(i))
+                        numberAttributes = {
+                            NSFontAttributeName: NSFont.boldSystemFontOfSize_(9.0),
+                            NSForegroundColorAttributeName: fillColor.colorWithAlphaComponent_(0.5)
+                        }
+                        numberSize = numberText.sizeWithAttributes_(numberAttributes)
+                        numberPosition = NSMakePoint(
+                            centerX - numberSize.width/2, 
+                            centerY - scaledHeight/2 - 15 - numberSize.height/2
+                        )
+                        numberText.drawAtPoint_withAttributes_(numberPosition, numberAttributes)
+
         except Exception as e:
             print(traceback.format_exc())
 
-    def mouseDown_(self, event):
-        """
-        # 處理滑鼠點擊事件 / Handle mouse click event
-        當滑鼠在視圖中點擊時，觸發隨機排列功能。 / When mouse clicked in view, trigger randomize function.
-        """
-
-        self.window().makeKeyWindow()
-        self.window().makeFirstResponder_(self)
-        self.wrapper.plugin.randomizeCallback(self)
-
-class NineBoxPreview(Group):
+class NineBoxWindow(NSWindowController):
     """
-    九宮格預覽群組類別，用於包裝視圖。
-    Nine Box Preview Group Class, used to wrap the View.
+    九宮格預覽視窗控制器，取代原有的 Vanilla FloatingWindow。
+    Nine Box Window Controller, replaces the original Vanilla FloatingWindow.
     """
-
-    nsViewClass = NineBoxPreviewView
-
-    def __init__(self, posSize, plugin):
-        """初始化方法 / Initializer"""
-        super(NineBoxPreview, self).__init__(posSize)
-        self._nsObject.wrapper = self
-        self.plugin = plugin
-
+    
+    def initWithPlugin_(self, plugin):
+        """初始化視窗控制器 / Initialize the window controller"""
+        try:
+            # 載入上次儲存的視窗大小 / Load last saved window size
+            defaultSize = (300, 340)
+            savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
+            
+            # 建立視窗 / Create window
+            windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
+            styleMask = NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask | NSMiniaturizableWindowMask
+            window = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
+                windowRect,
+                styleMask,
+                2,
+                False
+            )
+            window.setTitle_(plugin.name)
+            window.setMinSize_(NSMakeSize(200, 240))
+            window.setLevel_(NSFloatingWindowLevel)
+            window.setReleasedWhenClosed_(False)
+            
+            # 使用規範的 ObjC 初始化方式
+            windowController = NSWindowController.alloc().initWithWindow_(window)
+            
+            # 手動將 self 轉換為擴展的 NSWindowController
+            self.window = lambda: window
+            self.plugin = plugin
+            self.showWindow_ = windowController.showWindow_
+            self.previewView = None
+            self.searchField = None
+            self.pickButton = None
+            self.darkModeButton = None
+            
+            contentView = window.contentView()
+            
+            # 建立預覽視圖 / Create preview view
+            previewRect = NSMakeRect(0, 35, window.frame().size.width, window.frame().size.height - 35)
+            self.previewView = NineBoxPreviewView.alloc().initWithFrame_plugin_(previewRect, plugin)
+            contentView.addSubview_(self.previewView)
+            
+            # 建立輸入框 / Create input field
+            placeholder = Glyphs.localize({
+                'en': u'Input glyphs (space-separated) or leave blank',
+                'zh-Hant': u'輸入字符（以空格分隔）或留空',
+                'zh-Hans': u'输入字符（用空格分隔）或留空',
+                'ja': u'文字を入力してください（スペースで区切る）または空欄のまま',
+                'ko': u'문자를 입력하세요 (공백으로 구분) 또는 비워 두세요',
+            })
+            
+            searchFieldRect = NSMakeRect(10, 8, window.frame().size.width - 110, 22)
+            self.searchField = NSTextField.alloc().initWithFrame_(searchFieldRect)
+            self.searchField.setStringValue_(plugin.lastInput)
+            self.searchField.setPlaceholderString_(placeholder)
+            self.searchField.setTarget_(self)
+            self.searchField.setAction_("searchFieldAction:")
+            contentView.addSubview_(self.searchField)
+            
+            # 建立選擇字符按鈕 / Create pick glyph button
+            pickButtonRect = NSMakeRect(window.frame().size.width - 95, 8, 40, 22)
+            self.pickButton = NSButton.alloc().initWithFrame_(pickButtonRect)
+            self.pickButton.setTitle_("🔣")
+            self.pickButton.setTarget_(self)
+            self.pickButton.setAction_("pickGlyphAction:")
+            self.pickButton.setBezelStyle_(1)  # 圓角按鈕 / Rounded button
+            contentView.addSubview_(self.pickButton)
+            
+            # 建立深色模式按鈕 / Create dark mode button
+            darkModeButtonRect = NSMakeRect(window.frame().size.width - 50, 8, 40, 22)
+            self.darkModeButton = NSButton.alloc().initWithFrame_(darkModeButtonRect)
+            self.darkModeButton.setTitle_(plugin.getDarkModeIcon())
+            self.darkModeButton.setTarget_(self)
+            self.darkModeButton.setAction_("darkModeAction:")
+            self.darkModeButton.setBezelStyle_(1)  # 圓角按鈕 / Rounded button
+            contentView.addSubview_(self.darkModeButton)
+            
+            # 監聽視窗大小調整 / Listen for window resize events
+            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                self,
+                "windowDidResize:",
+                NSWindowDidResizeNotification,
+                window
+            )
+            
+            # 監聽視窗關閉 / Listen for window close events
+            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                self,
+                "windowWillClose:",
+                NSWindowWillCloseNotification,
+                window
+            )
+            
+            # 如果有選取的字符但沒有排列，則生成新排列 / Generate a new arrangement if there are selected characters but no arrangement
+            if plugin.selectedChars and not plugin.currentArrangement:
+                plugin.generateNewArrangement()
+                
+        except Exception as e:
+            print(f"初始化視窗時發生錯誤: {e}")
+            print(traceback.format_exc())
+            
+        return self
+    
+    def windowDidResize_(self, notification):
+        """視窗大小調整時的處理 / Handle window resize events"""
+        if notification.object() == self.window():
+            frame = self.window().frame()
+            contentView = self.window().contentView()
+            contentSize = contentView.frame().size
+            
+            # 調整預覽視圖大小 / Adjust preview view size
+            self.previewView.setFrame_(NSMakeRect(0, 35, contentSize.width, contentSize.height - 35))
+            # 調整其他控制項的位置 / Adjust other controls' positions
+            self.searchField.setFrame_(NSMakeRect(10, 8, contentSize.width - 110, 22))
+            self.pickButton.setFrame_(NSMakeRect(contentSize.width - 95, 8, 40, 22))
+            self.darkModeButton.setFrame_(NSMakeRect(contentSize.width - 50, 8, 40, 22))
+            
+            # 更新重繪 / Update and redraw
+            self.previewView.setNeedsDisplay_(True)
+    
+    def windowWillClose_(self, notification):
+        """視窗關閉時的處理 / Handle window close events"""
+        if notification.object() == self.window():
+            # 儲存目前輸入內容 / Save current input
+            self.plugin.lastInput = self.searchField.stringValue()
+            self.plugin.savePreferences()
+            # 儲存視窗大小 / Save window size
+            frame = self.window().frame()
+            Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = (frame.size.width, frame.size.height)
+            # 移除觀察者 / Remove observers
+            NSNotificationCenter.defaultCenter().removeObserver_(self)
+    
+    def searchFieldAction_(self, sender):
+        """輸入框動作處理 / Handle search field action"""
+        self.plugin.searchFieldCallback(sender)
+    
+    def pickGlyphAction_(self, sender):
+        """選擇字符按鈕動作處理 / Handle pick glyph button action"""
+        self.plugin.pickGlyph(sender)
+    
+    def darkModeAction_(self, sender):
+        """深色模式按鈕動作處理 / Handle dark mode button action"""
+        self.plugin.darkModeCallback(sender)
+    
     def redraw(self):
-        """重繪視圖 / Redraw the view"""
-        self._nsObject.setNeedsDisplay_(True)
+        """重繪預覽視圖 / Redraw the preview view"""
+        self.previewView.setNeedsDisplay_(True)
+    
+    def makeKeyAndOrderFront(self):
+        """顯示並成為主視窗 / Show and become key window"""
+        try:
+            self.showWindow_(None)
+            self.window().makeKeyAndOrderFront_(None)
+        except Exception as e:
+            print(f"顯示視窗時發生錯誤: {e}")
+            print(traceback.format_exc())
 
 # === 主要外掛類別 / Main Plugin Class ==
 
@@ -239,6 +439,7 @@ class NineBoxView(GeneralPlugin):
         self.loadPreferences()
         self.selectedChars = []  # 儲存選取的字符 / Store selected characters
         self.currentArrangement = []  # 儲存目前的排列 / Store current arrangement
+        self.windowController = None  # 視窗控制器 / Window controller
 
     @objc.python_method
     def start(self):
@@ -251,10 +452,8 @@ class NineBoxView(GeneralPlugin):
             Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
             Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
 
-            # 載入偏好設定並開啟視窗 / Load preferences and open window
+            # 載入偏好設定 / Load preferences
             self.loadPreferences()
-            self.w.open()
-            self.w.makeKey()
         except:
             self.logToMacroWindow(traceback.format_exc())
 
@@ -265,50 +464,12 @@ class NineBoxView(GeneralPlugin):
         """切換視窗的顯示狀態 / Toggle the visibility of the window"""
 
         try:
-            if not hasattr(self, 'w') or self.w is None:
-                # 確保已載入偏好設定 / Make sure the preferences are loaded
-                self.loadPreferences()
-
-                # 載入上次儲存的視窗大小，如果沒有則使用預設值 / Load the last saved window size, or use the default value
-                defaultSize = (300, 340)
-                savedSize = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.windowSize", defaultSize)
-
-                self.w = FloatingWindow(savedSize, self.name, minSize=(200, 240),
-                                        autosaveName="com.YinTzuYuan.NineBoxView.mainwindow")
-                self.w.preview = NineBoxPreview((0, 0, -0, -35), self)
-
-                placeholder = Glyphs.localize({
-                    'en': u'Input glyphs (space-separated) or leave blank',
-                    'zh-Hant': u'輸入字符（以空格分隔）或留空',
-                    'zh-Hans': u'输入字符（用空格分隔）或留空',
-                    'ja': u'文字を入力してください（スペースで区切る）または空欄のまま',
-                    'ko': u'문자를 입력하세요 (공백으로 구분) 또는 비워 두세요',
-                })
-
-                # 使用 lastInput 設定輸入框的初始內容 / Use lastInput to set the initial content of the input field
-                self.w.searchField = EditText(
-                    (10, -30, -100, 22),
-                    text=self.lastInput,  # 使用儲存的最後輸入 / Use the last saved input
-                    placeholder=placeholder,
-                    callback=self.searchFieldCallback
-                )
-
-                self.w.searchButton = Button((-95, -30, -55, 22), "🔣",
-                                            callback=self.pickGlyph)
-
-                self.w.darkModeButton = Button((-50, -30, -10, 22),
-                                                self.getDarkModeIcon(),
-                                                callback=self.darkModeCallback)
-
-                self.w.bind("close", self.windowClosed_)
-
-                # 如果沒有現有排列但有選取的字符，則生成新排列 / Generate a new arrangement if there is no existing arrangement but there are selected characters
-                if self.selectedChars and not self.currentArrangement:
-                    self.generateNewArrangement()
-
-                self.w.open()
-
-            self.w.makeKey()
+            # 如果視窗不存在，則創建 / If window doesn't exist, create it
+            if self.windowController is None:
+                self.windowController = NineBoxWindow.alloc().initWithPlugin_(self)
+                
+            # 顯示視窗 / Show window
+            self.windowController.makeKeyAndOrderFront()
             self.updateInterface(None)
         except:
             self.logToMacroWindow(traceback.format_exc())
@@ -317,28 +478,15 @@ class NineBoxView(GeneralPlugin):
     def showWindow(self):
         """顯示視窗 / Show the window"""
 
-        if hasattr(self, 'w') and self.w is not None:
-            self.w.show()
+        if self.windowController is not None:
+            self.windowController.showWindow_(None)
 
     @objc.python_method
     def hideWindow(self):
         """隱藏視窗 / Hide the window"""
 
-        if hasattr(self, 'w') and self.w is not None:
-            self.w.hide()
-
-    @objc.python_method
-    def windowClosed_(self, sender):
-        """當視窗關閉時，儲存設定。 / Save settings when the window is closed."""
-
-        # 儲存目前輸入內容 / Save the current input content
-        self.lastInput = self.w.searchField.get()
-        self.savePreferences()
-
-        # 儲存視窗大小 / Save the window size
-        Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"] = sender.getPosSize()
-
-        self.w = None
+        if self.windowController is not None:
+            self.windowController.window().orderOut_(None)
 
     @objc.python_method
     def getDarkModeIcon(self):
@@ -359,8 +507,13 @@ class NineBoxView(GeneralPlugin):
     def updateInterface(self, sender):
         """更新介面 / Update the interface"""
 
-        if hasattr(self, 'w') and self.w is not None and hasattr(self.w, 'preview'):
-            self.w.preview.redraw()
+        if self.windowController is not None:
+            self.windowController.redraw()
+            
+            # 更新深色模式按鈕的圖示 / Update dark mode button icon
+            darkModeButton = self.windowController.darkModeButton
+            if darkModeButton:
+                darkModeButton.setTitle_(self.getDarkModeIcon())
 
     # === 事件處理 / Event Handling ===
 
@@ -370,11 +523,11 @@ class NineBoxView(GeneralPlugin):
 
         # 檢查是否有開啟字型檔案
         if not Glyphs.font:
-            print("Warning: No font file is open")
+            print("警告：沒有開啟字型檔案")
             return
 
         # 取得目前輸入 / Get the current input
-        input_text = sender.get()
+        input_text = sender.stringValue()
 
         # 儲存目前輸入內容 / Save the current input content
         self.lastInput = input_text
@@ -408,7 +561,8 @@ class NineBoxView(GeneralPlugin):
         """深色模式按鈕的回調函數 / Dark Mode Button Callback"""
 
         self.darkMode = not self.darkMode
-        sender.setTitle(self.getDarkModeIcon())
+        if self.windowController is not None:
+            self.windowController.darkModeButton.setTitle_(self.getDarkModeIcon())
         self.savePreferences()
         self.updateInterface(None)
 
@@ -435,12 +589,12 @@ class NineBoxView(GeneralPlugin):
                         # 直接使用字符名稱 / Use the glyph name directly
                         selected_chars.append(selection.name)
 
-                if selected_chars:
+                if selected_chars and self.windowController is not None:
                     # 取得目前文字 / Get the current text
-                    textfield = self.w.searchField.getNSTextField()
-                    editor = textfield.currentEditor()
-                    current_text = self.w.searchField.get()
-
+                    textField = self.windowController.searchField
+                    current_text = textField.stringValue()
+                    editor = textField.currentEditor()
+                    
                     # 取得游標位置 / Get the cursor position
                     if editor:
                         selection_range = editor.selectedRange()
@@ -457,7 +611,7 @@ class NineBoxView(GeneralPlugin):
 
                     # 在游標位置插入新的文字 / Insert new text at the cursor position
                     new_text = current_text[:cursor_position] + chars_to_insert + current_text[cursor_position:]
-                    self.w.searchField.set(new_text)
+                    textField.setStringValue_(new_text)
 
                     # 更新游標位置到插入內容之後 / Update the cursor position to after the inserted content
                     new_position = cursor_position + len(chars_to_insert)
@@ -465,10 +619,10 @@ class NineBoxView(GeneralPlugin):
                         editor.setSelectedRange_((new_position, new_position))
 
                     # 觸發 searchFieldCallback 以更新界面 / Trigger searchFieldCallback to update the interface
-                    self.searchFieldCallback(self.w.searchField)
+                    self.searchFieldCallback(textField)
 
         except Exception as e:
-            print(f"Error in pickGlyph: {str(e)}")
+            print(f"選擇字符時發生錯誤: {str(e)}")
             print(traceback.format_exc())
 
     # === 配置管理 / Configuration Management ===
@@ -484,6 +638,7 @@ class NineBoxView(GeneralPlugin):
         self.testMode = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.testMode", False)
         self.searchHistory = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.search", "")
         self.zoomFactor = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.zoomFactor", 1.0)
+        self.showNumbers = Glyphs.defaults.get("com.YinTzuYuan.NineBoxView.showNumbers", False)
 
     @objc.python_method
     def savePreferences(self):
@@ -496,6 +651,7 @@ class NineBoxView(GeneralPlugin):
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"] = self.testMode
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"] = self.searchHistory
         Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"] = self.zoomFactor
+        Glyphs.defaults["com.YinTzuYuan.NineBoxView.showNumbers"] = self.showNumbers
 
 
     # === 工具方法 / Utility Methods ===
@@ -519,7 +675,7 @@ class NineBoxView(GeneralPlugin):
         if Glyphs.font.selectedLayers:
             return Glyphs.font.selectedLayers[0].width
 
-        # 3. 使用字型的 UPM (units per em) 值
+        # 3. 使用字型的 UPM (units per em) K值
         if hasattr(Glyphs.font, 'upm'):
             return max(Glyphs.font.upm, 500)
 
@@ -558,7 +714,7 @@ class NineBoxView(GeneralPlugin):
 
         # 檢查是否有開啟字型檔案 / Check if a font file is open
         if not Glyphs.font:
-            print("Warning: No font file is open")
+            print("警告：沒有開啟字型檔案")
             return []
 
         chars = []
@@ -606,6 +762,7 @@ class NineBoxView(GeneralPlugin):
         # 隨機打亂順序 / Randomize the order
         random.shuffle(display_chars)
         self.currentArrangement = display_chars
+        self.savePreferences()
 
     # === 清理方法 / Cleanup ===
 
@@ -618,7 +775,7 @@ class NineBoxView(GeneralPlugin):
         self.savePreferences()
         Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
         Glyphs.removeCallback(self.updateInterface, DOCUMENTACTIVATED)
-        NSWorkspace.sharedWorkspace().notificationCenter().removeObserver_(self)
+        NSNotificationCenter.defaultCenter().removeObserver_(self)
 
     def __file__(self):
         return __file__
