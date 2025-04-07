@@ -57,7 +57,7 @@ try:
                 DARK_MODE_KEY, LAST_INPUT_KEY, SELECTED_CHARS_KEY, 
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
-                DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE
+                DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM
             )
             
             from utils import parse_input_text, generate_arrangement, get_base_width, log_to_macro_window
@@ -80,6 +80,7 @@ try:
             self.ZOOM_FACTOR_KEY = ZOOM_FACTOR_KEY
             self.SHOW_NUMBERS_KEY = SHOW_NUMBERS_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
+            self.DEFAULT_ZOOM = DEFAULT_ZOOM
             
             self.loadPreferences()
             self.selectedChars = []  # 儲存選取的字符 / Store selected characters
@@ -154,15 +155,26 @@ try:
 
         @objc.python_method
         def updateInterface(self, sender):
-            """更新介面 / Update the interface"""
-
-            if self.windowController is not None:
-                self.windowController.redraw()
-                
-                # 更新深色模式按鈕的圖示 / Update dark mode button icon
-                darkModeButton = self.windowController.darkModeButton
-                if darkModeButton:
-                    darkModeButton.setTitle_(self.getDarkModeIcon())
+            """更新界面 / Update interface"""
+            try:
+                # 更新深色模式按鈕圖標 / Update dark mode button icon
+                if hasattr(self, 'windowController') and self.windowController is not None:
+                    # 檢查屬性是否存在
+                    if hasattr(self.windowController, 'darkModeButton') and self.windowController.darkModeButton is not None:
+                        darkModeButton = self.windowController.darkModeButton
+                        darkModeButton.setTitle_(self.getDarkModeIcon())
+                        # 設定按鈕狀態 / Set button state
+                        if self.darkMode:
+                            darkModeButton.setState_(1)  # 1 表示開啟
+                        else:
+                            darkModeButton.setState_(0)  # 0 表示關閉
+                    
+                    # 重繪介面 / Redraw interface
+                    if hasattr(self.windowController, 'redraw'):
+                        self.windowController.redraw()
+            except Exception as e:
+                self.log_to_macro_window(f"更新介面時發生錯誤: {e}")
+                print(traceback.format_exc())
 
         # === 事件處理 / Event Handling ===
 
@@ -198,138 +210,219 @@ try:
             self.updateInterface(None)
 
         @objc.python_method
+        def pickGlyphCallback(self, sender):
+            """選擇字符按鈕的回調函數 / Callback function for the pick glyph button"""
+            try:
+                if not Glyphs.font:
+                    print("警告：沒有開啟字型檔案")
+                    return
+                
+                # 取得目前字型檔案中的所有字符 / Get all glyphs in the current font
+                all_glyphs = Glyphs.font.glyphs
+                glyph_names = [glyph.name for glyph in all_glyphs]
+                
+                # 建立選項清單 / Create a list of options
+                options = []
+                for name in glyph_names:
+                    # 構建顯示名稱 / Build display name
+                    glyph = Glyphs.font.glyphs[name]
+                    if glyph:
+                        unicode_value = glyph.unicode
+                        if unicode_value:
+                            char = chr(int(unicode_value, 16))
+                            options.append(f"{char} ({name})")
+                        else:
+                            options.append(f".notdef ({name})")
+                
+                # 顯示選項對話窗 / Show options dialog
+                if options:
+                    selection = Glyphs.displayDialog(
+                        Glyphs.localize({
+                            'en': u'Select characters to display in the grid',
+                            'zh-Hant': u'選擇要在格子中顯示的字符',
+                            'zh-Hans': u'选择要在格子中显示的字符',
+                            'ja': u'グリッドに表示する文字を選択してください',
+                            'ko': u'그리드에 표시할 글자를 선택하세요',
+                        }),
+                        options,
+                        "OK",
+                        multipleSelection=True
+                    )
+                    
+                    if selection:
+                        # 解析選取的字符並更新 / Parse selected characters and update
+                        selected_chars = []
+                        for selected in selection:
+                            # 從字串中提取字符名稱 / Extract glyph name from string
+                            if "(" in selected and ")" in selected:
+                                name = selected.split("(")[1].split(")")[0]
+                                glyph = Glyphs.font.glyphs[name]
+                                if glyph and glyph.unicode:
+                                    selected_chars.append(chr(int(glyph.unicode, 16)))
+                        
+                        # 更新選取的字符 / Update selected characters
+                        if selected_chars != self.selectedChars:
+                            self.selectedChars = selected_chars
+                            
+                            # 生成新的字符排列 / Generate a new character arrangement
+                            self.generateNewArrangement()
+                            
+                            # 更新搜尋欄位 / Update search field
+                            if hasattr(self, 'windowController') and hasattr(self.windowController, 'searchField'):
+                                self.windowController.searchField.setStringValue_(" ".join(selected_chars))
+                                self.lastInput = " ".join(selected_chars)
+                            
+                            self.savePreferences()
+                            self.updateInterface(None)
+            except Exception as e:
+                print(f"選擇字符時發生錯誤: {e}")
+                print(traceback.format_exc())
+                
+        @objc.python_method
         def randomizeCallback(self, sender):
-            """隨機排列按鈕的回調函數 / Randomize Button Callback"""
+            """隨機排列回調函數 / Randomization callback function"""
+            
+            if not self.selectedChars:
+                return
+                
+            # 生成新的排列 / Generate a new arrangement
+            self.generateNewArrangement()
+            
+            # 重繪預覽 / Redraw preview
+            self.updateInterface(None)
 
-            if self.selectedChars:
-                self.generateNewArrangement()
-                self.updateInterface(None)
+        @objc.python_method
+        def generateNewArrangement(self):
+            """生成新的字符排列 / Generate a new character arrangement"""
+
+            if not self.selectedChars:
+                self.currentArrangement = []
+                return
+
+            # 從選取的字符中生成新排列 / Generate a new arrangement from selected characters
+            self.currentArrangement = self.generate_arrangement(self.selectedChars)
+
+        @objc.python_method
+        def loadPreferences(self):
+            """載入偏好設定 / Load preferences"""
+
+            # 深色模式設定 / Dark mode setting
+            self.darkMode = bool(Glyphs.defaults.get(self.DARK_MODE_KEY, False))
+
+            # 最後輸入的字符 / Last input characters
+            self.lastInput = Glyphs.defaults.get(self.LAST_INPUT_KEY, "")
+
+            # 選取的字符 / Selected characters
+            selected_chars = Glyphs.defaults.get(self.SELECTED_CHARS_KEY)
+            if selected_chars:
+                self.selectedChars = selected_chars
+            else:
+                self.selectedChars = []
+
+            # 目前的排列 / Current arrangement
+            current_arrangement = Glyphs.defaults.get(self.CURRENT_ARRANGEMENT_KEY)
+            if current_arrangement:
+                self.currentArrangement = current_arrangement
+            else:
+                self.currentArrangement = []
+                
+            # 縮放因子 / Zoom factor
+            self.zoomFactor = float(Glyphs.defaults.get(self.ZOOM_FACTOR_KEY, self.DEFAULT_ZOOM))
+
+        @objc.python_method
+        def savePreferences(self):
+            """儲存偏好設定 / Save preferences"""
+
+            # 儲存深色模式設定 / Save dark mode setting
+            Glyphs.defaults[self.DARK_MODE_KEY] = self.darkMode
+
+            # 儲存最後輸入的字符 / Save last input characters
+            Glyphs.defaults[self.LAST_INPUT_KEY] = self.lastInput
+
+            # 儲存選取的字符 / Save selected characters
+            Glyphs.defaults[self.SELECTED_CHARS_KEY] = self.selectedChars
+
+            # 儲存目前的排列 / Save current arrangement
+            Glyphs.defaults[self.CURRENT_ARRANGEMENT_KEY] = self.currentArrangement
+            
+            # 儲存縮放因子 / Save zoom factor
+            Glyphs.defaults[self.ZOOM_FACTOR_KEY] = self.zoomFactor
+
+        # === 回調函數 / Callback Functions ===
 
         @objc.python_method
         def darkModeCallback(self, sender):
-            """深色模式按鈕的回調函數 / Dark Mode Button Callback"""
-
+            """深色模式切換回調函數 / Dark mode toggle callback function"""
             self.darkMode = not self.darkMode
-            if self.windowController is not None:
-                self.windowController.darkModeButton.setTitle_(self.getDarkModeIcon())
             self.savePreferences()
             self.updateInterface(None)
 
         @objc.python_method
-        def pickGlyph(self, sender):
-            """選擇字符的回調函數 / Callback function for picking glyphs"""
-
-            try:
-                font = Glyphs.font
-                if not font:
-                    return
-
-                choice = PickGlyphs(
-                    list(font.glyphs),
-                    font.selectedFontMaster.id,
-                    self.searchHistory,
-                    self.SEARCH_HISTORY_KEY
-                )
-
-                if choice and choice[0]:
-                    selected_chars = []
-                    for selection in choice[0]:
-                        if isinstance(selection, GSGlyph):
-                            # 直接使用字符名稱 / Use the glyph name directly
-                            selected_chars.append(selection.name)
-
-                    if selected_chars and self.windowController is not None:
-                        # 取得目前文字 / Get the current text
-                        textField = self.windowController.searchField
-                        current_text = textField.stringValue()
-                        editor = textField.currentEditor()
-                        
-                        # 取得游標位置 / Get the cursor position
-                        if editor:
-                            selection_range = editor.selectedRange()
-                            cursor_position = selection_range.location
-                        else:
-                            cursor_position = len(current_text)
-
-                        # 將選取的字符用空格連接 / Join the selected characters with spaces
-                        chars_to_insert = ' '.join(selected_chars)
-                        if cursor_position > 0 and current_text[cursor_position-1:cursor_position] != ' ':
-                            chars_to_insert = ' ' + chars_to_insert
-                        if cursor_position < len(current_text) and current_text[cursor_position:cursor_position+1] != ' ':
-                            chars_to_insert = chars_to_insert + ' '
-
-                        # 在游標位置插入新的文字 / Insert new text at the cursor position
-                        new_text = current_text[:cursor_position] + chars_to_insert + current_text[cursor_position:]
-                        textField.setStringValue_(new_text)
-
-                        # 更新游標位置到插入內容之後 / Update the cursor position to after the inserted content
-                        new_position = cursor_position + len(chars_to_insert)
-                        if editor:
-                            editor.setSelectedRange_((new_position, new_position))
-
-                        # 觸發 searchFieldCallback 以更新界面 / Trigger searchFieldCallback to update the interface
-                        self.searchFieldCallback(textField)
-
-            except Exception as e:
-                print(f"選擇字符時發生錯誤: {str(e)}")
-                print(traceback.format_exc())
-
-        # === 配置管理 / Configuration Management ===
+        def toggleShowNumbers(self, sender):
+            """切換顯示數字的回調函數 / Toggle show numbers callback"""
+            
+            self.showNumbers = not self.showNumbers
+            self.savePreferences()
+            self.updateInterface(None)
 
         @objc.python_method
-        def loadPreferences(self):
-            """載入使用者偏好設定 / Load user preferences"""
+        def resetZoom(self, sender):
+            """重置縮放的回調函數 / Reset zoom callback"""
+            
+            self.zoomFactor = self.DEFAULT_ZOOM
+            self.savePreferences()
+            self.updateInterface(None)
 
-            self.darkMode = Glyphs.defaults.get(self.DARK_MODE_KEY, False)
-            self.lastInput = Glyphs.defaults.get(self.LAST_INPUT_KEY, "")
-            self.selectedChars = Glyphs.defaults.get(self.SELECTED_CHARS_KEY, [])
-            self.currentArrangement = Glyphs.defaults.get(self.CURRENT_ARRANGEMENT_KEY, [])
-            self.testMode = Glyphs.defaults.get(self.TEST_MODE_KEY, False)
-            self.searchHistory = Glyphs.defaults.get(self.SEARCH_HISTORY_KEY, "")
-            self.zoomFactor = Glyphs.defaults.get(self.ZOOM_FACTOR_KEY, 1.0)
-            self.showNumbers = Glyphs.defaults.get(self.SHOW_NUMBERS_KEY, False)
-
-        @objc.python_method
-        def savePreferences(self):
-            """儲存使用者偏好設定 / Save user preferences"""
-
-            Glyphs.defaults[self.DARK_MODE_KEY] = self.darkMode
-            Glyphs.defaults[self.LAST_INPUT_KEY] = self.lastInput
-            Glyphs.defaults[self.SELECTED_CHARS_KEY] = self.selectedChars
-            Glyphs.defaults[self.CURRENT_ARRANGEMENT_KEY] = self.currentArrangement
-            Glyphs.defaults[self.TEST_MODE_KEY] = self.testMode
-            Glyphs.defaults[self.SEARCH_HISTORY_KEY] = self.searchHistory
-            Glyphs.defaults[self.ZOOM_FACTOR_KEY] = self.zoomFactor
-            Glyphs.defaults[self.SHOW_NUMBERS_KEY] = self.showNumbers
-
-        # === 工具方法 / Utility Methods ===
+        # === 輔助函數 / Helper Functions ===
 
         @objc.python_method
         def getBaseWidth(self):
-            """取得基準寬度 / Get the base width"""
+            """
+            取得基準寬度
+            Get base width
+            
+            基於目前字型檔案的矩形寬度或預設 UPM
+            Based on the width of the rect in the current font file or default UPM
+            
+            Returns:
+                float: 基準寬度
+            """
             return self.get_base_width()
 
         @objc.python_method
-        def generateNewArrangement(self):
-            """生成新的隨機排列 / Generate a new random arrangement"""
-            self.currentArrangement = self.generate_arrangement(self.selectedChars)
-            self.savePreferences()
+        def systemAppearanceIsDark(self):
+            """
+            檢查系統外觀是否為深色模式
+            Check if system appearance is dark mode
+            
+            Returns:
+                bool: 系統是否為深色模式
+            """
+            try:
+                from AppKit import NSAppearanceNameDarkAqua, NSApplication
+                return NSApplication.sharedApplication().effectiveAppearance().name() == NSAppearanceNameDarkAqua
+            except:
+                return False
 
-        # === 清理方法 / Cleanup ===
+        # === 外掛終止 / Plugin Termination ===
 
         @objc.python_method
         def __del__(self):
-            """清理資源 / Clean up resources"""
-
-            self.savePreferences()
-            Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
+            """
+            外掛終止時的清理 / Cleanup when this plugin instance is deleted
+            """
             Glyphs.removeCallback(self.updateInterface, DOCUMENTACTIVATED)
-            NSNotificationCenter.defaultCenter().removeObserver_(self)
+            Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
 
+        @objc.python_method
         def __file__(self):
-            return __file__
+            """
+            外掛檔案路徑 / Plugin file path
+            """
+            from os.path import dirname
+            return dirname(__file__)
 
 except Exception as e:
-    print(f"載入九宮格預覽外掛時發生錯誤: {str(e)}")
     import traceback
+    print(f"插件載入時發生錯誤，{e}")
     print(traceback.format_exc())

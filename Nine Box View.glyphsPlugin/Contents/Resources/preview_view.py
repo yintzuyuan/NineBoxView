@@ -11,7 +11,9 @@ from GlyphsApp import Glyphs
 from AppKit import (
     NSView, NSColor, NSBezierPath, NSAffineTransform, NSRectFill,
     NSFont, NSFontAttributeName, NSForegroundColorAttributeName,
-    NSString, NSMakePoint
+    NSString, NSMakePoint, NSGradient, NSMakeRect, 
+    NSFontManager, NSFontWeightThin, NSFontWeightBold,
+    NSGraphicsContext, NSCompositingOperationSourceOver, NSInsetRect
 )
 
 # 匯入常數定義，在類別內部使用
@@ -39,11 +41,14 @@ class NineBoxPreviewView(NSView):
         if self:
             self.plugin = plugin
             self.cachedHeight = 0
+            self.panOffset = (0, 0)  # 保留平移偏移量變數，但不再使用
             
             # 從常數模組中導入繪圖相關的常數
-            from constants import MARGIN_RATIO, SPACING_RATIO
+            from constants import MARGIN_RATIO, SPACING_RATIO, MIN_ZOOM, MAX_ZOOM
             self.MARGIN_RATIO = MARGIN_RATIO
             self.SPACING_RATIO = SPACING_RATIO
+            self.MIN_ZOOM = MIN_ZOOM
+            self.MAX_ZOOM = MAX_ZOOM
         return self
     
     def mouseDown_(self, event):
@@ -57,16 +62,10 @@ class NineBoxPreviewView(NSView):
         Args:
             event: 滑鼠事件
         """
-        # 如果是雙擊，執行縮放重置
-        if event.clickCount() == 2:
-            self.plugin.zoomFactor = 1.0
-            self.plugin.savePreferences()
-            self.setNeedsDisplay_(True)
-        else:
-            # 單擊時進行隨機排列
-            self.window().makeKeyWindow()
-            self.window().makeFirstResponder_(self)
-            self.plugin.randomizeCallback(self)
+        # 單擊時進行隨機排列
+        self.window().makeKeyWindow()
+        self.window().makeFirstResponder_(self)
+        self.plugin.randomizeCallback(self)
 
     def drawRect_(self, rect):
         """
@@ -79,9 +78,9 @@ class NineBoxPreviewView(NSView):
         try:
             # === 設定背景顏色 / Set the background color ===
             if self.plugin.darkMode:
-                NSColor.colorWithCalibratedRed_green_blue_alpha_(0.1, 0.1, 0.1, 1.0).set()
+                NSColor.blackColor().set()  # 使用純黑色
             else:
-                NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 1.0).set()
+                NSColor.whiteColor().set()  # 使用純白色
             NSRectFill(rect)
 
             # === 取得基本參數 / Get basic parameters ===
@@ -126,7 +125,7 @@ class NineBoxPreviewView(NSView):
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
 
             # 應用自定義縮放 / Apply custom scale
-            customScale = min(max(self.plugin.zoomFactor, 0.5), 2.0)  # 確保縮放值在有效範圍內
+            customScale = min(max(self.plugin.zoomFactor, self.MIN_ZOOM), self.MAX_ZOOM)  # 確保縮放值在有效範圍內
             scale *= customScale
 
             # 更新網格尺寸 / Update the grid size
@@ -136,10 +135,10 @@ class NineBoxPreviewView(NSView):
             SPACING *= scale
 
             # 計算繪製起始位置 / Calculate the starting position for drawing
-            startX = rect.size.width / 2 - gridWidth / 2
+            startX = rect.size.width / 2 - gridWidth / 2 + self.panOffset[0]
             offsetY = rect.size.height * 0.05
-            startY = (rect.size.height + gridHeight) / 2 + offsetY
-
+            startY = (rect.size.height + gridHeight) / 2 + offsetY + self.panOffset[1]
+            
             # === 繪製九宮格字符 / Draw the characters in the nine-box grid ===
             for i in range(9):
                 row = i // 3
@@ -194,11 +193,11 @@ class NineBoxPreviewView(NSView):
 
                     # 設定繪製顏色 / Set drawing color
                     if self.plugin.darkMode:
-                        fillColor = NSColor.whiteColor()
-                        strokeColor = NSColor.whiteColor()
+                        fillColor = NSColor.whiteColor()  # 純白色
+                        strokeColor = NSColor.whiteColor()  # 純白色
                     else:
-                        fillColor = NSColor.blackColor()
-                        strokeColor = NSColor.blackColor()
+                        fillColor = NSColor.blackColor()  # 純黑色
+                        strokeColor = NSColor.blackColor()  # 純黑色
 
                     # 繪製封閉路徑（使用填充）/ Draw closed paths (using fill)
                     fillColor.set()
@@ -206,23 +205,8 @@ class NineBoxPreviewView(NSView):
 
                     # 繪製開放路徑（使用描邊）/ Draw open paths (using stroke)
                     strokeColor.set()
-                    openBezierPath.setLineWidth_(1.0)  # 設定線寬 / Set line width
+                    openBezierPath.setLineWidth_(1.0 * customScale)  # 設定線寬，根據縮放調整
                     openBezierPath.stroke()
-
-                    # 繪製格子編號 / Draw grid number
-                    if self.plugin.showNumbers:
-                        # 直接在這裡繪製數字 / Draw number directly here
-                        numberText = NSString.stringWithString_(str(i))
-                        numberAttributes = {
-                            NSFontAttributeName: NSFont.boldSystemFontOfSize_(9.0),
-                            NSForegroundColorAttributeName: fillColor.colorWithAlphaComponent_(0.5)
-                        }
-                        numberSize = numberText.sizeWithAttributes_(numberAttributes)
-                        numberPosition = NSMakePoint(
-                            centerX - numberSize.width/2, 
-                            centerY - scaledHeight/2 - 15 - numberSize.height/2
-                        )
-                        numberText.drawAtPoint_withAttributes_(numberPosition, numberAttributes)
 
         except Exception as e:
             print(traceback.format_exc()) 
