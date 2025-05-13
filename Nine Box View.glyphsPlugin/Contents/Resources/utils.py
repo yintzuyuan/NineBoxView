@@ -40,9 +40,20 @@ def get_base_width():
     # 1. 檢查主板是否有 Default Layer Width 參數
     default_width = None
     if current_master.customParameters['Default Layer Width']:
-        default_width = float(current_master.customParameters['Default Layer Width'])
-        if default_width > 0:
-            return default_width
+        try:
+            param_value = current_master.customParameters['Default Layer Width']
+            # 處理可能的格式如 'han: 950'
+            if isinstance(param_value, str) and ':' in param_value:
+                # 取冒號後的數值部分
+                value_part = param_value.split(':', 1)[1].strip()
+                default_width = float(value_part)
+            else:
+                default_width = float(param_value)
+            
+            if default_width > 0:
+                return default_width
+        except (ValueError, TypeError) as e:
+            log_to_macro_window(f"無法解析預設圖層寬度參數: {e}")
 
     # 2. 使用選取的字符層寬度
     if Glyphs.font.selectedLayers:
