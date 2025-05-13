@@ -510,18 +510,49 @@ class NineBoxView(GeneralPlugin):
 
         # 1. 檢查主板是否有 Default Layer Width 參數
         defaultWidth = None
-        if currentMaster.customParameters['Default Layer Width']:
-            defaultWidth = float(currentMaster.customParameters['Default Layer Width'])
-            if defaultWidth > 0:
-                return defaultWidth
+        try:
+            if 'Default Layer Width' in currentMaster.customParameters:
+                # 取得參數值
+                width_param = currentMaster.customParameters['Default Layer Width']
+                
+                # 處理可能帶有腳本前綴的格式，如 'han: 950'
+                if isinstance(width_param, str) and ':' in width_param:
+                    # 分割腳本和寬度值
+                    parts = width_param.split(':', 1)
+                    if len(parts) == 2:
+                        width_str = parts[1].strip()
+                        
+                        # 嘗試轉換寬度值部分
+                        try:
+                            defaultWidth = float(width_str)
+                        except (ValueError, TypeError):
+                            pass
+                else:
+                    # 直接嘗試轉換為浮點數
+                    try:
+                        defaultWidth = float(width_param)
+                    except (ValueError, TypeError):
+                        pass
+                
+                # 如果成功解析到寬度值，直接返回
+                if defaultWidth and defaultWidth > 0:
+                    return defaultWidth
+        except Exception:
+            pass
 
         # 2. 使用選取的字符層寬度
-        if Glyphs.font.selectedLayers:
-            return Glyphs.font.selectedLayers[0].width
+        try:
+            if Glyphs.font.selectedLayers:
+                return Glyphs.font.selectedLayers[0].width
+        except Exception:
+            pass
 
         # 3. 使用字型的 UPM (units per em) 值
-        if hasattr(Glyphs.font, 'upm'):
-            return max(Glyphs.font.upm, 500)
+        try:
+            if hasattr(Glyphs.font, 'upm'):
+                return max(Glyphs.font.upm, 500)
+        except Exception:
+            pass
 
         # 4. 最後的預設值
         return 1000
