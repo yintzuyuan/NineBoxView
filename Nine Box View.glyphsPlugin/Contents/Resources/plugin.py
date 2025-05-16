@@ -57,7 +57,8 @@ try:
                 DARK_MODE_KEY, LAST_INPUT_KEY, SELECTED_CHARS_KEY, 
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
-                DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM
+                DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
+                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH
             )
             
             from utils import parse_input_text, generate_arrangement, get_base_width, log_to_macro_window
@@ -80,6 +81,7 @@ try:
             self.ZOOM_FACTOR_KEY = ZOOM_FACTOR_KEY
             self.SHOW_NUMBERS_KEY = SHOW_NUMBERS_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
+            self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             
             self.loadPreferences()
@@ -100,6 +102,8 @@ try:
                 # 新增回調函數
                 Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
                 Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
+                Glyphs.addCallback(self.selectionChanged_, DOCUMENTOPENED)
+                Glyphs.addCallback(self.selectionChanged_, SELECTIONCHANGED)
 
                 # 載入偏好設定 / Load preferences
                 self.loadPreferences()
@@ -157,23 +161,29 @@ try:
         def updateInterface(self, sender):
             """更新界面 / Update interface"""
             try:
-                # 更新深色模式按鈕圖標 / Update dark mode button icon
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    # 檢查屬性是否存在
-                    if hasattr(self.windowController, 'darkModeButton') and self.windowController.darkModeButton is not None:
-                        darkModeButton = self.windowController.darkModeButton
-                        darkModeButton.setTitle_(self.getDarkModeIcon())
-                        # 設定按鈕狀態 / Set button state
-                        if self.darkMode:
-                            darkModeButton.setState_(1)  # 1 表示開啟
-                        else:
-                            darkModeButton.setState_(0)  # 0 表示關閉
-                    
                     # 重繪介面 / Redraw interface
                     if hasattr(self.windowController, 'redraw'):
                         self.windowController.redraw()
             except Exception as e:
                 self.log_to_macro_window(f"更新介面時發生錯誤: {e}")
+                print(traceback.format_exc())
+        
+        @objc.python_method
+        def selectionChanged_(self, sender):
+            """選擇變更時的處理 / Handle selection changes"""
+            try:
+                # 重繪介面
+                self.updateInterface(None)
+                
+                # 更新側邊欄字型資訊
+                if hasattr(self, 'windowController') and self.windowController is not None:
+                    if (hasattr(self.windowController, 'sidebarView') and 
+                        self.windowController.sidebarView is not None and
+                        not self.windowController.sidebarView.isHidden()):
+                        self.windowController.sidebarView.updateFontInfo()
+            except Exception as e:
+                print(f"選擇變更處理時發生錯誤: {e}")
                 print(traceback.format_exc())
 
         # === 事件處理 / Event Handling ===
@@ -267,10 +277,15 @@ try:
                             # 生成新的字符排列 / Generate a new character arrangement
                             self.generateNewArrangement()
                             
-                            # 更新搜尋欄位 / Update search field
-                            if hasattr(self, 'windowController') and hasattr(self.windowController, 'searchField'):
-                                self.windowController.searchField.setStringValue_(" ".join(selected_chars))
-                                self.lastInput = " ".join(selected_chars)
+                            # 更新最後輸入內容
+                            self.lastInput = " ".join(selected_chars)
+                            
+                            # 如果側邊欄可見，更新側邊欄搜尋欄位
+                            if (hasattr(self, 'windowController') and 
+                                hasattr(self.windowController, 'sidebarView') and
+                                self.windowController.sidebarView and
+                                not self.windowController.sidebarView.isHidden()):
+                                self.windowController.sidebarView.updateSearchField()
                             
                             self.savePreferences()
                             self.updateInterface(None)
@@ -328,6 +343,9 @@ try:
                 
             # 縮放因子 / Zoom factor
             self.zoomFactor = float(Glyphs.defaults.get(self.ZOOM_FACTOR_KEY, self.DEFAULT_ZOOM))
+            
+            # 側邊欄可見性 / Sidebar visibility
+            self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))  # 預設開啟側邊欄
 
         @objc.python_method
         def savePreferences(self):
@@ -347,6 +365,9 @@ try:
             
             # 儲存縮放因子 / Save zoom factor
             Glyphs.defaults[self.ZOOM_FACTOR_KEY] = self.zoomFactor
+            
+            # 儲存側邊欄可見性 / Save sidebar visibility
+            Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.sidebarVisible
 
         # === 回調函數 / Callback Functions ===
 
@@ -413,6 +434,8 @@ try:
             """
             Glyphs.removeCallback(self.updateInterface, DOCUMENTACTIVATED)
             Glyphs.removeCallback(self.updateInterface, UPDATEINTERFACE)
+            Glyphs.removeCallback(self.selectionChanged_, DOCUMENTOPENED)
+            Glyphs.removeCallback(self.selectionChanged_, SELECTIONCHANGED)
 
         @objc.python_method
         def __file__(self):

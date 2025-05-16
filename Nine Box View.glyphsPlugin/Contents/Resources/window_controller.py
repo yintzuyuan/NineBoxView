@@ -17,7 +17,10 @@ from AppKit import (
     NSVisualEffectBlendingModeBehindWindow, NSSearchField, NSColor, NSFont,
     NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSBezelStyleRounded,
     NSTexturedRoundedBezelStyle, NSFocusRingTypeNone, NSToolTipAttributeName,
-    NSBackingStoreBuffered
+    NSBackingStoreBuffered, NSTitlebarAccessoryViewController, NSLayoutConstraint,
+    NSView, NSViewMaxYMargin, NSViewMinYMargin, NSLayoutAttributeBottom,
+    NSLayoutAttributeTop, NSLayoutAttributeRight, NSLayoutAttributeLeft,
+    NSLayoutRelationEqual, NSStackView, NSStackViewGravityTrailing
 )
 from Foundation import NSObject, NSString, NSDictionary, NSAttributedString
 
@@ -45,10 +48,13 @@ class NineBoxWindow(NSWindowController):
             # 在這裡導入以避免循環依賴
             # Import here to avoid circular dependencies
             from preview_view import NineBoxPreviewView
+            from sidebar_view import SidebarView
             self.NineBoxPreviewView = NineBoxPreviewView
+            self.SidebarView = SidebarView
             
             # 載入上次儲存的視窗大小 / Load last saved window size
-            from constants import WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE
+            from constants import WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, SIDEBAR_WIDTH
+            self.SIDEBAR_WIDTH = SIDEBAR_WIDTH
             savedSize = Glyphs.defaults.get(WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE)
             
             # 建立視窗 / Create window
@@ -76,98 +82,54 @@ class NineBoxWindow(NSWindowController):
                 # 保存相關屬性
                 self.plugin = plugin
                 self.previewView = None
-                self.searchField = None
-                self.pickButton = None
-                self.darkModeButton = None
+                self.sidebarButton = None
+                self.sidebarView = None
                 
                 contentView = panel.contentView()
                 
-                # 建立預覽畫面 / Create preview view
-                previewRect = NSMakeRect(0, 35, panel.frame().size.width, panel.frame().size.height - 35)
+                # 建立預覽畫面 - 擴展到整個視窗區域
+                previewRect = NSMakeRect(0, 0, panel.frame().size.width, panel.frame().size.height)
                 self.previewView = self.NineBoxPreviewView.alloc().initWithFrame_plugin_(previewRect, plugin)
                 contentView.addSubview_(self.previewView)
                 
-                # 建立搜尋欄位 / Create search field
-                placeholder = Glyphs.localize({
-                    'en': u'Input glyphs (space-separated) or leave blank',
-                    'zh-Hant': u'輸入字符（以空格分隔）或留空',
-                    'zh-Hans': u'输入字符（用空格分隔）或留空',
-                    'ja': u'文字を入力してください（スペースで区切る）または空欄のまま',
-                    'ko': u'문자를 입력하세요 (공백으로 구분) 또는 비워 두세요',
+                # 建立側邊欄按鈕並放置在標題列上
+                # 首先創建按鈕
+                self.sidebarButton = NSButton.alloc().init()
+                self.sidebarButton.setTitle_("≡")  # 使用漢堡選單圖示
+                self.sidebarButton.setTarget_(self)
+                self.sidebarButton.setAction_("sidebarAction:")
+                self.sidebarButton.setBezelStyle_(NSTexturedRoundedBezelStyle)  # 使用紋理圓角按鈕樣式
+                self.sidebarButton.setButtonType_(NSButtonTypeToggle)  # 使用開關按鈕類型
+                
+                # 設定側邊欄按鈕提示 / Set sidebar button tooltip
+                sidebarTooltip = Glyphs.localize({
+                    'en': u'Show/hide controls panel',
+                    'zh-Hant': u'顯示/隱藏控制面板',
+                    'zh-Hans': u'显示/隐藏控制面板',
+                    'ja': u'コントロールパネルを表示/非表示',
+                    'ko': u'컨트롤 패널 표시/숨기기',
                 })
                 
-                searchFieldRect = NSMakeRect(10, 8, panel.frame().size.width - 110, 22)
-                # 使用搜尋欄位替代一般文字欄位 / Use search field instead of text field
-                self.searchField = NSSearchField.alloc().initWithFrame_(searchFieldRect)
-                self.searchField.setStringValue_(plugin.lastInput)
-                self.searchField.setPlaceholderString_(placeholder)
-                self.searchField.setTarget_(self)
-                self.searchField.setAction_("searchFieldAction:")
-                
-                # 設定搜尋欄位外觀 / Configure search field appearance
-                self.searchField.setFont_(NSFont.systemFontOfSize_(12.0))
-                self.searchField.setFocusRingType_(NSFocusRingTypeNone)
-                
-                # 設定搜尋欄位提示 / Set search field tooltip
-                searchTooltip = Glyphs.localize({
-                    'en': u'Enter glyphs to display around the selected glyph',
-                    'zh-Hant': u'輸入要在選定字符周圍顯示的字符',
-                    'zh-Hans': u'输入要在选定字符周围显示的字符',
-                    'ja': u'選択された文字の周りに表示する文字を入力してください',
-                    'ko': u'선택한 글자 주변에 표시할 글자를 입력하세요',
-                })
-                
-                self.searchField.setToolTip_(searchTooltip)
-                contentView.addSubview_(self.searchField)
-                
-                # 建立選擇字符按鈕 / Create pick glyph button
-                pickButtonRect = NSMakeRect(panel.frame().size.width - 95, 8, 40, 22)
-                self.pickButton = NSButton.alloc().initWithFrame_(pickButtonRect)
-                self.pickButton.setTitle_("🔣")
-                self.pickButton.setTarget_(self)
-                self.pickButton.setAction_("pickGlyphAction:")
-                self.pickButton.setBezelStyle_(NSTexturedRoundedBezelStyle)  # 使用紋理圓角按鈕樣式
-                self.pickButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-                
-                # 設定選擇字符按鈕提示 / Set pick glyph button tooltip
-                pickTooltip = Glyphs.localize({
-                    'en': u'Select glyphs from the font',
-                    'zh-Hant': u'從字型中選擇字符',
-                    'zh-Hans': u'从字体中选择字符',
-                    'ja': u'フォントから文字を選択',
-                    'ko': u'폰트에서 글자 선택',
-                })
-                
-                self.pickButton.setToolTip_(pickTooltip)
-                contentView.addSubview_(self.pickButton)
-                
-                # 建立深色模式按鈕 / Create dark mode button
-                darkModeButtonRect = NSMakeRect(panel.frame().size.width - 50, 8, 40, 22)
-                self.darkModeButton = NSButton.alloc().initWithFrame_(darkModeButtonRect)
-                self.darkModeButton.setTitle_(plugin.getDarkModeIcon())
-                self.darkModeButton.setTarget_(self)
-                self.darkModeButton.setAction_("darkModeAction:")
-                self.darkModeButton.setBezelStyle_(NSTexturedRoundedBezelStyle)  # 使用紋理圓角按鈕樣式
-                self.darkModeButton.setButtonType_(NSButtonTypeToggle)  # 使用開關按鈕類型
-                
-                # 設定深色模式按鈕提示 / Set dark mode button tooltip
-                darkModeTooltip = Glyphs.localize({
-                    'en': u'Toggle dark mode',
-                    'zh-Hant': u'切換深色模式',
-                    'zh-Hans': u'切换深色模式',
-                    'ja': u'ダークモードを切り替える',
-                    'ko': u'다크 모드 전환',
-                })
-                
-                self.darkModeButton.setToolTip_(darkModeTooltip)
+                self.sidebarButton.setToolTip_(sidebarTooltip)
                 
                 # 設定按鈕狀態 / Set button state
-                if plugin.darkMode:
-                    self.darkModeButton.setState_(1)  # 1 表示開啟
+                if plugin.sidebarVisible:
+                    self.sidebarButton.setState_(1)  # 1 表示開啟
                 else:
-                    self.darkModeButton.setState_(0)  # 0 表示關閉
-                    
-                contentView.addSubview_(self.darkModeButton)
+                    self.sidebarButton.setState_(0)  # 0 表示關閉
+                
+                # 創建一個容器視圖來放置按鈕
+                buttonView = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 30, 24))
+                buttonView.addSubview_(self.sidebarButton)
+                self.sidebarButton.setFrame_(NSMakeRect(0, 0, 30, 24))
+                
+                # 創建標題列附件控制器
+                accessoryController = NSTitlebarAccessoryViewController.alloc().init()
+                accessoryController.setView_(buttonView)
+                accessoryController.setLayoutAttribute_(NSLayoutAttributeRight)  # 放在右邊
+                
+                # 添加到視窗的標題列
+                panel.addTitlebarAccessoryViewController_(accessoryController)
                 
                 # 監聽視窗大小調整 / Listen for window resize events
                 NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
@@ -188,6 +150,10 @@ class NineBoxWindow(NSWindowController):
                 # 如果有選取的字符但沒有排列，則生成新排列 / Generate a new arrangement if there are selected characters but no arrangement
                 if plugin.selectedChars and not plugin.currentArrangement:
                     plugin.generateNewArrangement()
+                
+                # 如果側邊欄可見，則創建並顯示側邊欄
+                if plugin.sidebarVisible:
+                    self._showSidebar()
             
         except Exception as e:
             print(f"初始化視窗時發生錯誤: {e}")
@@ -209,19 +175,17 @@ class NineBoxWindow(NSWindowController):
                 contentView = self.window().contentView()
                 contentSize = contentView.frame().size
                 
-                # 調整預覽畫面大小 / Adjust preview view size
+                # 調整預覽畫面大小 - 始終填滿整個視窗
                 if hasattr(self, 'previewView') and self.previewView:
-                    self.previewView.setFrame_(NSMakeRect(0, 35, contentSize.width, contentSize.height - 35))
+                    # 預覽視圖始終佔據整個視窗，不留工具欄區域
+                    if hasattr(self, 'sidebarView') and self.sidebarView and hasattr(self.plugin, 'sidebarVisible') and self.plugin.sidebarVisible:
+                        self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width - self.SIDEBAR_WIDTH, contentSize.height))
+                    else:
+                        self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
                 
-                # 調整其他控制項的位置 / Adjust other controls' positions
-                if hasattr(self, 'searchField') and self.searchField:
-                    self.searchField.setFrame_(NSMakeRect(10, 8, contentSize.width - 110, 22))
-                
-                if hasattr(self, 'pickButton') and self.pickButton:
-                    self.pickButton.setFrame_(NSMakeRect(contentSize.width - 95, 8, 40, 22))
-                
-                if hasattr(self, 'darkModeButton') and self.darkModeButton:
-                    self.darkModeButton.setFrame_(NSMakeRect(contentSize.width - 50, 8, 40, 22))
+                # 調整側邊欄大小
+                if hasattr(self, 'sidebarView') and self.sidebarView:
+                    self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
                 
                 # 儲存視窗大小 / Save the window size
                 if hasattr(self, 'plugin'):
@@ -250,60 +214,64 @@ class NineBoxWindow(NSWindowController):
             print(f"處理視窗關閉時發生錯誤: {e}")
             print(traceback.format_exc())
     
-    def searchFieldAction_(self, sender):
-        """
-        搜尋欄位動作處理
-        Handle search field action
-        
-        Args:
-            sender: 事件發送者
-        """
+    def _showSidebar(self):
+        """顯示側邊欄"""
         try:
-            if hasattr(self, 'plugin'):
-                self.plugin.searchFieldCallback(sender)
+            # 如果側邊欄視圖不存在，則創建它
+            if not hasattr(self, 'sidebarView') or not self.sidebarView:
+                contentSize = self.window().contentView().frame().size
+                sidebarRect = NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height)
+                self.sidebarView = self.SidebarView.alloc().initWithFrame_plugin_(sidebarRect, self.plugin)
+                self.window().contentView().addSubview_(self.sidebarView)
+            else:
+                self.sidebarView.setHidden_(False)
+                
+            # 調整預覽視圖大小 - 為側邊欄留出空間
+            contentSize = self.window().contentView().frame().size
+            self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width - self.SIDEBAR_WIDTH, contentSize.height))
+            
+            # 更新側邊欄內容
+            self.sidebarView.updateFontInfo()
+            self.sidebarView.updateSearchField()
         except Exception as e:
-            print(f"處理搜尋欄位動作時發生錯誤: {e}")
+            print(f"顯示側邊欄時發生錯誤: {e}")
             print(traceback.format_exc())
     
-    def pickGlyphAction_(self, sender):
-        """
-        選擇字符按鈕動作處理
-        Handle pick glyph button action
-        
-        Args:
-            sender: 事件發送者
-        """
+    def _hideSidebar(self):
+        """隱藏側邊欄"""
         try:
-            if hasattr(self, 'plugin'):
-                self.plugin.pickGlyphCallback(sender)
+            # 隱藏側邊欄
+            if hasattr(self, 'sidebarView') and self.sidebarView:
+                self.sidebarView.setHidden_(True)
+            
+            # 調整預覽視圖大小 - 佔據整個視窗
+            contentSize = self.window().contentView().frame().size
+            self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
         except Exception as e:
-            print(f"處理選擇字符按鈕動作時發生錯誤: {e}")
+            print(f"隱藏側邊欄時發生錯誤: {e}")
             print(traceback.format_exc())
     
-    def darkModeAction_(self, sender):
-        """
-        深色模式按鈕動作處理
-        Handle dark mode button action
-        
-        Args:
-            sender: 事件發送者
-        """
+    def sidebarAction_(self, sender):
+        """側邊欄按鈕動作"""
         try:
-            if hasattr(self, 'plugin'):
-                # 切換深色模式
-                self.plugin.darkModeCallback(sender)
-                
-                # 更新按鈕標題
-                self.darkModeButton.setTitle_(self.plugin.getDarkModeIcon())
-                
-                # 更新按鈕狀態
-                self.darkModeButton.setState_(1 if self.plugin.darkMode else 0)
-                
-                # 重繪預覽視圖
-                if hasattr(self, 'previewView') and self.previewView:
-                    self.previewView.setNeedsDisplay_(True)
+            # 切換側邊欄可見性
+            self.plugin.sidebarVisible = not (hasattr(self.plugin, 'sidebarVisible') and self.plugin.sidebarVisible)
+            
+            # 更新側邊欄按鈕狀態
+            if self.plugin.sidebarVisible:
+                self.sidebarButton.setState_(1)  # 1 表示開啟
+                self._showSidebar()
+            else:
+                self.sidebarButton.setState_(0)  # 0 表示關閉
+                self._hideSidebar()
+            
+            # 保存偏好設定
+            self.plugin.savePreferences()
+            
+            # 重繪
+            self.redraw()
         except Exception as e:
-            print(f"處理深色模式按鈕動作時發生錯誤: {e}")
+            print(f"處理側邊欄按鈕動作時發生錯誤: {e}")
             print(traceback.format_exc())
     
     def makeKeyAndOrderFront(self):
@@ -320,14 +288,14 @@ class NineBoxWindow(NSWindowController):
         Redraw the interface
         """
         try:
-            # 更新按鈕標題 / Update button titles
-            if hasattr(self, 'darkModeButton') and self.darkModeButton:
-                self.darkModeButton.setTitle_(self.plugin.getDarkModeIcon())
-                self.darkModeButton.setState_(1 if self.plugin.darkMode else 0)
-            
-            # 重繪預覽視圖 / Redraw the preview view
+            # 重繪預覽視圖
             if hasattr(self, 'previewView') and self.previewView:
                 self.previewView.setNeedsDisplay_(True)
+            
+            # 重繪側邊欄
+            if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                self.sidebarView.updateFontInfo()
+                self.sidebarView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"重繪介面時發生錯誤: {e}")
             print(traceback.format_exc()) 
