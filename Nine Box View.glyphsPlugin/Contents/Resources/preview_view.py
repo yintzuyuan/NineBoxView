@@ -13,7 +13,8 @@ from AppKit import (
     NSFont, NSFontAttributeName, NSForegroundColorAttributeName,
     NSString, NSMakePoint, NSGradient, NSMakeRect, 
     NSFontManager, NSFontWeightThin, NSFontWeightBold,
-    NSGraphicsContext, NSCompositingOperationSourceOver, NSInsetRect
+    NSGraphicsContext, NSCompositingOperationSourceOver, NSInsetRect,
+    NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification
 )
 
 # 匯入常數定義，在類別內部使用
@@ -49,6 +50,10 @@ class NineBoxPreviewView(NSView):
             self.SPACING_RATIO = SPACING_RATIO
             self.MIN_ZOOM = MIN_ZOOM
             self.MAX_ZOOM = MAX_ZOOM
+            
+            # 儲存當前的明暗模式設定，用於偵測變更
+            self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
         return self
     
     def mouseDown_(self, event):
@@ -77,7 +82,13 @@ class NineBoxPreviewView(NSView):
         """
         try:
             # === 設定背景顏色 / Set the background color ===
-            if self.plugin.darkMode:
+            # 使用系統深淺色模式設定取代原本的 darkMode 變數
+            is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
+            # 儲存當前的明暗模式設定，以便偵測變更
+            self.lastDarkModeSetting = is_black
+            
+            if is_black:
                 NSColor.blackColor().set()  # 使用純黑色
             else:
                 NSColor.whiteColor().set()  # 使用純白色
@@ -192,7 +203,8 @@ class NineBoxPreviewView(NSView):
                     openBezierPath.transformUsingAffineTransform_(transform)
 
                     # 設定繪製顏色 / Set drawing color
-                    if self.plugin.darkMode:
+                    # 使用系統深淺色模式設定
+                    if is_black:
                         fillColor = NSColor.whiteColor()  # 純白色
                         strokeColor = NSColor.whiteColor()  # 純白色
                     else:

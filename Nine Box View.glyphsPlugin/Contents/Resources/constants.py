@@ -11,7 +11,6 @@ from GlyphsApp import WINDOW_MENU
 PLUGIN_ID_PREFIX = "com.YinTzuYuan.NineBoxView"
 
 # 外掛屬性鍵值
-DARK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.darkMode"
 LAST_INPUT_KEY = f"{PLUGIN_ID_PREFIX}.lastInput"
 SELECTED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.selectedChars"
 CURRENT_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.currentArrangement"

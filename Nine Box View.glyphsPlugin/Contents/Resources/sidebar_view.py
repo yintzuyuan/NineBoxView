@@ -16,7 +16,8 @@ from AppKit import (
     NSTexturedRoundedBezelStyle, NSButtonTypeMomentaryPushIn,
     NSAttributedString, NSCenterTextAlignment, NSSearchField,
     NSButtonTypeToggle, NSFocusRingTypeNone, 
-    NSCompositingOperationSourceOver, NSBorderlessWindowMask
+    NSCompositingOperationSourceOver, NSBorderlessWindowMask,
+    NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification
 )
 
 class SidebarView(NSView):
@@ -148,36 +149,8 @@ class SidebarView(NSView):
             self.sectionLabel.setStringValue_("顯示設定:")
             self.addSubview_(self.sectionLabel)
             
-            # 深色模式按鈕
-            darkModeButtonRect = NSMakeRect(10, frame.size.height - 210, (frame.size.width - 25) / 2, 30)
-            self.darkModeButton = NSButton.alloc().initWithFrame_(darkModeButtonRect)
-            self.darkModeButton.setTitle_("深色模式 " + plugin.getDarkModeIcon())
-            self.darkModeButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
-            self.darkModeButton.setButtonType_(NSButtonTypeToggle)
-            self.darkModeButton.setTarget_(self)
-            self.darkModeButton.setAction_("darkModeAction:")
-            
-            # 設定深色模式按鈕提示
-            darkModeTooltip = Glyphs.localize({
-                'en': u'Toggle dark mode',
-                'zh-Hant': u'切換深色模式',
-                'zh-Hans': u'切换深色模式',
-                'ja': u'ダークモードを切り替える',
-                'ko': u'다크 모드 전환',
-            })
-            
-            self.darkModeButton.setToolTip_(darkModeTooltip)
-            
-            # 設定按鈕狀態
-            if plugin.darkMode:
-                self.darkModeButton.setState_(1)  # 1 表示開啟
-            else:
-                self.darkModeButton.setState_(0)  # 0 表示關閉
-            
-            self.addSubview_(self.darkModeButton)
-            
             # 重設縮放按鈕
-            resetZoomButtonRect = NSMakeRect(frame.size.width / 2 + 5, frame.size.height - 210, (frame.size.width - 25) / 2, 30)
+            resetZoomButtonRect = NSMakeRect(10, frame.size.height - 210, frame.size.width - 20, 30)
             self.resetZoomButton = NSButton.alloc().initWithFrame_(resetZoomButtonRect)
             self.resetZoomButton.setTitle_("重設縮放 🔍")
             self.resetZoomButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -216,6 +189,9 @@ class SidebarView(NSView):
             self.updateFontInfo()
             self.addSubview_(self.infoLabel)
             
+            # 儲存當前的明暗模式設定，用於偵測變更
+            self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
         return self
     
     def searchFieldAction_(self, sender):
@@ -240,16 +216,6 @@ class SidebarView(NSView):
             self.plugin.randomizeCallback(sender)
         except Exception as e:
             print(f"處理隨機排列按鈕動作時發生錯誤: {e}")
-            print(traceback.format_exc())
-    
-    def darkModeAction_(self, sender):
-        """深色模式按鈕動作"""
-        try:
-            self.plugin.darkModeCallback(sender)
-            # 更新按鈕標題
-            self.darkModeButton.setTitle_("深色模式 " + self.plugin.getDarkModeIcon())
-        except Exception as e:
-            print(f"處理深色模式按鈕動作時發生錯誤: {e}")
             print(traceback.format_exc())
     
     def resetZoomAction_(self, sender):
@@ -295,8 +261,13 @@ class SidebarView(NSView):
             rect: 要繪製的矩形區域
         """
         try:
-            # 設定背景顏色
-            if self.plugin.darkMode:
+            # 設定背景顏色 - 使用系統深淺色模式設定
+            is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
+            # 儲存當前的明暗模式設定，以便偵測變更
+            self.lastDarkModeSetting = is_black
+            
+            if is_black:
                 NSColor.colorWithCalibratedWhite_alpha_(0.15, 1.0).set()
             else:
                 NSColor.colorWithCalibratedWhite_alpha_(0.9, 1.0).set()
@@ -304,7 +275,7 @@ class SidebarView(NSView):
             NSRectFill(rect)
             
             # 繪製分隔線
-            if self.plugin.darkMode:
+            if is_black:
                 NSColor.colorWithCalibratedWhite_alpha_(0.3, 1.0).set()
             else:
                 NSColor.colorWithCalibratedWhite_alpha_(0.7, 1.0).set()
@@ -316,7 +287,7 @@ class SidebarView(NSView):
             separatorPath.stroke()
             
             # 根據模式設定文字顏色
-            textColor = NSColor.whiteColor() if self.plugin.darkMode else NSColor.blackColor()
+            textColor = NSColor.whiteColor() if is_black else NSColor.blackColor()
             
             for control in [self.titleLabel, self.searchLabel, self.infoLabel, 
                            self.sectionLabel, self.fontSectionLabel]:
