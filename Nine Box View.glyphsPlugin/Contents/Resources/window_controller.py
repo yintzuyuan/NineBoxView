@@ -23,7 +23,7 @@ from AppKit import (
     NSLayoutRelationEqual, NSStackView, NSStackViewGravityTrailing,
     NSUserDefaults
 )
-from Foundation import NSObject, NSString, NSDictionary, NSAttributedString, NSUserDefaultsDidChangeNotification
+from Foundation import NSObject, NSString, NSDictionary, NSAttributedString
 
 # 注意：NineBoxPreviewView 將在初始化時動態導入，避免循環依賴
 # Note: NineBoxPreviewView will be dynamically imported during initialization to avoid circular dependencies
@@ -155,17 +155,6 @@ class NineBoxWindow(NSWindowController):
                 # 如果側邊欄可見，則創建並顯示側邊欄
                 if plugin.sidebarVisible:
                     self._showSidebar()
-                
-                # 儲存當前的明暗模式設定，用於偵測變更
-                self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-                
-                # 監聽 NSUserDefaults 變更，以偵測明暗模式變更
-                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                    self,
-                    "userDefaultsDidChange:",
-                    NSUserDefaultsDidChangeNotification,
-                    None
-                )
             
         except Exception as e:
             print(f"初始化視窗時發生錯誤: {e}")
@@ -310,16 +299,4 @@ class NineBoxWindow(NSWindowController):
                 self.sidebarView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"重繪介面時發生錯誤: {e}")
-            print(traceback.format_exc())
-    
-    def userDefaultsDidChange_(self, notification):
-        """處理 NSUserDefaults 變更"""
-        try:
-            # 檢查是否明暗模式變更
-            if NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black") != self.lastDarkModeSetting:
-                # 處理明暗模式變更
-                self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-                self.redraw()
-        except Exception as e:
-            print(f"處理 NSUserDefaults 變更時發生錯誤: {e}")
             print(traceback.format_exc()) 

@@ -380,9 +380,6 @@ try:
             
             # 側邊欄可見性 / Sidebar visibility
             self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))  # 預設開啟側邊欄
-            
-            # 保存當前深色模式設定，用於偵測變更 / Save current dark mode setting for change detection
-            self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
 
         @objc.python_method
         def savePreferences(self):
