@@ -311,31 +311,49 @@ class NineBoxWindow(NSWindowController):
     
     def redraw(self):
         """
-        重繪所有界面元素
-        Redraw all interface elements
+        重繪視窗內容
+        Redraw the window content
         """
         try:
-            # 檢查窗口是否存在
-            if not self.window():
-                return
-            
-            # 重繪視窗內容
-            self.window().contentView().setNeedsDisplay_(True)
-            
-            # 重繪預覽視圖
-            if hasattr(self, 'previewView') and self.previewView:
-                self.previewView.setNeedsDisplay_(True)
-            
-            # 如果側邊欄可見，重繪側邊欄
-            if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
-                self.sidebarView.setNeedsDisplay_(True)
+            # 獲取視窗尺寸 / Get window size
+            if self.window():
+                # 儲存視窗大小 / Save window size
+                from constants import WINDOW_SIZE_KEY
+                frame = self.window().frame()
+                Glyphs.defaults[WINDOW_SIZE_KEY] = (frame.size.width, frame.size.height)
                 
-                # 更新搜尋欄位
-                if hasattr(self.sidebarView, 'updateSearchField'):
+                # 先更新側邊欄位置和大小
+                contentView = self.window().contentView()
+                contentSize = contentView.frame().size
+                
+                # 調整側邊欄位置 / Adjust sidebar position
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
+                    # 側邊欄可見時，預覽視圖寬度需減去側邊欄寬度
+                    previewWidth = contentSize.width - self.SIDEBAR_WIDTH
+                else:
+                    # 側邊欄不可見時，預覽視圖佔據整個寬度
+                    previewWidth = contentSize.width
+                
+                # 更新預覽視圖尺寸 / Update preview view size
+                if hasattr(self, 'previewView') and self.previewView:
+                    self.previewView.setFrame_(NSMakeRect(0, 0, previewWidth, contentSize.height))
+                    self.previewView.setNeedsDisplay_(True)
+                
+                # 更新側邊欄搜尋欄位 / Update sidebar search field
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
                     self.sidebarView.updateSearchField()
+                    
+                    # 更新鎖定字符輸入框
+                    if hasattr(self.sidebarView, 'updateLockFields'):
+                        self.sidebarView.updateLockFields()
+                
+                # 更新側邊欄按鈕狀態 / Update sidebar button state
+                if hasattr(self, 'sidebarButton') and self.sidebarButton:
+                    self.sidebarButton.setState_(1 if self.plugin.sidebarVisible else 0)
                 
         except Exception as e:
-            print(f"重繪界面時發生錯誤: {e}")
+            print(f"重繪視窗時發生錯誤: {e}")
             print(traceback.format_exc())
     
     def userDefaultsDidChange_(self, notification):
