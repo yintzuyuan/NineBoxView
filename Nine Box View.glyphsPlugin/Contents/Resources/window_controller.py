@@ -186,6 +186,7 @@ class NineBoxWindow(NSWindowController):
                 
                 # 先更新側邊欄位置和大小
                 if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    # 確保側邊欄高度完全跟隨視窗高度
                     self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
                     # 側邊欄可見時，預覽視圖寬度需減去側邊欄寬度
                     previewWidth = contentSize.width - self.SIDEBAR_WIDTH
@@ -201,6 +202,23 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self, 'plugin'):
                     newSize = [frame.size.width, frame.size.height]
                     Glyphs.defaults[self.plugin.WINDOW_SIZE_KEY] = newSize
+                
+                # 觸發側邊欄重繪以更新元素位置
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    # 更新側邊欄內部區域布局
+                    if hasattr(self.sidebarView, '_adjustMiddleSectionLayout'):
+                        self.sidebarView._adjustMiddleSectionLayout()
+                    
+                    # 觸發重繪
+                    self.sidebarView.setNeedsDisplay_(True)
+                    
+                    # 觸發各子區域重繪
+                    if hasattr(self.sidebarView, 'topSectionView'):
+                        self.sidebarView.topSectionView.setNeedsDisplay_(True)
+                    if hasattr(self.sidebarView, 'middleSectionView'):
+                        self.sidebarView.middleSectionView.setNeedsDisplay_(True)
+                    if hasattr(self.sidebarView, 'bottomSectionView'):
+                        self.sidebarView.bottomSectionView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"處理視窗大小調整時發生錯誤: {e}")
             print(traceback.format_exc())
@@ -234,15 +252,33 @@ class NineBoxWindow(NSWindowController):
                 self.sidebarView = self.SidebarView.alloc().initWithFrame_plugin_(sidebarRect, self.plugin)
                 self.window().contentView().addSubview_(self.sidebarView)
             else:
+                # 更新側邊欄的位置和大小
+                contentSize = self.window().contentView().frame().size
+                self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
                 self.sidebarView.setHidden_(False)
                 
             # 調整預覽視圖大小 - 為側邊欄留出空間
             contentSize = self.window().contentView().frame().size
             self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width - self.SIDEBAR_WIDTH, contentSize.height))
             
+            # 調整側邊欄內部布局
+            if hasattr(self.sidebarView, '_adjustMiddleSectionLayout'):
+                self.sidebarView._adjustMiddleSectionLayout()
+            
             # 更新側邊欄內容
             self.sidebarView.updateFontInfo()
             self.sidebarView.updateSearchField()
+            
+            # 觸發側邊欄重繪
+            self.sidebarView.setNeedsDisplay_(True)
+            
+            # 觸發各子區域重繪
+            if hasattr(self.sidebarView, 'topSectionView'):
+                self.sidebarView.topSectionView.setNeedsDisplay_(True)
+            if hasattr(self.sidebarView, 'middleSectionView'):
+                self.sidebarView.middleSectionView.setNeedsDisplay_(True)
+            if hasattr(self.sidebarView, 'bottomSectionView'):
+                self.sidebarView.bottomSectionView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"顯示側邊欄時發生錯誤: {e}")
             print(traceback.format_exc())
@@ -304,7 +340,27 @@ class NineBoxWindow(NSWindowController):
             
             # 重繪側邊欄
             if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                # 更新側邊欄位置和大小
+                contentSize = self.window().contentView().frame().size
+                self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
+                
+                # 更新字型資訊
                 self.sidebarView.updateFontInfo()
+                
+                # 檢查側邊欄的內部區域
+                if hasattr(self.sidebarView, 'topSectionView'):
+                    # 觸發頂部區域重繪
+                    self.sidebarView.topSectionView.setNeedsDisplay_(True)
+                
+                if hasattr(self.sidebarView, 'middleSectionView'):
+                    # 觸發中間區域重繪
+                    self.sidebarView.middleSectionView.setNeedsDisplay_(True)
+                
+                if hasattr(self.sidebarView, 'bottomSectionView'):
+                    # 觸發底部區域重繪
+                    self.sidebarView.bottomSectionView.setNeedsDisplay_(True)
+                
+                # 觸發整個側邊欄重繪
                 self.sidebarView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"重繪介面時發生錯誤: {e}")

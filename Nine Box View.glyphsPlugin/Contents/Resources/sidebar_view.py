@@ -43,18 +43,28 @@ class SidebarView(NSView):
         if self:
             self.plugin = plugin
             
-            # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度固定在底部
+            # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度可調整
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             
             # 視圖內部元素的常數設定
             margin = 10
             controlHeight = 25
             labelHeight = 20
+            buttonHeight = 30
             totalHeight = frame.size.height
-            currentY = totalHeight - margin
+            frameWidth = frame.size.width
+            
+            # === 頂部區域（固定在頂部）===
+            topSectionHeight = 130  # 標題 + 搜尋標籤 + 搜尋框的高度和間距
+            
+            # 創建頂部容器視圖
+            topSectionRect = NSMakeRect(0, totalHeight - topSectionHeight, frameWidth, topSectionHeight)
+            self.topSectionView = NSView.alloc().initWithFrame_(topSectionRect)
+            self.topSectionView.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
+            self.addSubview_(self.topSectionView)
             
             # 設定標題標籤
-            titleRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
+            titleRect = NSMakeRect(margin, topSectionHeight - labelHeight - margin, frameWidth - margin * 2, labelHeight)
             self.titleLabel = NSTextField.alloc().initWithFrame_(titleRect)
             self.titleLabel.setEditable_(False)
             self.titleLabel.setBordered_(False)
@@ -62,27 +72,22 @@ class SidebarView(NSView):
             self.titleLabel.setFont_(NSFont.boldSystemFontOfSize_(14))
             self.titleLabel.setAlignment_(NSCenterTextAlignment)
             self.titleLabel.setStringValue_("工具面板")
-            self.titleLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.titleLabel)
+            self.titleLabel.setAutoresizingMask_(NSViewWidthSizable)
+            self.topSectionView.addSubview_(self.titleLabel)
             
-            currentY = currentY - labelHeight - margin
-            
-            # === 搜尋字符區塊 ===
             # 搜尋標籤
-            searchLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
+            searchLabelRect = NSMakeRect(margin, topSectionHeight - labelHeight * 2 - margin - 5, frameWidth - margin * 2, labelHeight)
             self.searchLabel = NSTextField.alloc().initWithFrame_(searchLabelRect)
             self.searchLabel.setEditable_(False)
             self.searchLabel.setBordered_(False)
             self.searchLabel.setDrawsBackground_(False)
             self.searchLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
             self.searchLabel.setStringValue_("搜尋字符:")
-            self.searchLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.searchLabel)
+            self.searchLabel.setAutoresizingMask_(NSViewWidthSizable)
+            self.topSectionView.addSubview_(self.searchLabel)
             
-            currentY = currentY - labelHeight - 5
-
             # 搜尋欄位
-            searchFieldRect = NSMakeRect(margin, currentY - controlHeight, frame.size.width - margin * 2, controlHeight)
+            searchFieldRect = NSMakeRect(margin, topSectionHeight - labelHeight * 2 - margin - controlHeight - 10, frameWidth - margin * 2, controlHeight)
             self.searchField = NSSearchField.alloc().initWithFrame_(searchFieldRect)
             
             placeholder = Glyphs.localize({
@@ -112,16 +117,61 @@ class SidebarView(NSView):
             self.searchField.setToolTip_(searchTooltip)
             self.searchField.setTarget_(self)
             self.searchField.setAction_("searchFieldAction:")
-            self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.searchField)
+            self.searchField.setAutoresizingMask_(NSViewWidthSizable)
+            self.topSectionView.addSubview_(self.searchField)
             
-            currentY = currentY - controlHeight - margin
+            # === 底部區域（固定在底部）===
+            bottomSectionHeight = 100  # 字型資訊的高度和間距
             
-            buttonHeight = 30
-            buttonWidth = (frame.size.width - margin * 3) / 2
+            # 創建底部容器視圖
+            bottomSectionRect = NSMakeRect(0, 0, frameWidth, bottomSectionHeight)
+            self.bottomSectionView = NSView.alloc().initWithFrame_(bottomSectionRect)
+            self.bottomSectionView.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+            self.addSubview_(self.bottomSectionView)
+            
+            # 字型資訊標籤
+            fontSectionLabelRect = NSMakeRect(margin, bottomSectionHeight - labelHeight - margin, frameWidth - margin * 2, labelHeight)
+            self.fontSectionLabel = NSTextField.alloc().initWithFrame_(fontSectionLabelRect)
+            self.fontSectionLabel.setEditable_(False)
+            self.fontSectionLabel.setBordered_(False)
+            self.fontSectionLabel.setDrawsBackground_(False)
+            self.fontSectionLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
+            self.fontSectionLabel.setStringValue_("字型資訊:")
+            self.fontSectionLabel.setAutoresizingMask_(NSViewWidthSizable)
+            self.bottomSectionView.addSubview_(self.fontSectionLabel)
+            
+            # 資訊標籤
+            infoHeight = 60
+            infoRect = NSMakeRect(margin, margin, frameWidth - margin * 2, infoHeight)
+            self.infoLabel = NSTextField.alloc().initWithFrame_(infoRect)
+            self.infoLabel.setEditable_(False)
+            self.infoLabel.setBordered_(False)
+            self.infoLabel.setDrawsBackground_(False)
+            self.infoLabel.setFont_(NSFont.systemFontOfSize_(12))
+            self.infoLabel.setAutoresizingMask_(NSViewWidthSizable)
+            self.updateFontInfo()
+            self.bottomSectionView.addSubview_(self.infoLabel)
+            
+            # === 中間區域（可伸縮）===
+            middleSectionHeight = totalHeight - topSectionHeight - bottomSectionHeight
+            
+            # 創建中間容器視圖
+            middleSectionRect = NSMakeRect(0, bottomSectionHeight, frameWidth, middleSectionHeight)
+            self.middleSectionView = NSView.alloc().initWithFrame_(middleSectionRect)
+            # 中間區域在垂直方向上可以調整高度，固定在底部，頂部可變
+            self.middleSectionView.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable | NSViewMinYMargin)
+            self.addSubview_(self.middleSectionView)
+            
+            # 計算中間區域各按鈕的位置
+            middleMargin = 15
+            buttonSpacing = 20
+            buttonAreaHeight = middleSectionHeight - middleMargin * 2
+            buttonsStartY = buttonAreaHeight - buttonHeight
+            
+            buttonWidth = (frameWidth - margin * 3) / 2
             
             # 選擇字符按鈕
-            pickButtonRect = NSMakeRect(margin, currentY - buttonHeight, buttonWidth, buttonHeight)
+            pickButtonRect = NSMakeRect(margin, buttonsStartY, buttonWidth, buttonHeight)
             self.pickButton = NSButton.alloc().initWithFrame_(pickButtonRect)
             self.pickButton.setTitle_("選擇字符 🔣")
             self.pickButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -139,11 +189,11 @@ class SidebarView(NSView):
             })
             
             self.pickButton.setToolTip_(pickTooltip)
-            self.pickButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.pickButton)
+            self.pickButton.setAutoresizingMask_(NSViewWidthSizable)
+            self.middleSectionView.addSubview_(self.pickButton)
             
             # 隨機排列按鈕
-            randomizeButtonRect = NSMakeRect(margin * 2 + buttonWidth, currentY - buttonHeight, buttonWidth, buttonHeight)
+            randomizeButtonRect = NSMakeRect(margin * 2 + buttonWidth, buttonsStartY, buttonWidth, buttonHeight)
             self.randomizeButton = NSButton.alloc().initWithFrame_(randomizeButtonRect)
             self.randomizeButton.setTitle_("隨機排列 🔄")
             self.randomizeButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -161,26 +211,22 @@ class SidebarView(NSView):
             })
             
             self.randomizeButton.setToolTip_(randomizeTooltip)
-            self.randomizeButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.randomizeButton)
-            
-            currentY = currentY - buttonHeight - margin
+            self.randomizeButton.setAutoresizingMask_(NSViewWidthSizable)
+            self.middleSectionView.addSubview_(self.randomizeButton)
             
             # === 顯示設定區塊 ===
-            sectionLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
+            sectionLabelRect = NSMakeRect(margin, buttonsStartY - buttonSpacing - labelHeight, frameWidth - margin * 2, labelHeight)
             self.sectionLabel = NSTextField.alloc().initWithFrame_(sectionLabelRect)
             self.sectionLabel.setEditable_(False)
             self.sectionLabel.setBordered_(False)
             self.sectionLabel.setDrawsBackground_(False)
             self.sectionLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
             self.sectionLabel.setStringValue_("顯示設定:")
-            self.sectionLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.sectionLabel)
-            
-            currentY = currentY - labelHeight - 5
+            self.sectionLabel.setAutoresizingMask_(NSViewWidthSizable)
+            self.middleSectionView.addSubview_(self.sectionLabel)
             
             # 重設縮放按鈕
-            resetZoomButtonRect = NSMakeRect(margin, currentY - buttonHeight, frame.size.width - margin * 2, buttonHeight)
+            resetZoomButtonRect = NSMakeRect(margin, buttonsStartY - buttonSpacing - labelHeight - buttonHeight - 5, frameWidth - margin * 2, buttonHeight)
             self.resetZoomButton = NSButton.alloc().initWithFrame_(resetZoomButtonRect)
             self.resetZoomButton.setTitle_("重設縮放 🔍")
             self.resetZoomButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -198,34 +244,8 @@ class SidebarView(NSView):
             })
             
             self.resetZoomButton.setToolTip_(resetZoomTooltip)
-            self.resetZoomButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.resetZoomButton)
-            
-            currentY = currentY - buttonHeight - margin
-            
-            # === 字型資訊區塊 ===
-            fontSectionLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
-            self.fontSectionLabel = NSTextField.alloc().initWithFrame_(fontSectionLabelRect)
-            self.fontSectionLabel.setEditable_(False)
-            self.fontSectionLabel.setBordered_(False)
-            self.fontSectionLabel.setDrawsBackground_(False)
-            self.fontSectionLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
-            self.fontSectionLabel.setStringValue_("字型資訊:")
-            self.fontSectionLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.addSubview_(self.fontSectionLabel)
-            
-            currentY = currentY - labelHeight - 5
-            
-            infoHeight = 60
-            infoRect = NSMakeRect(margin, currentY - infoHeight, frame.size.width - margin * 2, infoHeight)
-            self.infoLabel = NSTextField.alloc().initWithFrame_(infoRect)
-            self.infoLabel.setEditable_(False)
-            self.infoLabel.setBordered_(False)
-            self.infoLabel.setDrawsBackground_(False)
-            self.infoLabel.setFont_(NSFont.systemFontOfSize_(12))
-            self.infoLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            self.updateFontInfo()
-            self.addSubview_(self.infoLabel)
+            self.resetZoomButton.setAutoresizingMask_(NSViewWidthSizable)
+            self.middleSectionView.addSubview_(self.resetZoomButton)
             
         return self
     
@@ -270,10 +290,26 @@ class SidebarView(NSView):
                 masterName = Glyphs.font.selectedFontMaster.name if Glyphs.font.selectedFontMaster else "無"
                 currentGlyph = Glyphs.font.selectedLayers[0].parent.name if Glyphs.font.selectedLayers else "無"
                 
+                # 限制資訊字串長度以避免超出顯示區域
+                if fontName and len(fontName) > 20:
+                    fontName = fontName[:17] + "..."
+                if masterName and len(masterName) > 20:
+                    masterName = masterName[:17] + "..."
+                if currentGlyph and len(currentGlyph) > 20:
+                    currentGlyph = currentGlyph[:17] + "..."
+                
                 info = f"字型: {fontName}\n字符數: {glyphCount}\n主板: {masterName}\n當前字符: {currentGlyph}"
                 self.infoLabel.setStringValue_(info)
             else:
                 self.infoLabel.setStringValue_("未載入字型")
+                
+            # 確保字體大小適合目前的顯示區域
+            labelFrame = self.infoLabel.frame()
+            if labelFrame.size.height < 40:  # 如果高度太小
+                self.infoLabel.setFont_(NSFont.systemFontOfSize_(10.0))  # 使用較小的字體
+            else:
+                self.infoLabel.setFont_(NSFont.systemFontOfSize_(12.0))  # 使用標準字體大小
+                
         except Exception as e:
             print(f"更新字型資訊錯誤: {e}")
             print(traceback.format_exc())
@@ -341,6 +377,107 @@ class SidebarView(NSView):
             if hasattr(self, 'fontSectionLabel') and self.fontSectionLabel:
                 self.fontSectionLabel.setTextColor_(textColor)
             
+            # 確保三個區域的大小正確
+            if hasattr(self, 'topSectionView') and self.topSectionView and hasattr(self, 'bottomSectionView') and self.bottomSectionView and hasattr(self, 'middleSectionView') and self.middleSectionView:
+                # 獲取當前總高度
+                totalHeight = rect.size.height
+                frameWidth = rect.size.width
+                
+                # 頂部和底部區域高度固定
+                topSectionHeight = 130
+                bottomSectionHeight = 100
+                
+                # 中間區域高度自適應
+                middleSectionHeight = max(20, totalHeight - topSectionHeight - bottomSectionHeight)
+                
+                # 更新各區域位置和大小
+                self.topSectionView.setFrame_(NSMakeRect(0, totalHeight - topSectionHeight, frameWidth, topSectionHeight))
+                self.bottomSectionView.setFrame_(NSMakeRect(0, 0, frameWidth, bottomSectionHeight))
+                self.middleSectionView.setFrame_(NSMakeRect(0, bottomSectionHeight, frameWidth, middleSectionHeight))
+            
+            # 根據窗口大小變化調整中間區域
+            self._adjustMiddleSectionLayout()
+            
         except Exception as e:
             print(f"繪製側邊欄時發生錯誤: {e}")
+            print(traceback.format_exc())
+            
+    def _adjustMiddleSectionLayout(self):
+        """根據當前窗口大小調整中間區域的佈局"""
+        try:
+            if hasattr(self, 'middleSectionView') and self.middleSectionView:
+                # 獲取中間區域的當前高度
+                middleHeight = self.middleSectionView.frame().size.height
+                frameWidth = self.middleSectionView.frame().size.width
+                margin = 10
+                
+                # 根據可用高度調整按鈕的布局
+                if middleHeight < 120:  # 當空間非常有限時
+                    # 最小化模式 - 只顯示兩個主要按鈕並排
+                    buttonHeight = min(30, middleHeight / 2)  # 按鈕高度不超過可用空間的一半
+                    buttonWidth = (frameWidth - margin * 3) / 2
+                    
+                    # 重新定位兩個主要按鈕
+                    if hasattr(self, 'pickButton'):
+                        self.pickButton.setFrame_(NSMakeRect(margin, middleHeight - buttonHeight - margin, buttonWidth, buttonHeight))
+                    
+                    if hasattr(self, 'randomizeButton'):
+                        self.randomizeButton.setFrame_(NSMakeRect(margin * 2 + buttonWidth, middleHeight - buttonHeight - margin, buttonWidth, buttonHeight))
+                    
+                    # 設定區域和重設縮放按鈕可能會隱藏
+                    if hasattr(self, 'sectionLabel'):
+                        self.sectionLabel.setHidden_(True)
+                    
+                    if hasattr(self, 'resetZoomButton'):
+                        self.resetZoomButton.setHidden_(True)
+                        
+                elif middleHeight < 180:  # 中等空間
+                    # 顯示所有元素，但布局更緊湊
+                    buttonHeight = 25  # 減小按鈕高度
+                    buttonWidth = (frameWidth - margin * 3) / 2
+                    buttonSpacing = 10  # 減小間距
+                    
+                    # 重新定位按鈕和標籤
+                    if hasattr(self, 'pickButton'):
+                        self.pickButton.setFrame_(NSMakeRect(margin, middleHeight - buttonHeight - margin, buttonWidth, buttonHeight))
+                        self.pickButton.setHidden_(False)
+                    
+                    if hasattr(self, 'randomizeButton'):
+                        self.randomizeButton.setFrame_(NSMakeRect(margin * 2 + buttonWidth, middleHeight - buttonHeight - margin, buttonWidth, buttonHeight))
+                        self.randomizeButton.setHidden_(False)
+                    
+                    if hasattr(self, 'sectionLabel'):
+                        self.sectionLabel.setFrame_(NSMakeRect(margin, middleHeight - buttonHeight - margin * 2 - 20, frameWidth - margin * 2, 20))
+                        self.sectionLabel.setHidden_(False)
+                    
+                    if hasattr(self, 'resetZoomButton'):
+                        self.resetZoomButton.setFrame_(NSMakeRect(margin, 10, frameWidth - margin * 2, buttonHeight))
+                        self.resetZoomButton.setHidden_(False)
+                
+                else:  # 充足的空間
+                    # 完整布局，元素間距較大
+                    buttonHeight = 30
+                    buttonWidth = (frameWidth - margin * 3) / 2
+                    buttonSpacing = 20
+                    buttonsStartY = middleHeight - buttonHeight - margin
+                    
+                    # 重新定位所有元素
+                    if hasattr(self, 'pickButton'):
+                        self.pickButton.setFrame_(NSMakeRect(margin, buttonsStartY, buttonWidth, buttonHeight))
+                        self.pickButton.setHidden_(False)
+                    
+                    if hasattr(self, 'randomizeButton'):
+                        self.randomizeButton.setFrame_(NSMakeRect(margin * 2 + buttonWidth, buttonsStartY, buttonWidth, buttonHeight))
+                        self.randomizeButton.setHidden_(False)
+                    
+                    if hasattr(self, 'sectionLabel'):
+                        self.sectionLabel.setFrame_(NSMakeRect(margin, buttonsStartY - buttonSpacing - 20, frameWidth - margin * 2, 20))
+                        self.sectionLabel.setHidden_(False)
+                    
+                    if hasattr(self, 'resetZoomButton'):
+                        self.resetZoomButton.setFrame_(NSMakeRect(margin, buttonsStartY - buttonSpacing - 20 - buttonHeight - 5, frameWidth - margin * 2, buttonHeight))
+                        self.resetZoomButton.setHidden_(False)
+                
+        except Exception as e:
+            print(f"調整中間區域佈局時發生錯誤: {e}")
             print(traceback.format_exc()) 
