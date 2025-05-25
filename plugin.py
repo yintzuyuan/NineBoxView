@@ -13,7 +13,6 @@
 
 from GlyphsApp import GSPath, objcObject, TABDIDOPEN, TABWILLCLOSE, Glyphs
 from GlyphsApp.plugins import ReporterPlugin, pathForResource, objc
-from vanilla import Window, Slider, Group, CheckBox  # type: ignore
 from typing import List, Optional
 import traceback
 from typing import Any
@@ -56,6 +55,21 @@ from AppKit import (
     NSToggleButton,  # type: ignore
     NSImageOnly,  # type: ignore
     NSImageScaleNone,  # type: ignore
+    NSView,  # type: ignore
+    NSSlider,  # type: ignore
+    NSSliderTypeLinear,  # type: ignore
+    NSSwitchButton,  # type: ignore
+    NSOnState,  # type: ignore
+    NSOffState,  # type: ignore
+    NSViewHeightSizable,  # type: ignore
+    NSViewWidthSizable,  # type: ignore
+    NSControlSizeRegular,  # type: ignore
+    NSLayoutAttributeLeft,  # type: ignore
+    NSFontSystemFontSize,  # type: ignore
+    NSRegularControlSize,  # type: ignore
+    NSLeftTextAlignment,  # type: ignore
+    NSViewMinYMargin,  # type: ignore
+    NSViewMaxYMargin,  # type: ignore
 )
 
 # Changelog
@@ -108,33 +122,108 @@ class ShowRotated(ReporterPlugin):
         self.setup_defaults()
 
     def setup_ui(self):
-        view_width = 170
-        view_height = 123
-        self.rotated_menu = Window((view_width, view_height))
-        self.rotated_menu.group = Group((0, 0, view_width, view_height))
-        self.rotated_menu.group.checkbox_superimposed = CheckBox(
-            (20, 0, -1, 25), "Superimpose in Layer", callback=self.update
+        # macOS 標準控制項間距
+        standard_padding = 12
+        checkbox_height = 18
+        slider_height = 24
+        text_offset = 20
+        control_width = 200
+        
+        # 計算整體面板所需高度
+        # 4個複選框 + 1個滑桿 + 間距
+        total_height = (checkbox_height * 4) + slider_height + (standard_padding * 5)
+        
+        # 建立主視圖
+        self.view = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, control_width, total_height))
+        # 修改自動調整掩碼：固定在底部，跟隨上緣變動
+        self.view.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+        
+        # 設定目前Y座標位置（從底部往上佈局）
+        current_y = total_height - (checkbox_height + standard_padding)
+        
+        # 建立 Superimpose 複選框
+        self.checkbox_superimposed = NSButton.alloc().initWithFrame_(
+            NSMakeRect(0, current_y, control_width, checkbox_height)
         )
-        self.rotated_menu.group.slider = Slider(
-            (20, 28, -1, 25),
-            tickMarkCount=17,
-            maxValue=360,
-            stopOnTickMarks=True,
-            continuous=True,
-            callback=self.update,
+        self.checkbox_superimposed.setButtonType_(NSSwitchButton)
+        self.checkbox_superimposed.setTitle_("Superimpose in Layer")
+        self.checkbox_superimposed.setAction_(objc.selector(self.update_, signature=b"v@:@"))
+        self.checkbox_superimposed.setTarget_(self)
+        self.checkbox_superimposed.setFont_(NSFont.systemFontOfSize_(NSFontSystemFontSize))
+        self.checkbox_superimposed.sizeToFit()
+        self.view.addSubview_(self.checkbox_superimposed)
+        
+        # 更新Y座標位置
+        current_y -= (slider_height + standard_padding)
+        
+        # 建立旋轉角度滑桿
+        self.slider = NSSlider.alloc().initWithFrame_(
+            NSMakeRect(0, current_y, control_width, slider_height)
         )
-        self.rotated_menu.group.horizontal = CheckBox(
-            (20, 48, -1, 25), "Flip Horizontally", callback=self.update
+        self.slider.setMinValue_(0)
+        self.slider.setMaxValue_(360)
+        self.slider.setNumberOfTickMarks_(17)
+        self.slider.setAllowsTickMarkValuesOnly_(True)
+        self.slider.setContinuous_(True)
+        self.slider.setSliderType_(NSSliderTypeLinear)
+        self.slider.setControlSize_(NSRegularControlSize)
+        self.slider.setAction_(objc.selector(self.update_, signature=b"v@:@"))
+        self.slider.setTarget_(self)
+        self.view.addSubview_(self.slider)
+        
+        # 更新Y座標位置
+        current_y -= (checkbox_height + standard_padding)
+        
+        # 建立水平翻轉複選框
+        self.horizontal = NSButton.alloc().initWithFrame_(
+            NSMakeRect(0, current_y, control_width, checkbox_height)
         )
-        self.rotated_menu.group.vertical = CheckBox(
-            (20, 68, -1, 25), "Flip Vertically", callback=self.update
+        self.horizontal.setButtonType_(NSSwitchButton)
+        self.horizontal.setTitle_("Flip Horizontally")
+        self.horizontal.setAction_(objc.selector(self.update_, signature=b"v@:@"))
+        self.horizontal.setTarget_(self)
+        self.horizontal.setFont_(NSFont.systemFontOfSize_(NSFontSystemFontSize))
+        self.horizontal.sizeToFit()
+        self.view.addSubview_(self.horizontal)
+        
+        # 更新Y座標位置
+        current_y -= (checkbox_height + standard_padding)
+        
+        # 建立垂直翻轉複選框
+        self.vertical = NSButton.alloc().initWithFrame_(
+            NSMakeRect(0, current_y, control_width, checkbox_height)
         )
-        self.rotated_menu.group.checkbox_selection_mode = CheckBox(
-            (20, 88, -1, 25), "Rotate Selection Only", callback=self.update
+        self.vertical.setButtonType_(NSSwitchButton)
+        self.vertical.setTitle_("Flip Vertically")
+        self.vertical.setAction_(objc.selector(self.update_, signature=b"v@:@"))
+        self.vertical.setTarget_(self)
+        self.vertical.setFont_(NSFont.systemFontOfSize_(NSFontSystemFontSize))
+        self.vertical.sizeToFit()
+        self.view.addSubview_(self.vertical)
+        
+        # 更新Y座標位置
+        current_y -= (checkbox_height + standard_padding)
+        
+        # 建立僅選擇複選框
+        self.checkbox_selection_mode = NSButton.alloc().initWithFrame_(
+            NSMakeRect(0, current_y, control_width, checkbox_height)
         )
+        self.checkbox_selection_mode.setButtonType_(NSSwitchButton)
+        self.checkbox_selection_mode.setTitle_("Rotate Selection Only")
+        self.checkbox_selection_mode.setAction_(objc.selector(self.update_, signature=b"v@:@"))
+        self.checkbox_selection_mode.setTarget_(self)
+        self.checkbox_selection_mode.setFont_(NSFont.systemFontOfSize_(NSFontSystemFontSize))
+        self.checkbox_selection_mode.sizeToFit()
+        self.view.addSubview_(self.checkbox_selection_mode)
+        
+        # 為所有子視圖設定相同的自動調整掩碼，確保它們相對於主視圖的位置保持不變
+        for subview in [self.checkbox_superimposed, self.slider, self.horizontal, self.vertical, self.checkbox_selection_mode]:
+            subview.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
+        
+        # 設定側邊欄選單
         self.generalContextMenus = [
             {"name": "%s:" % self.name, "action": None},
-            {"view": self.rotated_menu.group.getNSView()},
+            {"view": self.view},
         ]
 
     def setup_defaults(self):
@@ -149,36 +238,40 @@ class ShowRotated(ReporterPlugin):
                 KEY_ROTATION_ANGLE: 180,
             }
         )
-        # fmt: off
-        self.rotated_menu.group.checkbox_superimposed.getNSButton().bind_toObject_withKeyPath_options_(
+        
+        # 綁定控制項到使用者預設值
+        self.checkbox_superimposed.bind_toObject_withKeyPath_options_(
             "value", user_defaults, objcObject(f"values.{KEY_SUPERIMPOSED}"), None
         )
-        self.rotated_menu.group.horizontal.getNSButton().bind_toObject_withKeyPath_options_(
+        self.horizontal.bind_toObject_withKeyPath_options_(
             "value", user_defaults, objcObject(f"values.{KEY_FLIPPED_HORIZONTAL}"), None
         )
-        self.rotated_menu.group.vertical.getNSButton().bind_toObject_withKeyPath_options_(
+        self.vertical.bind_toObject_withKeyPath_options_(
             "value", user_defaults, objcObject(f"values.{KEY_FLIPPED_VERTICAL}"), None
         )
-        self.rotated_menu.group.checkbox_selection_mode.getNSButton().bind_toObject_withKeyPath_options_(
+        self.checkbox_selection_mode.bind_toObject_withKeyPath_options_(
             "value", user_defaults, objcObject(f"values.{KEY_ONLY_SELECTION}"), None
         )
-        self.rotated_menu.group.slider.getNSSlider().bind_toObject_withKeyPath_options_(
+        self.slider.bind_toObject_withKeyPath_options_(
             "value", user_defaults, objcObject(f"values.{KEY_ROTATION_ANGLE}"), None
         )
-        # Enable/Disable
-        self.rotated_menu.group.slider.getNSSlider().bind_toObject_withKeyPath_options_(
+        
+        # 啟用/禁用控制項
+        self.slider.bind_toObject_withKeyPath_options_(
             "enabled", user_defaults, objcObject(f"values.{KEY_SUPERIMPOSED}"), None
         )
-        self.rotated_menu.group.horizontal.getNSButton().bind_toObject_withKeyPath_options_(
+        self.horizontal.bind_toObject_withKeyPath_options_(
             "enabled", user_defaults, objcObject(f"values.{KEY_SUPERIMPOSED}"), None
         )
-        self.rotated_menu.group.vertical.getNSButton().bind_toObject_withKeyPath_options_(
+        self.vertical.bind_toObject_withKeyPath_options_(
             "enabled", user_defaults, objcObject(f"values.{KEY_SUPERIMPOSED}"), None
         )
-        self.rotated_menu.group.checkbox_selection_mode.getNSButton().bind_toObject_withKeyPath_options_(
+        self.checkbox_selection_mode.bind_toObject_withKeyPath_options_(
             "enabled", user_defaults, objcObject(f"values.{KEY_SUPERIMPOSED}"), None
         )
-        # fmt: on
+
+    def update_(self, sender):
+        self.update(sender)
 
     @objc.python_method
     def start(self):

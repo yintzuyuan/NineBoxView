@@ -18,7 +18,7 @@ from AppKit import (
     NSButtonTypeToggle, NSFocusRingTypeNone, 
     NSCompositingOperationSourceOver, NSBorderlessWindowMask,
     NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification,
-    NSApp
+    NSApp, NSViewWidthSizable, NSViewHeightSizable, NSViewMinYMargin, NSViewMaxYMargin
 )
 
 class SidebarView(NSView):
@@ -43,8 +43,18 @@ class SidebarView(NSView):
         if self:
             self.plugin = plugin
             
+            # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度固定在底部
+            self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+            
+            # 視圖內部元素的常數設定
+            margin = 10
+            controlHeight = 25
+            labelHeight = 20
+            totalHeight = frame.size.height
+            currentY = totalHeight - margin
+            
             # 設定標題標籤
-            titleRect = NSMakeRect(10, frame.size.height - 40, frame.size.width - 20, 30)
+            titleRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
             self.titleLabel = NSTextField.alloc().initWithFrame_(titleRect)
             self.titleLabel.setEditable_(False)
             self.titleLabel.setBordered_(False)
@@ -52,21 +62,27 @@ class SidebarView(NSView):
             self.titleLabel.setFont_(NSFont.boldSystemFontOfSize_(14))
             self.titleLabel.setAlignment_(NSCenterTextAlignment)
             self.titleLabel.setStringValue_("工具面板")
+            self.titleLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.titleLabel)
+            
+            currentY = currentY - labelHeight - margin
             
             # === 搜尋字符區塊 ===
             # 搜尋標籤
-            searchLabelRect = NSMakeRect(10, frame.size.height - 80, frame.size.width - 20, 20)
+            searchLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
             self.searchLabel = NSTextField.alloc().initWithFrame_(searchLabelRect)
             self.searchLabel.setEditable_(False)
             self.searchLabel.setBordered_(False)
             self.searchLabel.setDrawsBackground_(False)
             self.searchLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
             self.searchLabel.setStringValue_("搜尋字符:")
+            self.searchLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.searchLabel)
+            
+            currentY = currentY - labelHeight - 5
 
             # 搜尋欄位
-            searchFieldRect = NSMakeRect(10, frame.size.height - 105, frame.size.width - 20, 22)
+            searchFieldRect = NSMakeRect(margin, currentY - controlHeight, frame.size.width - margin * 2, controlHeight)
             self.searchField = NSSearchField.alloc().initWithFrame_(searchFieldRect)
             
             placeholder = Glyphs.localize({
@@ -96,10 +112,16 @@ class SidebarView(NSView):
             self.searchField.setToolTip_(searchTooltip)
             self.searchField.setTarget_(self)
             self.searchField.setAction_("searchFieldAction:")
+            self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.searchField)
             
+            currentY = currentY - controlHeight - margin
+            
+            buttonHeight = 30
+            buttonWidth = (frame.size.width - margin * 3) / 2
+            
             # 選擇字符按鈕
-            pickButtonRect = NSMakeRect(10, frame.size.height - 140, (frame.size.width - 25) / 2, 30)
+            pickButtonRect = NSMakeRect(margin, currentY - buttonHeight, buttonWidth, buttonHeight)
             self.pickButton = NSButton.alloc().initWithFrame_(pickButtonRect)
             self.pickButton.setTitle_("選擇字符 🔣")
             self.pickButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -117,10 +139,11 @@ class SidebarView(NSView):
             })
             
             self.pickButton.setToolTip_(pickTooltip)
+            self.pickButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.pickButton)
             
             # 隨機排列按鈕
-            randomizeButtonRect = NSMakeRect(frame.size.width / 2 + 5, frame.size.height - 140, (frame.size.width - 25) / 2, 30)
+            randomizeButtonRect = NSMakeRect(margin * 2 + buttonWidth, currentY - buttonHeight, buttonWidth, buttonHeight)
             self.randomizeButton = NSButton.alloc().initWithFrame_(randomizeButtonRect)
             self.randomizeButton.setTitle_("隨機排列 🔄")
             self.randomizeButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -138,20 +161,26 @@ class SidebarView(NSView):
             })
             
             self.randomizeButton.setToolTip_(randomizeTooltip)
+            self.randomizeButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.randomizeButton)
             
+            currentY = currentY - buttonHeight - margin
+            
             # === 顯示設定區塊 ===
-            sectionLabelRect = NSMakeRect(10, frame.size.height - 180, frame.size.width - 20, 20)
+            sectionLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
             self.sectionLabel = NSTextField.alloc().initWithFrame_(sectionLabelRect)
             self.sectionLabel.setEditable_(False)
             self.sectionLabel.setBordered_(False)
             self.sectionLabel.setDrawsBackground_(False)
             self.sectionLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
             self.sectionLabel.setStringValue_("顯示設定:")
+            self.sectionLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.sectionLabel)
             
+            currentY = currentY - labelHeight - 5
+            
             # 重設縮放按鈕
-            resetZoomButtonRect = NSMakeRect(10, frame.size.height - 210, frame.size.width - 20, 30)
+            resetZoomButtonRect = NSMakeRect(margin, currentY - buttonHeight, frame.size.width - margin * 2, buttonHeight)
             self.resetZoomButton = NSButton.alloc().initWithFrame_(resetZoomButtonRect)
             self.resetZoomButton.setTitle_("重設縮放 🔍")
             self.resetZoomButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
@@ -169,24 +198,32 @@ class SidebarView(NSView):
             })
             
             self.resetZoomButton.setToolTip_(resetZoomTooltip)
+            self.resetZoomButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.resetZoomButton)
             
+            currentY = currentY - buttonHeight - margin
+            
             # === 字型資訊區塊 ===
-            fontSectionLabelRect = NSMakeRect(10, frame.size.height - 250, frame.size.width - 20, 20)
+            fontSectionLabelRect = NSMakeRect(margin, currentY - labelHeight, frame.size.width - margin * 2, labelHeight)
             self.fontSectionLabel = NSTextField.alloc().initWithFrame_(fontSectionLabelRect)
             self.fontSectionLabel.setEditable_(False)
             self.fontSectionLabel.setBordered_(False)
             self.fontSectionLabel.setDrawsBackground_(False)
             self.fontSectionLabel.setFont_(NSFont.boldSystemFontOfSize_(12))
             self.fontSectionLabel.setStringValue_("字型資訊:")
+            self.fontSectionLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.addSubview_(self.fontSectionLabel)
             
-            infoRect = NSMakeRect(10, frame.size.height - 320, frame.size.width - 20, 60)
+            currentY = currentY - labelHeight - 5
+            
+            infoHeight = 60
+            infoRect = NSMakeRect(margin, currentY - infoHeight, frame.size.width - margin * 2, infoHeight)
             self.infoLabel = NSTextField.alloc().initWithFrame_(infoRect)
             self.infoLabel.setEditable_(False)
             self.infoLabel.setBordered_(False)
             self.infoLabel.setDrawsBackground_(False)
             self.infoLabel.setFont_(NSFont.systemFontOfSize_(12))
+            self.infoLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
             self.updateFontInfo()
             self.addSubview_(self.infoLabel)
             
@@ -288,11 +325,21 @@ class SidebarView(NSView):
             # 根據模式設定文字顏色
             textColor = NSColor.whiteColor() if is_dark else NSColor.blackColor()
             
-            for control in [self.titleLabel, self.searchLabel, self.infoLabel, 
-                           self.sectionLabel, self.fontSectionLabel]:
-                if hasattr(self, control.__name__) and getattr(self, control.__name__):
-                    control = getattr(self, control.__name__)
-                    control.setTextColor_(textColor)
+            # 直接設定每個文字控制項的顏色，避免使用 __name__ 屬性
+            if hasattr(self, 'titleLabel') and self.titleLabel:
+                self.titleLabel.setTextColor_(textColor)
+                
+            if hasattr(self, 'searchLabel') and self.searchLabel:
+                self.searchLabel.setTextColor_(textColor)
+                
+            if hasattr(self, 'infoLabel') and self.infoLabel:
+                self.infoLabel.setTextColor_(textColor)
+                
+            if hasattr(self, 'sectionLabel') and self.sectionLabel:
+                self.sectionLabel.setTextColor_(textColor)
+                
+            if hasattr(self, 'fontSectionLabel') and self.fontSectionLabel:
+                self.fontSectionLabel.setTextColor_(textColor)
             
         except Exception as e:
             print(f"繪製側邊欄時發生錯誤: {e}")

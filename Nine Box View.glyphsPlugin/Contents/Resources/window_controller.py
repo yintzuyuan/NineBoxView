@@ -184,17 +184,18 @@ class NineBoxWindow(NSWindowController):
                 contentView = self.window().contentView()
                 contentSize = contentView.frame().size
                 
-                # 調整預覽畫面大小 - 始終填滿整個視窗
-                if hasattr(self, 'previewView') and self.previewView:
-                    # 預覽視圖始終佔據整個視窗，不留工具欄區域
-                    if hasattr(self, 'sidebarView') and self.sidebarView and hasattr(self.plugin, 'sidebarVisible') and self.plugin.sidebarVisible:
-                        self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width - self.SIDEBAR_WIDTH, contentSize.height))
-                    else:
-                        self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
-                
-                # 調整側邊欄大小
-                if hasattr(self, 'sidebarView') and self.sidebarView:
+                # 先更新側邊欄位置和大小
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
                     self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
+                    # 側邊欄可見時，預覽視圖寬度需減去側邊欄寬度
+                    previewWidth = contentSize.width - self.SIDEBAR_WIDTH
+                else:
+                    # 側邊欄不可見時，預覽視圖佔據整個寬度
+                    previewWidth = contentSize.width
+                
+                # 然後調整預覽畫面大小
+                if hasattr(self, 'previewView') and self.previewView:
+                    self.previewView.setFrame_(NSMakeRect(0, 0, previewWidth, contentSize.height))
                 
                 # 儲存視窗大小 / Save the window size
                 if hasattr(self, 'plugin'):
@@ -249,13 +250,13 @@ class NineBoxWindow(NSWindowController):
     def _hideSidebar(self):
         """隱藏側邊欄"""
         try:
-            # 隱藏側邊欄
             if hasattr(self, 'sidebarView') and self.sidebarView:
+                # 隱藏側邊欄視圖
                 self.sidebarView.setHidden_(True)
-            
-            # 調整預覽視圖大小 - 佔據整個視窗
-            contentSize = self.window().contentView().frame().size
-            self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
+                
+                # 調整預覽視圖大小 - 佔滿整個視窗
+                contentSize = self.window().contentView().frame().size
+                self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
         except Exception as e:
             print(f"隱藏側邊欄時發生錯誤: {e}")
             print(traceback.format_exc())
