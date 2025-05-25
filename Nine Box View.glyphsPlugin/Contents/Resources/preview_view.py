@@ -183,6 +183,21 @@ class NineBoxPreviewView(NSView):
                     scaledHeight = glyphHeight * glyphScale
                     x = centerX - scaledWidth / 2
                     y = centerY - scaledHeight / 2
+                    
+                    # 檢查是否為鎖定字符
+                    isLockedChar = False
+                    if i != 4 and hasattr(self.plugin, 'lockedChars'):  # 跳過中央字符
+                        char_index = i if i < 4 else i - 1
+                        if char_index in self.plugin.lockedChars:
+                            isLockedChar = True
+                            # 處理鎖定字符可能是 Nice Name 的情況
+                            locked_char = self.plugin.lockedChars[char_index]
+                            # 如果當前字符與鎖定字符不同，則使用鎖定字符
+                            if char_index < len(display_chars) and display_chars[char_index] != locked_char:
+                                # 獲取鎖定字符的圖層
+                                glyph = Glyphs.font.glyphs[locked_char]
+                                if glyph:
+                                    layer = glyph.layers[currentMaster.id]
 
                     # 建立變換矩陣 / Create a transformation matrix
                     transform = NSAffineTransform.transform()
@@ -198,20 +213,21 @@ class NineBoxPreviewView(NSView):
                     openBezierPath = layer.completeOpenBezierPath.copy()
                     openBezierPath.transformUsingAffineTransform_(transform)
 
-                    # 設定繪製顏色 / Set drawing color
-                    # 使用系統深淺色模式設定
+                    # 設定填充顏色 / Set the fill color
                     if is_black:
-                        fillColor = NSColor.whiteColor()  # 純白色
-                        strokeColor = NSColor.whiteColor()  # 純白色
+                        # 深色模式 - 所有字符使用相同的顏色
+                        fillColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
+                        strokeColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
                     else:
-                        fillColor = NSColor.blackColor()  # 純黑色
-                        strokeColor = NSColor.blackColor()  # 純黑色
+                        # 淺色模式 - 所有字符使用相同的顏色
+                        fillColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 1.0)
+                        strokeColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 1.0)
 
-                    # 繪製封閉路徑（使用填充）/ Draw closed paths (using fill)
+                    # 填充封閉路徑 / Fill closed paths
                     fillColor.set()
                     bezierPath.fill()
-
-                    # 繪製開放路徑（使用描邊）/ Draw open paths (using stroke)
+                    
+                    # 繪製開放路徑 / Draw open paths
                     strokeColor.set()
                     openBezierPath.setLineWidth_(1.0 * customScale)  # 設定線寬，根據縮放調整
                     openBezierPath.stroke()

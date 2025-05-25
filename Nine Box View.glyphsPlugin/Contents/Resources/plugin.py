@@ -58,7 +58,7 @@ try:
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
-                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH
+                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH, LOCKED_CHARS_KEY
             )
             
             from utils import parse_input_text, generate_arrangement, get_base_width, log_to_macro_window
@@ -81,6 +81,7 @@ try:
             self.SHOW_NUMBERS_KEY = SHOW_NUMBERS_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY
+            self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             
             self.loadPreferences()
@@ -264,6 +265,178 @@ try:
 
             self.savePreferences()
             self.updateInterface(None)
+        
+        @objc.python_method
+        def smartLockCharacterCallback(self, sender):
+            """智能鎖定字符回調函數 - 即時辨識但絕不干擾輸入"""
+            try:
+                # 檢查是否有開啟字型檔案
+                if not Glyphs.font:
+                    return
+                
+                # 確保 lockedChars 字典存在
+                if not hasattr(self, 'lockedChars'):
+                    self.lockedChars = {}
+                
+                # 取得位置和輸入的文字
+                position = sender.position
+                input_text = sender.stringValue()  # 不要 strip，保留原始輸入
+                
+                if not input_text:
+                    # 空輸入直接返回，不做任何處理
+                    # 空輸入的處理由 textDidChange_ 中的 handleLockFieldCleared 完成
+                    return
+                
+                # 智能辨識邏輯（優先級順序）：
+                recognized_char = None
+                
+                # 1. 嘗試完整輸入作為 Nice Name 或字符
+                try:
+                    glyph = Glyphs.font.glyphs[input_text]
+                    if glyph:
+                        recognized_char = input_text
+                        print(f"✓ 辨識完整輸入: '{input_text}'")
+                except:
+                    pass
+                
+                # 2. 如果完整輸入無效，嘗試第一個字符
+                if not recognized_char and len(input_text) > 0:
+                    try:
+                        first_char = input_text[0]
+                        first_glyph = Glyphs.font.glyphs[first_char]
+                        if first_glyph:
+                            recognized_char = first_char
+                            print(f"✓ 辨識第一個字符: '{first_char}' (輸入: '{input_text}')")
+                    except:
+                        pass
+                
+                # 3. 最後嘗試通過解析
+                if not recognized_char:
+                    try:
+                        parsed_chars = self.parse_input_text(input_text)
+                        if parsed_chars:
+                            recognized_char = parsed_chars[0]
+                            print(f"✓ 通過解析辨識: '{recognized_char}' (輸入: '{input_text}')")
+                    except:
+                        pass
+                
+                # 只在有辨識結果時更新鎖定
+                if recognized_char:
+                    # 檢查是否真的變更了，避免不必要的更新
+                    if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
+                        self.lockedChars[position] = recognized_char
+                        
+                        # 更新當前排列中的鎖定字符
+                        if hasattr(self, 'currentArrangement') and self.currentArrangement:
+                            if position < len(self.currentArrangement):
+                                self.currentArrangement[position] = recognized_char
+                        
+                        # 只在實際變更時儲存和更新
+                        self.savePreferences()
+                        self.updateInterface(None)
+                
+                # 無法辨識時什麼都不做，保持之前的狀態
+                
+            except Exception as e:
+                print(f"智能鎖定字符處理時發生錯誤: {e}")
+                print(traceback.format_exc())
+
+        @objc.python_method
+        def handleLockFieldCleared(self, sender):
+            """處理鎖定框被清空的事件"""
+            try:
+                # 檢查是否有開啟字型檔案
+                if not Glyphs.font:
+                    return
+                
+                # 確保 lockedChars 字典存在
+                if not hasattr(self, 'lockedChars'):
+                    self.lockedChars = {}
+                
+                position = sender.position
+                
+                # 移除此位置的鎖定
+                if position in self.lockedChars:
+                    del self.lockedChars[position]
+                    print(f"已清空位置 {position} 的鎖定")
+                
+                # 更新當前排列中的字符
+                if hasattr(self, 'currentArrangement') and self.currentArrangement and position < len(self.currentArrangement):
+                    # 如果有選擇的字符，使用隨機字符替換
+                    if hasattr(self, 'selectedChars') and self.selectedChars:
+                        import random
+                        random_char = random.choice(self.selectedChars)
+                        self.currentArrangement[position] = random_char
+                        print(f"位置 {position} 已使用隨機字符 '{random_char}' 替換")
+                
+                # 更新排列和介面
+                self.savePreferences()
+                self.updateInterface(None)
+                
+            except Exception as e:
+                print(f"處理鎖定框清空時發生錯誤: {e}")
+                print(traceback.format_exc())
+
+        @objc.python_method
+        def lockCharacterCallback(self, sender):
+            """處理鎖定字符輸入框的回調函數 / Callback function for lock character fields"""
+            try:
+                # 檢查是否有開啟字型檔案
+                if not Glyphs.font:
+                    print("警告：沒有開啟字型檔案")
+                    return
+                
+                # 確保 lockedChars 字典存在
+                if not hasattr(self, 'lockedChars'):
+                    self.lockedChars = {}
+                
+                # 取得位置和輸入的文字
+                position = sender.position
+                input_text = sender.stringValue().strip()  # 移除前後空白
+                
+                if input_text:
+                    # 嘗試直接查找字符 - 可能是單個字符或 Nice Name
+                    glyph = Glyphs.font.glyphs[input_text]
+                    
+                    if glyph:
+                        # 找到有效的字符或 Nice Name
+                        self.lockedChars[position] = input_text
+                        print(f"已鎖定位置 {position}: {input_text}")
+                    else:
+                        # 如果找不到，嘗試使用 parse_input_text 解析
+                        parsed_chars = self.parse_input_text(input_text)
+                        if parsed_chars:
+                            # 有解析結果，使用第一個有效字符
+                            first_char = parsed_chars[0]
+                            self.lockedChars[position] = first_char
+                            print(f"已鎖定位置 {position}: {first_char} (從輸入 '{input_text}' 解析)")
+                            
+                            # 不再修改輸入框內容，完全保留用戶輸入
+                            # 讓用戶知道實際鎖定的字符是什麼
+                        else:
+                            # 無法解析為有效字符，取消此位置的鎖定
+                            if position in self.lockedChars:
+                                del self.lockedChars[position]
+                                print(f"無法解析 '{input_text}'，已取消位置 {position} 的鎖定")
+                else:
+                    # 如果輸入為空，解除鎖定
+                    if position in self.lockedChars:
+                        del self.lockedChars[position]
+                
+                # 更新當前排列中的鎖定字符，但不重新生成整個排列
+                if hasattr(self, 'currentArrangement') and self.currentArrangement:
+                    if position < len(self.currentArrangement) and position in self.lockedChars:
+                        # 只更新指定位置的字符
+                        self.currentArrangement[position] = self.lockedChars[position]
+                
+                # 儲存偏好設定
+                self.savePreferences()
+                
+                # 更新介面
+                self.updateInterface(None)
+            except Exception as e:
+                print(f"處理鎖定字符時發生錯誤: {e}")
+                print(traceback.format_exc())
 
         @objc.python_method
         def pickGlyphCallback(self, sender):
@@ -355,7 +528,35 @@ try:
             
             if self.selectedChars:
                 # 產生新的隨機排列 / Generate a new random arrangement
-                self.currentArrangement = self.generate_arrangement(self.selectedChars, 8)
+                new_arrangement = self.generate_arrangement(self.selectedChars, 8)
+                
+                # 應用鎖定字符設定 / Apply locked characters
+                if hasattr(self, 'lockedChars') and self.lockedChars:
+                    # 複製一份新排列，以便修改
+                    self.currentArrangement = list(new_arrangement)
+                    
+                    # 將鎖定的字符應用到排列中
+                    for position, char_or_name in self.lockedChars.items():
+                        if position < len(self.currentArrangement):
+                            # 確保鎖定的字符/Nice Name 存在於字型中
+                            glyph = Glyphs.font.glyphs[char_or_name]
+                            if glyph:
+                                self.currentArrangement[position] = char_or_name
+                            else:
+                                # 如果字符不存在，移除鎖定
+                                if position in self.lockedChars:
+                                    del self.lockedChars[position]
+                                    # 如果是視窗已存在，則同步更新輸入框
+                                    if hasattr(self, 'windowController') and self.windowController:
+                                        if (hasattr(self.windowController, 'sidebarView') and 
+                                            self.windowController.sidebarView and 
+                                            not self.windowController.sidebarView.isHidden() and
+                                            hasattr(self.windowController.sidebarView, 'lockFields') and
+                                            position in self.windowController.sidebarView.lockFields):
+                                            self.windowController.sidebarView.lockFields[position].setStringValue_("")
+                else:
+                    self.currentArrangement = new_arrangement
+                
                 self.savePreferences()  # 儲存偏好設定 / Save preferences
 
         @objc.python_method
@@ -385,6 +586,16 @@ try:
             # 側邊欄可見性 / Sidebar visibility
             self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))  # 預設開啟側邊欄
             
+            # 鎖定字符資訊 / Locked characters information
+            locked_chars_str = Glyphs.defaults.get(self.LOCKED_CHARS_KEY)
+            if locked_chars_str:
+                # 將字串鍵轉換回整數鍵
+                self.lockedChars = {}
+                for key_str, value in locked_chars_str.items():
+                    self.lockedChars[int(key_str)] = value
+            else:
+                self.lockedChars = {}
+            
             # 保存當前深色模式設定，用於偵測變更 / Save current dark mode setting for change detection
             self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
 
@@ -406,6 +617,14 @@ try:
             
             # 儲存側邊欄可見性 / Save sidebar visibility
             Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.sidebarVisible
+            
+            # 儲存鎖定字符資訊 / Save locked characters information
+            if hasattr(self, 'lockedChars'):
+                # 將整數鍵轉換為字串鍵
+                locked_chars_str = {}
+                for key, value in self.lockedChars.items():
+                    locked_chars_str[str(key)] = value
+                Glyphs.defaults[self.LOCKED_CHARS_KEY] = locked_chars_str
 
         @objc.python_method
         def resetZoom(self, sender):
