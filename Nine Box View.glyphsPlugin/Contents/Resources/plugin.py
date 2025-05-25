@@ -58,7 +58,8 @@ try:
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
-                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH, LOCKED_CHARS_KEY
+                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH, LOCKED_CHARS_KEY,
+                PREVIOUS_LOCKED_CHARS_KEY
             )
             
             from utils import parse_input_text, generate_arrangement, get_base_width, log_to_macro_window
@@ -82,12 +83,14 @@ try:
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY
             self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
+            self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             
             self.loadPreferences()
             self.selectedChars = []  # 儲存選取的字符 / Store selected characters
             self.currentArrangement = []  # 儲存目前的排列 / Store current arrangement
             self.windowController = None  # 視窗控制器 / Window controller
+            self.previousLockedChars = {}  # 儲存前一次鎖定字符狀態 / Store previous locked characters state
             
             # 註冊 NSUserDefaults 變更通知
             self.registerUserDefaultsObserver()
@@ -595,6 +598,16 @@ try:
                     self.lockedChars[int(key_str)] = value
             else:
                 self.lockedChars = {}
+                
+            # 前一次鎖定字符資訊 / Previous locked characters information
+            previous_locked_chars_str = Glyphs.defaults.get(self.PREVIOUS_LOCKED_CHARS_KEY)
+            if previous_locked_chars_str:
+                # 將字串鍵轉換回整數鍵
+                self.previousLockedChars = {}
+                for key_str, value in previous_locked_chars_str.items():
+                    self.previousLockedChars[int(key_str)] = value
+            else:
+                self.previousLockedChars = {}
             
             # 保存當前深色模式設定，用於偵測變更 / Save current dark mode setting for change detection
             self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
@@ -625,6 +638,14 @@ try:
                 for key, value in self.lockedChars.items():
                     locked_chars_str[str(key)] = value
                 Glyphs.defaults[self.LOCKED_CHARS_KEY] = locked_chars_str
+                
+            # 儲存前一次鎖定字符資訊 / Save previous locked characters information
+            if hasattr(self, 'previousLockedChars'):
+                # 將整數鍵轉換為字串鍵
+                previous_locked_chars_str = {}
+                for key, value in self.previousLockedChars.items():
+                    previous_locked_chars_str[str(key)] = value
+                Glyphs.defaults[self.PREVIOUS_LOCKED_CHARS_KEY] = previous_locked_chars_str
 
         @objc.python_method
         def resetZoom(self, sender):
@@ -667,6 +688,105 @@ try:
             """回傳目前檔案的路徑 / Return the path of the current file"""
             return __file__
                 
+        @objc.python_method
+        def clearAllLockFieldsCallback(self, sender):
+            """清空所有鎖定字符輸入框的回調函數 / Callback function for clearing all lock fields"""
+            try:
+                # 檢查是否有開啟字型檔案
+                if not Glyphs.font:
+                    print("警告：沒有開啟字型檔案")
+                    return
+                
+                # 確保 lockedChars 和 previousLockedChars 字典存在
+                if not hasattr(self, 'lockedChars'):
+                    self.lockedChars = {}
+                if not hasattr(self, 'previousLockedChars'):
+                    self.previousLockedChars = {}
+                
+                # 備份目前的鎖定字符狀態以便還原
+                self.previousLockedChars = self.lockedChars.copy()
+                
+                # 清空所有鎖定字符
+                self.lockedChars = {}
+                
+                # 更新排列中對應的字符
+                if hasattr(self, 'currentArrangement') and self.currentArrangement and hasattr(self, 'selectedChars') and self.selectedChars:
+                    # 重新生成排列
+                    self.generateNewArrangement()
+                
+                # 更新側邊欄中的鎖定輸入框
+                if hasattr(self, 'windowController') and self.windowController:
+                    if (hasattr(self.windowController, 'sidebarView') and 
+                        self.windowController.sidebarView and 
+                        not self.windowController.sidebarView.isHidden() and
+                        hasattr(self.windowController.sidebarView, 'lockFields')):
+                        for position, field in self.windowController.sidebarView.lockFields.items():
+                            field.setStringValue_("")
+                
+                # 儲存偏好設定
+                self.savePreferences()
+                
+                # 更新介面
+                self.updateInterface(None)
+                print("已清空所有鎖定字符")
+            except Exception as e:
+                print(f"清空所有鎖定字符時發生錯誤: {e}")
+                print(traceback.format_exc())
+
+        @objc.python_method
+        def restoreAllLockFieldsCallback(self, sender):
+            """還原所有鎖定字符輸入框的回調函數 / Callback function for restoring all lock fields"""
+            try:
+                # 檢查是否有開啟字型檔案
+                if not Glyphs.font:
+                    print("警告：沒有開啟字型檔案")
+                    return
+                
+                # 確保 lockedChars 和 previousLockedChars 字典存在
+                if not hasattr(self, 'lockedChars'):
+                    self.lockedChars = {}
+                if not hasattr(self, 'previousLockedChars'):
+                    self.previousLockedChars = {}
+                
+                # 如果沒有前一個狀態可還原，則提示並返回
+                if not self.previousLockedChars:
+                    print("沒有可還原的鎖定字符狀態")
+                    return
+                
+                # 交換當前和前一個狀態
+                current_state = self.lockedChars.copy()
+                self.lockedChars = self.previousLockedChars.copy()
+                self.previousLockedChars = current_state
+                
+                # 更新排列中的鎖定字符
+                if hasattr(self, 'currentArrangement') and self.currentArrangement:
+                    for position, char_or_name in self.lockedChars.items():
+                        if position < len(self.currentArrangement):
+                            # 確保鎖定的字符/Nice Name 存在於字型中
+                            glyph = Glyphs.font.glyphs[char_or_name]
+                            if glyph:
+                                self.currentArrangement[position] = char_or_name
+                
+                # 更新側邊欄中的鎖定輸入框
+                if hasattr(self, 'windowController') and self.windowController:
+                    if (hasattr(self.windowController, 'sidebarView') and 
+                        self.windowController.sidebarView and 
+                        not self.windowController.sidebarView.isHidden() and
+                        hasattr(self.windowController.sidebarView, 'lockFields')):
+                        for position, field in self.windowController.sidebarView.lockFields.items():
+                            value = self.lockedChars.get(position, "")
+                            field.setStringValue_(value)
+                
+                # 儲存偏好設定
+                self.savePreferences()
+                
+                # 更新介面
+                self.updateInterface(None)
+                print("已還原所有鎖定字符")
+            except Exception as e:
+                print(f"還原所有鎖定字符時發生錯誤: {e}")
+                print(traceback.format_exc())
+
 except Exception as e:
     import traceback
     print(f"九宮格預覽外掛載入時發生錯誤: {e}")

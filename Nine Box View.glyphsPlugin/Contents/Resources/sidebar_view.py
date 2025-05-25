@@ -223,6 +223,9 @@ class SidebarView(NSView):
         if self:
             self.plugin = plugin
             
+            # 追蹤清空/還原按鈕的狀態 (True = 清空模式，False = 還原模式)
+            self.isInClearMode = True
+            
             # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度可調整
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             
@@ -373,6 +376,23 @@ class SidebarView(NSView):
                 # 如果外掛中已有鎖定字符設定，初始化填入
                 if hasattr(plugin, 'lockedChars') and plugin.lockedChars and i in plugin.lockedChars:
                     lockField.setStringValue_(plugin.lockedChars[i])
+            
+            # 添加清空和還原按鈕
+            buttonWidth = frameWidth - margin * 2  # 按鈕寬度
+            buttonHeight = 30
+            buttonsY = topFieldTopY + titleMargin + titleHeight + 10  # 按鈕位於標題上方
+            
+            # 清空/還原按鈕 (兩功能合一)
+            self.actionButtonRect = NSMakeRect(margin, buttonsY, buttonWidth, buttonHeight)
+            self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
+            self.updateActionButtonTitle()  # 初始化按鈕標題
+            self.actionButton.setBezelStyle_(NSBezelStyleRounded)
+            self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
+            self.actionButton.setTarget_(self)
+            self.actionButton.setAction_("actionButtonAction:")
+            self.actionButton.setAutoresizingMask_(NSViewMaxYMargin)
+            self.updateActionButtonTooltip()  # 初始化按鈕提示
+            self.addSubview_(self.actionButton)
         
         return self
     
@@ -394,6 +414,86 @@ class SidebarView(NSView):
                     self.lockFields[i].setStringValue_(self.plugin.lockedChars[i])
                 else:
                     self.lockFields[i].setStringValue_("")
+    
+    def randomizeAction_(self, sender):
+        """隨機按鈕點擊事件 / Randomize button click event"""
+        if self.plugin:
+            self.plugin.randomizeCallback(sender)
+            
+    def pickGlyphAction_(self, sender):
+        """選擇字符按鈕點擊事件 / Pick glyph button click event"""
+        if self.plugin:
+            self.plugin.pickGlyphCallback(sender)
+            
+    def actionButtonAction_(self, sender):
+        """清空/還原按鈕點擊事件 / Clear/Restore button click event"""
+        if self.plugin:
+            if self.isInClearMode:
+                # 目前是清空模式，執行清空操作
+                self.plugin.clearAllLockFieldsCallback(sender)
+                # 切換到還原模式
+                self.isInClearMode = False
+            else:
+                # 目前是還原模式，執行還原操作
+                self.plugin.restoreAllLockFieldsCallback(sender)
+                # 切換到清空模式
+                self.isInClearMode = True
+            
+            # 更新按鈕標題和提示
+            self.updateActionButtonTitle()
+            self.updateActionButtonTooltip()
+    
+    def updateActionButtonTitle(self):
+        """根據當前模式更新按鈕標題 / Update button title based on current mode"""
+        if hasattr(self, 'actionButton'):
+            if self.isInClearMode:
+                self.actionButton.setTitle_(Glyphs.localize({
+                    'en': u'Clear All',
+                    'zh-Hant': u'清空全部',
+                    'zh-Hans': u'清空全部',
+                    'ja': u'すべてクリア',
+                    'ko': u'전체 지우기',
+                }))
+            else:
+                self.actionButton.setTitle_(Glyphs.localize({
+                    'en': u'Restore',
+                    'zh-Hant': u'還原',
+                    'zh-Hans': u'还原',
+                    'ja': u'復元',
+                    'ko': u'복원',
+                }))
+    
+    def updateActionButtonTooltip(self):
+        """根據當前模式更新按鈕提示 / Update button tooltip based on current mode"""
+        if hasattr(self, 'actionButton'):
+            if self.isInClearMode:
+                self.actionButton.setToolTip_(Glyphs.localize({
+                    'en': u'Clear all locked characters',
+                    'zh-Hant': u'清空所有鎖定字符',
+                    'zh-Hans': u'清空所有锁定字符',
+                    'ja': u'すべてのロックされた文字をクリア',
+                    'ko': u'모든 고정된 글자 지우기',
+                }))
+            else:
+                self.actionButton.setToolTip_(Glyphs.localize({
+                    'en': u'Restore previous locked characters',
+                    'zh-Hant': u'還原上一次的鎖定字符',
+                    'zh-Hans': u'还原上一次的锁定字符',
+                    'ja': u'前回のロックされた文字を復元',
+                    'ko': u'이전 고정된 글자 복원',
+                }))
+    
+    def clearButtonAction_(self, sender):
+        """舊版清空按鈕點擊事件（為了向後兼容） / Legacy clear button click event (for backward compatibility)"""
+        self.actionButtonAction_(sender)
+            
+    def restoreButtonAction_(self, sender):
+        """舊版還原按鈕點擊事件（為了向後兼容） / Legacy restore button click event (for backward compatibility)"""
+        # 先切換到還原模式再執行操作
+        self.isInClearMode = False
+        self.updateActionButtonTitle()
+        self.updateActionButtonTooltip()
+        self.actionButtonAction_(sender)
     
     def drawRect_(self, rect):
         """
