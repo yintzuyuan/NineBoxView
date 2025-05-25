@@ -23,7 +23,7 @@ from AppKit import (
     NSLayoutRelationEqual, NSStackView, NSStackViewGravityTrailing,
     NSUserDefaults
 )
-from Foundation import NSObject, NSString, NSDictionary, NSAttributedString
+from Foundation import NSObject, NSString, NSDictionary, NSAttributedString, NSUserDefaultsDidChangeNotification
 
 # 注意：NineBoxPreviewView 將在初始化時動態導入，避免循環依賴
 # Note: NineBoxPreviewView will be dynamically imported during initialization to avoid circular dependencies
@@ -155,6 +155,14 @@ class NineBoxWindow(NSWindowController):
                 # 如果側邊欄可見，則創建並顯示側邊欄
                 if plugin.sidebarVisible:
                     self._showSidebar()
+                
+                # 監聽 NSUserDefaults 變更，以偵測明暗模式變更
+                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                    self,
+                    "userDefaultsDidChange:",
+                    NSUserDefaultsDidChangeNotification,
+                    None
+                )
             
         except Exception as e:
             print(f"初始化視窗時發生錯誤: {e}")
@@ -299,4 +307,14 @@ class NineBoxWindow(NSWindowController):
                 self.sidebarView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"重繪介面時發生錯誤: {e}")
+            print(traceback.format_exc())
+    
+    def userDefaultsDidChange_(self, notification):
+        """處理 NSUserDefaults 變更"""
+        try:
+            # 移除明暗模式檢查，不再依賴預覽面板顏色模式
+            # 直接觸發重繪，讓系統使用當前的系統主題
+            self.redraw()
+        except Exception as e:
+            print(f"處理 NSUserDefaults 變更時發生錯誤: {e}")
             print(traceback.format_exc()) 

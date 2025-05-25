@@ -51,8 +51,7 @@ class NineBoxPreviewView(NSView):
             self.MIN_ZOOM = MIN_ZOOM
             self.MAX_ZOOM = MAX_ZOOM
             
-            # 儲存當前的明暗模式設定，用於偵測變更
-            self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            # 不再需要追蹤明暗模式設定
             
         return self
     
@@ -84,9 +83,6 @@ class NineBoxPreviewView(NSView):
             # === 設定背景顏色 / Set the background color ===
             # 使用系統深淺色模式設定取代原本的 darkMode 變數
             is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-            
-            # 儲存當前的明暗模式設定，以便偵測變更
-            self.lastDarkModeSetting = is_black
             
             if is_black:
                 NSColor.blackColor().set()  # 使用純黑色

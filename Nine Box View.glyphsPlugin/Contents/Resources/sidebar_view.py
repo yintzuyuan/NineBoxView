@@ -17,8 +17,8 @@ from AppKit import (
     NSAttributedString, NSCenterTextAlignment, NSSearchField,
     NSButtonTypeToggle, NSFocusRingTypeNone, 
     NSCompositingOperationSourceOver, NSBorderlessWindowMask,
-    NSUserDefaults, NSNotificationCenter,
-    NSApp, NSAppearance
+    NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification,
+    NSApp
 )
 
 class SidebarView(NSView):
@@ -250,25 +250,6 @@ class SidebarView(NSView):
             print(f"更新搜尋欄位錯誤: {e}")
             print(traceback.format_exc())
     
-    def _isDarkMode(self):
-        """
-        檢測系統是否處於暗色模式
-        Check if the system is in dark mode
-        
-        Returns:
-            bool: 如果是暗色模式回傳 True，否則回傳 False
-        """
-        try:
-            # 使用 NSApp 的有效外觀來判斷
-            effective_appearance = NSApp.effectiveAppearance()
-            if effective_appearance:
-                appearance_name = effective_appearance.name()
-                return "Dark" in appearance_name
-            return False
-        except Exception as e:
-            print(f"檢測暗色模式時發生錯誤: {e}")
-            return False
-    
     def drawRect_(self, rect):
         """
         繪製側邊欄內容
@@ -278,10 +259,14 @@ class SidebarView(NSView):
             rect: 要繪製的矩形區域
         """
         try:
-            # 設定背景顏色 - 跟隨系統外觀設定
-            is_dark_mode = self._isDarkMode()
+            # 設定背景顏色 - 使用系統深淺色模式設定，而不是跟隨預覽面板
+            # 使用 effectiveAppearance 檢查系統暗色模式
+            is_dark = "Dark" in str(NSApp.effectiveAppearance().name())
             
-            if is_dark_mode:
+            # 不再使用 GSPreview_Black 設定
+            # is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
+            if is_dark:
                 NSColor.colorWithCalibratedWhite_alpha_(0.15, 1.0).set()
             else:
                 NSColor.colorWithCalibratedWhite_alpha_(0.9, 1.0).set()
@@ -289,7 +274,7 @@ class SidebarView(NSView):
             NSRectFill(rect)
             
             # 繪製分隔線
-            if is_dark_mode:
+            if is_dark:
                 NSColor.colorWithCalibratedWhite_alpha_(0.3, 1.0).set()
             else:
                 NSColor.colorWithCalibratedWhite_alpha_(0.7, 1.0).set()
@@ -301,7 +286,7 @@ class SidebarView(NSView):
             separatorPath.stroke()
             
             # 根據模式設定文字顏色
-            textColor = NSColor.whiteColor() if is_dark_mode else NSColor.blackColor()
+            textColor = NSColor.whiteColor() if is_dark else NSColor.blackColor()
             
             for control in [self.titleLabel, self.searchLabel, self.infoLabel, 
                            self.sectionLabel, self.fontSectionLabel]:
