@@ -218,12 +218,12 @@ try:
                 # 重繪介面
                 self.updateInterface(None)
                 
-                # 更新側邊欄字型資訊
+                # 更新側邊欄輸入欄位
                 if hasattr(self, 'windowController') and self.windowController is not None:
                     if (hasattr(self.windowController, 'sidebarView') and 
                         self.windowController.sidebarView is not None and
                         not self.windowController.sidebarView.isHidden()):
-                        self.windowController.sidebarView.updateFontInfo()
+                        self.windowController.sidebarView.updateSearchField()
             except Exception as e:
                 print(f"選擇變更處理時發生錯誤: {e}")
                 print(traceback.format_exc())
@@ -241,6 +241,10 @@ try:
 
             # 取得目前輸入 / Get the current input
             input_text = sender.stringValue()
+
+            # 檢查輸入是否變更，避免重複處理相同內容
+            if hasattr(self, 'lastInput') and self.lastInput == input_text:
+                return
 
             # 儲存目前輸入內容 / Save the current input content
             self.lastInput = input_text
@@ -315,8 +319,8 @@ try:
                             self.selectedChars = selected_chars
                             # 產生新排列 / Generate new arrangement
                             self.generateNewArrangement()
-                            # 更新側邊欄中的字符輸入欄位
-                            self.lastInput = " ".join(selected_chars)
+                            # 更新側邊欄中的字符輸入欄位 - 不再使用空格分隔字符
+                            self.lastInput = "".join(selected_chars)
                             if hasattr(self, 'windowController') and self.windowController:
                                 if hasattr(self.windowController, 'sidebarView') and self.windowController.sidebarView:
                                     self.windowController.sidebarView.updateSearchField()

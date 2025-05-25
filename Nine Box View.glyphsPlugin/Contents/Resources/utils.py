@@ -71,9 +71,8 @@ def parse_input_text(text, font=None):
     解析輸入文字並返回有效的字符列表
     
     處理規則：
-        - 漢字/東亞文字：直接連續處理，不需空格分隔
-        - ASCII 字符/字符名稱：需要用空格分隔
-        - 混合輸入時，保持上述規則
+        - Nice Name：需要用空格分隔
+        - 其他所有文字（包含漢字/東亞文字/ASCII字符）：直接連續處理，不需空格分隔
     
     Args:
         text: 要解析的文字
@@ -92,25 +91,33 @@ def parse_input_text(text, font=None):
         return []
 
     chars = []
+    
+    # 先檢查輸入文字中是否有 Nice Name (需要空格分隔的名稱)
     # 移除連續的多餘空格，但保留有意義的單個空格
     parts = ' '.join(text.split())
     parts = parts.split(' ')
-
+    
     for part in parts:
         if not part:
             continue
-
-        # 檢查是否包含漢字/東亞文字
-        if any(ord(c) > 0x4E00 for c in part):
-            # 對於漢字，逐字符處理
-            for char in part:
-                if font.glyphs[char]:
-                    chars.append(char)
-        else:
-            # 對於 ASCII 字符名稱，整體處理
-            if font.glyphs[part]:
+            
+        # 先檢查是否為 Nice Name (完整名稱)
+        glyph = font.glyphs[part]
+        if glyph and len(part) > 1:  # 只有當字符名稱長度>1時才視為 Nice Name
+            # 檢查是否有 Unicode 值
+            if glyph.unicode:
+                # 如果有 Unicode，轉換為實際字符
+                char = chr(int(glyph.unicode, 16))
+                chars.append(char)
+            else:
+                # 對於沒有 Unicode 的字符（如 .notdef 或自定義字符），使用名稱
                 chars.append(part)
-
+        else:
+            # 不是 Nice Name，按字符逐個處理
+            for c in part:
+                if c and font.glyphs[c]:
+                    chars.append(c)
+    
     return chars
 
 def generate_arrangement(char_list, max_chars=8):
