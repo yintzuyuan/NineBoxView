@@ -229,20 +229,139 @@ class SidebarView(NSView):
             # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度可調整
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             
-            # 視圖內部元素的常數設定
-            margin = 10
-            totalHeight = frame.size.height
-            frameWidth = frame.size.width
+            # === 布局常數設定 ===
+            margin = 10  # 基本邊距
+            totalHeight = frame.size.height  # 側邊欄總高度
+            frameWidth = frame.size.width  # 側邊欄寬度
             
-            # 重新調整布局：上方輸入框貼齊頂部，下方鎖定字符貼齊底部
-            # 搜尋欄位高度 - 可調整高度以適應不同大小的視窗
-            searchFieldHeight = totalHeight * 0.25
+            # 計算各區塊的大小比例
+            titleHeight = 20  # 標題高度
+            buttonHeight = 30  # 按鈕高度
+            fieldHeight = 24  # 單個鎖定輸入框高度
             
-            # 搜尋欄位 - 完全貼齊頂部邊緣，沒有任何邊距
+            # 各元素間距
+            sectionSpacing = 15  # 主要區塊之間的間距
+            elementSpacing = 10  # 元素之間的間距
+            
+            # === 第一部分：標題區域（頂部） ===
+            topMargin = 10  # 頂部間距
+            
+            # 鎖定字符標題 - 位於頂部
+            titleRect = NSMakeRect(
+                margin,  # x 座標
+                totalHeight - titleHeight - topMargin,  # y 座標，從頂部開始
+                frameWidth - margin * 2,  # 寬度
+                titleHeight  # 高度
+            )
+            self.lockTitle = NSTextField.alloc().initWithFrame_(titleRect)
+            self.lockTitle.setStringValue_(Glyphs.localize({
+                'en': u'Lock Characters (support Nice Name):',
+                'zh-Hant': u'鎖定字符（支援 Nice Name）:',
+                'zh-Hans': u'锁定字符（支持 Nice Name）:',
+                'ja': u'文字をロック（Nice Name対応）:',
+                'ko': u'글자 고정 (Nice Name 지원):',
+            }))
+            self.lockTitle.setBezeled_(False)
+            self.lockTitle.setDrawsBackground_(False)
+            self.lockTitle.setEditable_(False)
+            self.lockTitle.setSelectable_(False)
+            self.lockTitle.setFont_(NSFont.boldSystemFontOfSize_(12.0))
+            self.lockTitle.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+            self.addSubview_(self.lockTitle)
+            
+            # === 第二部分：清空/還原按鈕（標題下方） ===
+            
+            # 計算按鈕位置（在標題下方）
+            buttonsY = totalHeight - titleHeight - topMargin - buttonHeight - elementSpacing
+            
+            # 清空/還原按鈕 (兩功能合一)
+            self.actionButtonRect = NSMakeRect(
+                margin,  # x 座標
+                buttonsY,  # y 座標
+                frameWidth - margin * 2,  # 寬度
+                buttonHeight  # 高度
+            )
+            self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
+            self.updateActionButtonTitle()  # 初始化按鈕標題
+            self.actionButton.setBezelStyle_(NSBezelStyleRounded)
+            self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
+            self.actionButton.setTarget_(self)
+            self.actionButton.setAction_("actionButtonAction:")
+            self.actionButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+            self.updateActionButtonTooltip()  # 初始化按鈕提示
+            self.addSubview_(self.actionButton)
+            
+            # === 第三部分：鎖定字符輸入框 ===
+            
+            # 計算九宮格區域的頂部位置（在按鈕下方加上間距）
+            lockFieldsTopY = buttonsY - sectionSpacing
+            
+            # 計算九宮格區域的整體高度
+            smallMargin = 8  # 輸入框之間的間距
+            totalFieldsHeight = 3 * fieldHeight + 2 * smallMargin
+            
+            # 計算九宮格區域的底部位置
+            lockFieldsBottomY = lockFieldsTopY - totalFieldsHeight
+            
+            # 九宮格區域的位置分布 - 按照九宮格周圍順序
+            positions = [
+                # 上排三個 - 正確對應預覽畫面的上排
+                (margin, lockFieldsTopY - fieldHeight),
+                (margin + (frameWidth - margin * 2) / 3 + smallMargin, lockFieldsTopY - fieldHeight),
+                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight),
+                
+                # 中排左右兩個
+                (margin, lockFieldsTopY - fieldHeight * 2 - smallMargin),
+                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight * 2 - smallMargin),
+                
+                # 下排三個 - 正確對應預覽畫面的下排
+                (margin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
+                (margin + (frameWidth - margin * 2) / 3 + smallMargin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
+                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2)
+            ]
+            
+            # 計算單個鎖定輸入框的寬度
+            fieldWidth = (frameWidth - margin * 2 - smallMargin * 2) / 3
+            
+            # 建立八個鎖定字符輸入框
+            self.lockFields = {}  # 使用字典保存所有鎖定框的引用
+            for i in range(8):
+                fieldRect = NSMakeRect(
+                    positions[i][0],  # x 座標
+                    positions[i][1],  # y 座標
+                    fieldWidth,  # 寬度
+                    fieldHeight  # 高度
+                )
+                lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(fieldRect, i, plugin)
+                
+                # 設置額外的樣式以便於輸入 Nice Name
+                lockField.setFont_(NSFont.systemFontOfSize_(12.0))
+                
+                # 設置自動調整掩碼，確保鎖定框跟著上邊緣移動
+                lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+                
+                self.lockFields[i] = lockField
+                self.addSubview_(lockField)
+                
+                # 如果外掛中已有鎖定字符設定，初始化填入
+                if hasattr(plugin, 'lockedChars') and plugin.lockedChars and i in plugin.lockedChars:
+                    lockField.setStringValue_(plugin.lockedChars[i])
+            
+            # === 第四部分：長文本輸入框（底部） ===
+            
+            # 計算長文本輸入框的位置和大小
+            searchFieldTopMargin = sectionSpacing  # 與鎖定字符區域底部的間距
+            searchFieldBottomMargin = margin  # 與側邊欄底部的間距
+            
+            # 計算長文本輸入框的位置
+            searchFieldTopY = lockFieldsBottomY - searchFieldTopMargin
+            searchFieldHeight = searchFieldTopY - searchFieldBottomMargin
+            
+            # 搜尋欄位 - 位於底部
             searchFieldRect = NSMakeRect(
-                margin,  # x 座標（保留左右邊距）
-                totalHeight - searchFieldHeight,  # y 座標，完全從頂部開始
-                frameWidth - margin * 2,  # 寬度（保留左右邊距）
+                margin,  # x 座標
+                searchFieldBottomMargin,  # y 座標
+                frameWidth - margin * 2,  # 寬度
                 searchFieldHeight  # 高度
             )
             self.searchField = CustomTextField.alloc().initWithFrame_plugin_(searchFieldRect, plugin)
@@ -280,119 +399,10 @@ class SidebarView(NSView):
             self.searchField.setTarget_(self)
             self.searchField.setAction_("searchFieldAction:")
             
-            # 修改自動調整掩碼，確保搜尋欄位跟著上邊緣移動
-            # NSViewWidthSizable: 寬度可調整
-            # NSViewMinYMargin: 上方間距可調整，下方固定 - 這會使元素跟隨上邊緣移動
-            self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+            # 設置自動調整掩碼，使長文本輸入框的寬度和高度都能自動調整
+            self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             
             self.addSubview_(self.searchField)
-            
-            # 鎖定字符部分設計（貼齊底部）
-            
-            # 八個單字符鎖定輸入框
-            # 使用字典保存所有鎖定框的引用
-            self.lockFields = {}
-            
-            # 計算鎖定字符框大小 - 保持九宮格比例但高度縮小為一行
-            fieldSize = (frameWidth - margin * 2 - margin * 2) / 3  # 寬度保持不變
-            fieldHeight = 24  # 固定高度為一行
-            smallMargin = 10  # 增加垂直間距
-            
-            # 計算輸入框區域的整體高度
-            totalFieldsHeight = 3 * fieldHeight + 2 * smallMargin
-            
-            # 完全貼齊底部，無間距
-            bottomMargin = 0
-            
-            # 確保整個九宮格區域能夠完全顯示且貼齊底部
-            # 從底部算起第一個字符框的 Y 座標
-            baseY = bottomMargin
-            
-            # 分布位置定義 - 按照九宮格周圍順序，正確對應預覽畫面
-            positions = [
-                # 上排三個 - 正確對應預覽畫面的上排
-                (margin, baseY + fieldHeight * 2 + smallMargin * 2),
-                (margin + fieldSize + smallMargin, baseY + fieldHeight * 2 + smallMargin * 2),
-                (margin + fieldSize * 2 + smallMargin * 2, baseY + fieldHeight * 2 + smallMargin * 2),
-                
-                # 中排左右兩個
-                (margin, baseY + fieldHeight + smallMargin),
-                (margin + fieldSize * 2 + smallMargin * 2, baseY + fieldHeight + smallMargin),
-                
-                # 下排三個 - 正確對應預覽畫面的下排
-                (margin, baseY),
-                (margin + fieldSize + smallMargin, baseY),
-                (margin + fieldSize * 2 + smallMargin * 2, baseY)
-            ]
-            
-            # 根據實際的鎖定字符框位置計算鎖定字符標題的位置
-            # 修正：標題應該位於九宮格區域的上方（現在是真正的上方）
-            topFieldTopY = baseY + fieldHeight * 3 + smallMargin * 2
-            titleMargin = 15  # 增加標題與輸入框間的間距
-            
-            # 鎖定字符標題 - 位於九宮格區域的上方
-            titleHeight = 20
-            titleRect = NSMakeRect(
-                margin,  # x 座標
-                topFieldTopY + titleMargin,  # y 座標
-                frameWidth - margin * 2,  # 寬度
-                titleHeight  # 高度
-            )
-            self.lockTitle = NSTextField.alloc().initWithFrame_(titleRect)
-            self.lockTitle.setStringValue_(Glyphs.localize({
-                'en': u'Lock Characters (support Nice Name):',
-                'zh-Hant': u'鎖定字符（支援 Nice Name）:',
-                'zh-Hans': u'锁定字符（支持 Nice Name）:',
-                'ja': u'文字をロック（Nice Name対応）:',
-                'ko': u'글자 고정 (Nice Name 지원):',
-            }))
-            self.lockTitle.setBezeled_(False)
-            self.lockTitle.setDrawsBackground_(False)
-            self.lockTitle.setEditable_(False)
-            self.lockTitle.setSelectable_(False)
-            self.lockTitle.setFont_(NSFont.boldSystemFontOfSize_(12.0))
-            
-            # 修改鎖定標題的自動調整掩碼，確保它跟著下邊緣移動
-            # NSViewWidthSizable: 寬度可調整
-            # NSViewMaxYMargin: 下方間距可調整，上方固定 - 這會使元素跟隨下邊緣移動
-            self.lockTitle.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-            
-            self.addSubview_(self.lockTitle)
-            
-            # 建立八個鎖定字符輸入框
-            for i in range(8):
-                fieldRect = NSMakeRect(positions[i][0], positions[i][1], fieldSize, fieldHeight)
-                lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(fieldRect, i, plugin)
-                
-                # 設置額外的樣式以便於輸入 Nice Name
-                lockField.setFont_(NSFont.systemFontOfSize_(12.0))  # 略微增大字體，更適合單行輸入
-                
-                # 設置自動調整掩碼，確保鎖定框跟著下邊緣移動
-                lockField.setAutoresizingMask_(NSViewMaxYMargin)
-                
-                self.lockFields[i] = lockField
-                self.addSubview_(lockField)
-                
-                # 如果外掛中已有鎖定字符設定，初始化填入
-                if hasattr(plugin, 'lockedChars') and plugin.lockedChars and i in plugin.lockedChars:
-                    lockField.setStringValue_(plugin.lockedChars[i])
-            
-            # 添加清空和還原按鈕
-            buttonWidth = frameWidth - margin * 2  # 按鈕寬度
-            buttonHeight = 30
-            buttonsY = topFieldTopY + titleMargin + titleHeight + 10  # 按鈕位於標題上方
-            
-            # 清空/還原按鈕 (兩功能合一)
-            self.actionButtonRect = NSMakeRect(margin, buttonsY, buttonWidth, buttonHeight)
-            self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
-            self.updateActionButtonTitle()  # 初始化按鈕標題
-            self.actionButton.setBezelStyle_(NSBezelStyleRounded)
-            self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-            self.actionButton.setTarget_(self)
-            self.actionButton.setAction_("actionButtonAction:")
-            self.actionButton.setAutoresizingMask_(NSViewMaxYMargin)
-            self.updateActionButtonTooltip()  # 初始化按鈕提示
-            self.addSubview_(self.actionButton)
         
         return self
     
