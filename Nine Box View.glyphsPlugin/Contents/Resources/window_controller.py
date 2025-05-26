@@ -368,15 +368,8 @@ class NineBoxWindow(NSWindowController):
             # 檢查是否變更了深色模式設定
             currentDarkMode = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
             
-            # 如果視窗存在並可見，重新繪製介面
+            # 如果視窗存在並可見，只重新繪製預覽介面
             if self.window() and self.window().isVisible():
-                # 觸發重繪
-                self.window().contentView().setNeedsDisplay_(True)
-                
-                # 如果側邊欄可見，重繪側邊欄
-                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
-                    self.sidebarView.setNeedsDisplay_(True)
-                
                 # 重繪預覽視圖
                 if hasattr(self, 'previewView') and self.previewView:
                     self.previewView.setNeedsDisplay_(True)

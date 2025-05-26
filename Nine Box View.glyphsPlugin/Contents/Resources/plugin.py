@@ -92,9 +92,6 @@ try:
             self.windowController = None  # 視窗控制器 / Window controller
             self.previousLockedChars = {}  # 儲存前一次鎖定字符狀態 / Store previous locked characters state
             
-            # 註冊 NSUserDefaults 變更通知
-            self.registerUserDefaultsObserver()
-            
             # 印出一條訊息確認外掛已被載入
             print("九宮格預覽外掛已成功載入。")
 
@@ -115,52 +112,6 @@ try:
                 self.loadPreferences()
             except Exception as e:
                 print(f"啟動外掛時發生錯誤: {str(e)}")
-                print(traceback.format_exc())
-
-        # === 系統明暗模式變更監聽 / System Dark Mode Change Listener ===
-        
-        @objc.python_method
-        def registerUserDefaultsObserver(self):
-            """註冊 NSUserDefaults 變更通知觀察者 / Register NSUserDefaults change notification observer"""
-            try:
-                # 監聽 NSUserDefaults 變更通知
-                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                    self,
-                    "userDefaultsDidChange:",
-                    NSUserDefaultsDidChangeNotification,
-                    None
-                )
-                print("已註冊 NSUserDefaults 變更通知觀察者")
-            except Exception as e:
-                print(f"註冊 NSUserDefaults 變更通知觀察者時發生錯誤: {str(e)}")
-                print(traceback.format_exc())
-        
-        def userDefaultsDidChange_(self, notification):
-            """處理 NSUserDefaults 變更通知 / Handle NSUserDefaults change notification"""
-            try:
-                # 檢查是否變更了深色模式設定 / Check if dark mode setting has changed
-                currentDarkMode = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-                
-                # 檢查深色模式設定是否已變更
-                if hasattr(self, 'lastDarkModeSetting') and self.lastDarkModeSetting != currentDarkMode:
-                    print(f"深色模式設定已變更: {currentDarkMode}")
-                    
-                    # 更新深色模式設定記錄
-                    self.lastDarkModeSetting = currentDarkMode
-                    
-                    # 只有在視窗控制器存在且可見時才更新介面
-                    if hasattr(self, 'windowController') and self.windowController is not None:
-                        # 獲取視窗是否可見
-                        if self.windowController.window() and self.windowController.window().isVisible():
-                            print("更新九宮格預覽介面")
-                            self.updateInterface(None)
-                
-                # 如果尚未儲存當前設定，則進行儲存
-                elif not hasattr(self, 'lastDarkModeSetting'):
-                    self.lastDarkModeSetting = currentDarkMode
-                
-            except Exception as e:
-                print(f"處理 NSUserDefaults 變更通知時發生錯誤: {str(e)}")
                 print(traceback.format_exc())
 
         # === 視窗操作 / Window Operations ===
@@ -608,9 +559,6 @@ try:
                     self.previousLockedChars[int(key_str)] = value
             else:
                 self.previousLockedChars = {}
-            
-            # 保存當前深色模式設定，用於偵測變更 / Save current dark mode setting for change detection
-            self.lastDarkModeSetting = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
 
         @objc.python_method
         def savePreferences(self):
@@ -677,9 +625,6 @@ try:
                 # 刪除註冊的回調函數
                 Glyphs.removeCallback(self.updateInterface)
                 Glyphs.removeCallback(self.selectionChanged_)
-                
-                # 移除 NSUserDefaults 變更通知觀察者
-                NSNotificationCenter.defaultCenter().removeObserver_(self)
             except:
                 pass
 

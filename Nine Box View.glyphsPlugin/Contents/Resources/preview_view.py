@@ -51,8 +51,6 @@ class NineBoxPreviewView(NSView):
             self.MIN_ZOOM = MIN_ZOOM
             self.MAX_ZOOM = MAX_ZOOM
             
-            # 不再需要追蹤明暗模式設定
-            
         return self
     
     def mouseDown_(self, event):

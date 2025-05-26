@@ -504,14 +504,8 @@ class SidebarView(NSView):
             rect: 要繪製的矩形區域
         """
         try:
-            # 使用系統深淺色模式設定
-            is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-            
-            # 設定背景顏色
-            if is_black:
-                NSColor.colorWithCalibratedWhite_alpha_(0.13, 1.0).set()  # 深色背景
-            else:
-                NSColor.colorWithCalibratedWhite_alpha_(0.95, 1.0).set()  # 淺色背景
+            # 使用系統原生的背景顏色，跟隨系統明暗模式
+            NSColor.windowBackgroundColor().set()
             
             NSRectFill(rect)
             
