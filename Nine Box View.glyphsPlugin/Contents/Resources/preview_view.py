@@ -184,7 +184,22 @@ class NineBoxPreviewView(NSView):
                     
                     # 檢查是否為鎖定字符
                     isLockedChar = False
-                    if i != 4 and hasattr(self.plugin, 'lockedChars'):  # 跳過中央字符
+                    
+                    # 首先檢查鎖頭狀態 - 只有在鎖頭上鎖狀態下才處理鎖定字符
+                    should_apply_locks = False
+                    
+                    # 檢查鎖頭狀態 - 通過 windowController.sidebarView.isInClearMode
+                    if (hasattr(self.plugin, 'windowController') and self.plugin.windowController and 
+                        hasattr(self.plugin.windowController, 'sidebarView') and 
+                        self.plugin.windowController.sidebarView and 
+                        hasattr(self.plugin.windowController.sidebarView, 'isInClearMode')):
+                        
+                        # False = 上鎖狀態（輸入框和預覽關聯）, True = 解鎖狀態（輸入框和預覽不關聯）
+                        is_in_clear_mode = self.plugin.windowController.sidebarView.isInClearMode
+                        should_apply_locks = not is_in_clear_mode
+                    
+                    # 只有在允許應用鎖定字符的情況下才處理
+                    if should_apply_locks and i != 4 and hasattr(self.plugin, 'lockedChars'):  # 跳過中央字符
                         char_index = i if i < 4 else i - 1
                         if char_index in self.plugin.lockedChars:
                             isLockedChar = True
@@ -196,6 +211,7 @@ class NineBoxPreviewView(NSView):
                                 glyph = Glyphs.font.glyphs[locked_char]
                                 if glyph:
                                     layer = glyph.layers[currentMaster.id]
+                                    print(f"預覽畫面：在位置 {char_index} 繪製鎖定字符 '{locked_char}'")
 
                     # 建立變換矩陣 / Create a transformation matrix
                     transform = NSAffineTransform.transform()

@@ -159,8 +159,40 @@ try:
             """更新界面 / Update interface"""
             try:
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    # 重繪介面 / Redraw interface
-                    if hasattr(self.windowController, 'redraw'):
+                    # 檢查是否應該更新預覽畫面
+                    # 這個檢查是為了補充 windowController.redraw() 中的檢查
+                    # 因為有時候更新可能不是通過 redraw() 觸發的
+                    
+                    should_update = True  # 預設允許更新
+                    
+                    # 檢查是否是從長文本輸入框調用 - 使用 sender 參數區分來源
+                    # 長文本輸入框調用時總是允許更新
+                    is_from_search_field = (sender is not None and hasattr(sender, 'isKindOfClass_') and 
+                                           sender.isKindOfClass_(NSTextField) and 
+                                           hasattr(self.windowController, 'sidebarView') and
+                                           hasattr(self.windowController.sidebarView, 'searchField') and
+                                           sender == self.windowController.sidebarView.searchField)
+                    
+                    # 如果是從長文本輸入框調用，則直接允許更新
+                    if is_from_search_field:
+                        should_update = True
+                        print("來自長文本輸入框的更新 - 始終允許")
+                    else:
+                        # 否則，檢查鎖頭狀態 - 只在側邊欄可見且鎖頭處於上鎖狀態時更新預覽
+                        if (hasattr(self.windowController, 'sidebarView') and 
+                            self.windowController.sidebarView and 
+                            not self.windowController.sidebarView.isHidden() and
+                            hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                            
+                            # 鎖頭處於解鎖狀態 (isInClearMode = True) 時不更新預覽
+                            if self.windowController.sidebarView.isInClearMode:
+                                should_update = False
+                                print("更新介面：鎖頭處於解鎖狀態，預覽畫面不更新")
+                            else:
+                                print("更新介面：鎖頭處於上鎖狀態，預覽畫面已更新")
+                    
+                    # 重繪介面 / Redraw interface - 只在允許更新時呼叫
+                    if should_update and hasattr(self.windowController, 'redraw'):
                         self.windowController.redraw()
             except Exception as e:
                 self.log_to_macro_window(f"更新介面時發生錯誤: {e}")
@@ -218,8 +250,26 @@ try:
                 self.currentArrangement = []
 
             self.savePreferences()
-            self.updateInterface(None)
-        
+            
+            # 長文本輸入框始終與預覽畫面關聯，無條件更新界面
+            # 直接呼叫 updateInterfaceForSearchField 而非 updateInterface，確保長文本輸入框的更新不受鎖頭狀態影響
+            self.updateInterfaceForSearchField(None)
+
+        @objc.python_method
+        def updateInterfaceForSearchField(self, sender):
+            """專為長文本輸入框設計的更新界面函數 - 不受鎖頭狀態影響"""
+            try:
+                if hasattr(self, 'windowController') and self.windowController is not None:
+                    # 無條件重繪預覽 - 這是長文本輸入框的特權
+                    if hasattr(self.windowController, 'redrawIgnoreLockState'):
+                        self.windowController.redrawIgnoreLockState()
+                    else:
+                        # 如果沒有專用方法，則使用標準方法，但可能會受到鎖頭狀態影響
+                        self.windowController.redraw()
+            except Exception as e:
+                self.log_to_macro_window(f"更新長文本輸入框介面時發生錯誤: {e}")
+                print(traceback.format_exc())
+
         @objc.python_method
         def smartLockCharacterCallback(self, sender):
             """智能鎖定字符回調函數 - 即時辨識但絕不干擾輸入"""
@@ -238,8 +288,26 @@ try:
                 
                 if not input_text:
                     # 空輸入直接返回，不做任何處理
-                    # 空輸入的處理由 textDidChange_ 中的 handleLockFieldCleared 完成
                     return
+                
+                # 先檢查鎖頭狀態：只有在鎖頭上鎖狀態（輸入框和預覽畫面關聯時）才允許更新預覽
+                # 檢查 windowController 和 sidebarView 是否存在
+                should_update_preview = False
+                is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
+                
+                if (hasattr(self, 'windowController') and self.windowController and 
+                    hasattr(self.windowController, 'sidebarView') and 
+                    self.windowController.sidebarView and 
+                    hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                    
+                    # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
+                    # True = 解鎖狀態（輸入框和預覽不關聯）
+                    is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                    if not is_in_clear_mode:
+                        should_update_preview = True
+                        print(f"鎖頭處於上鎖狀態 - 允許更新預覽")
+                    else:
+                        print(f"鎖頭處於解鎖狀態 - 不更新預覽")
                 
                 # 智能辨識邏輯（優先級順序）：
                 recognized_char = None
@@ -274,122 +342,50 @@ try:
                     except:
                         pass
                 
-                # 只在有辨識結果時更新鎖定
+                # 只在有辨識結果時處理
                 if recognized_char:
                     # 檢查是否真的變更了，避免不必要的更新
                     if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
+                        # 更新鎖定字典 - 無論鎖頭狀態如何，都要更新字典
                         self.lockedChars[position] = recognized_char
                         
-                        # 更新當前排列中的鎖定字符
-                        if hasattr(self, 'currentArrangement') and self.currentArrangement:
+                        # 只有當鎖頭處於上鎖狀態時，才更新當前排列中的字符
+                        if should_update_preview and hasattr(self, 'currentArrangement') and self.currentArrangement:
                             if position < len(self.currentArrangement):
+                                # 只在鎖頭上鎖時更新排列
                                 self.currentArrangement[position] = recognized_char
+                                print(f"位置 {position} 已更新字符為 '{recognized_char}'")
+                        # 關鍵修改：在解鎖狀態下，確保 currentArrangement 不包含鎖定信息
+                        elif not should_update_preview and hasattr(self, 'currentArrangement') and self.currentArrangement:
+                            # 檢查是否存在 currentArrangement 且位置有效
+                            if position < len(self.currentArrangement) and hasattr(self, 'selectedChars') and self.selectedChars:
+                                # 確保該位置不使用鎖定字符
+                                import random
+                                # 取一個隨機字符替換，確保不是當前被鎖定的字符
+                                available_chars = [c for c in self.selectedChars if c != recognized_char]
+                                if available_chars:
+                                    random_char = random.choice(available_chars)
+                                else:
+                                    # 如果沒有其他可用字符，仍使用第一個字符
+                                    random_char = self.selectedChars[0] if self.selectedChars else recognized_char
+                                
+                                if self.currentArrangement[position] == recognized_char:
+                                    # 只有當當前排列中的字符等於被鎖定的字符時才替換
+                                    self.currentArrangement[position] = random_char
+                                    print(f"解鎖狀態：位置 {position} 的字符已從 '{recognized_char}' 替換為 '{random_char}'")
                         
-                        # 只在實際變更時儲存和更新
+                        # 總是儲存偏好設定，無論鎖頭狀態如何
                         self.savePreferences()
-                        self.updateInterface(None)
-                
-                # 無法辨識時什麼都不做，保持之前的狀態
-                
+                        
+                        # 但只在鎖頭上鎖時更新預覽畫面
+                        if should_update_preview:
+                            print("鎖頭上鎖 - 更新預覽畫面")
+                            self.updateInterface(None)
+                        else:
+                            print("鎖頭解鎖 - 預覽畫面不更新")
+                    
             except Exception as e:
                 print(f"智能鎖定字符處理時發生錯誤: {e}")
-                print(traceback.format_exc())
-
-        @objc.python_method
-        def handleLockFieldCleared(self, sender):
-            """處理鎖定框被清空的事件"""
-            try:
-                # 檢查是否有開啟字型檔案
-                if not Glyphs.font:
-                    return
-                
-                # 確保 lockedChars 字典存在
-                if not hasattr(self, 'lockedChars'):
-                    self.lockedChars = {}
-                
-                position = sender.position
-                
-                # 移除此位置的鎖定
-                if position in self.lockedChars:
-                    del self.lockedChars[position]
-                    print(f"已清空位置 {position} 的鎖定")
-                
-                # 更新當前排列中的字符
-                if hasattr(self, 'currentArrangement') and self.currentArrangement and position < len(self.currentArrangement):
-                    # 如果有選擇的字符，使用隨機字符替換
-                    if hasattr(self, 'selectedChars') and self.selectedChars:
-                        import random
-                        random_char = random.choice(self.selectedChars)
-                        self.currentArrangement[position] = random_char
-                        print(f"位置 {position} 已使用隨機字符 '{random_char}' 替換")
-                
-                # 更新排列和介面
-                self.savePreferences()
-                self.updateInterface(None)
-                
-            except Exception as e:
-                print(f"處理鎖定框清空時發生錯誤: {e}")
-                print(traceback.format_exc())
-
-        @objc.python_method
-        def lockCharacterCallback(self, sender):
-            """處理鎖定字符輸入框的回調函數 / Callback function for lock character fields"""
-            try:
-                # 檢查是否有開啟字型檔案
-                if not Glyphs.font:
-                    print("警告：沒有開啟字型檔案")
-                    return
-                
-                # 確保 lockedChars 字典存在
-                if not hasattr(self, 'lockedChars'):
-                    self.lockedChars = {}
-                
-                # 取得位置和輸入的文字
-                position = sender.position
-                input_text = sender.stringValue().strip()  # 移除前後空白
-                
-                if input_text:
-                    # 嘗試直接查找字符 - 可能是單個字符或 Nice Name
-                    glyph = Glyphs.font.glyphs[input_text]
-                    
-                    if glyph:
-                        # 找到有效的字符或 Nice Name
-                        self.lockedChars[position] = input_text
-                        print(f"已鎖定位置 {position}: {input_text}")
-                    else:
-                        # 如果找不到，嘗試使用 parse_input_text 解析
-                        parsed_chars = self.parse_input_text(input_text)
-                        if parsed_chars:
-                            # 有解析結果，使用第一個有效字符
-                            first_char = parsed_chars[0]
-                            self.lockedChars[position] = first_char
-                            print(f"已鎖定位置 {position}: {first_char} (從輸入 '{input_text}' 解析)")
-                            
-                            # 不再修改輸入框內容，完全保留用戶輸入
-                            # 讓用戶知道實際鎖定的字符是什麼
-                        else:
-                            # 無法解析為有效字符，取消此位置的鎖定
-                            if position in self.lockedChars:
-                                del self.lockedChars[position]
-                                print(f"無法解析 '{input_text}'，已取消位置 {position} 的鎖定")
-                else:
-                    # 如果輸入為空，解除鎖定
-                    if position in self.lockedChars:
-                        del self.lockedChars[position]
-                
-                # 更新當前排列中的鎖定字符，但不重新生成整個排列
-                if hasattr(self, 'currentArrangement') and self.currentArrangement:
-                    if position < len(self.currentArrangement) and position in self.lockedChars:
-                        # 只更新指定位置的字符
-                        self.currentArrangement[position] = self.lockedChars[position]
-                
-                # 儲存偏好設定
-                self.savePreferences()
-                
-                # 更新介面
-                self.updateInterface(None)
-            except Exception as e:
-                print(f"處理鎖定字符時發生錯誤: {e}")
                 print(traceback.format_exc())
 
         @objc.python_method
@@ -470,22 +466,119 @@ try:
                     self.updateInterface(None)
                 return
             
-            # 使用生成器函數生成新的排列 / Use the generator function to generate a new arrangement
-            self.generateNewArrangement()
+            # 檢查鎖頭狀態，判斷是否需要特殊處理
+            is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
             
-            # 更新介面 / Update interface
-            self.updateInterface(None)
+            if (hasattr(self, 'windowController') and self.windowController and 
+                hasattr(self.windowController, 'sidebarView') and 
+                self.windowController.sidebarView and 
+                hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                
+                is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                print(f"亂數排列按鈕：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態")
+            
+            # 在解鎖狀態下，確保完全不受鎖定字元影響
+            if is_in_clear_mode:
+                # 在解鎖狀態下，先生成完全不含鎖定字元的新排列
+                print("解鎖狀態：生成完全不含鎖定字元的新排列")
+                
+                # 直接生成新的隨機排列，不通過 generateNewArrangement 函數
+                import random
+                # 決定要生成多少字符
+                arrangement_size = 9
+                new_arrangement = []
+                
+                # 選擇字符並生成排列
+                for _ in range(arrangement_size):
+                    if self.selectedChars:
+                        # 從 selectedChars 中隨機選擇一個字符
+                        char = random.choice(self.selectedChars)
+                        new_arrangement.append(char)
+                    else:
+                        # 若無選擇字符，加入空白
+                        new_arrangement.append("")
+                
+                # 直接使用新排列，不套用任何鎖定字元
+                self.currentArrangement = new_arrangement
+                print("解鎖狀態下生成的完全隨機排列：", new_arrangement)
+                
+                # 保存偏好設定
+                self.savePreferences()
+            else:
+                # 在上鎖狀態下，使用標準的 generateNewArrangement 函數
+                print("上鎖狀態：使用標準的排列生成邏輯")
+                self.generateNewArrangement()
+            
+            # 更新介面 - 使用強制更新方法，忽略鎖頭狀態
+            if hasattr(self, 'windowController') and self.windowController:
+                if hasattr(self.windowController, 'redrawIgnoreLockState'):
+                    print("隨機排列：使用強制更新方法，忽略鎖頭狀態")
+                    self.windowController.redrawIgnoreLockState()
+                else:
+                    # 後備方案：使用標準更新方法
+                    print("隨機排列：使用標準更新方法")
+                    self.updateInterface(None)
+            else:
+                # 如果窗口控制器不存在，仍使用標準方法
+                self.updateInterface(None)
 
         @objc.python_method
         def generateNewArrangement(self):
             """生成新的字符排列 / Generate a new character arrangement"""
             
-            if self.selectedChars:
+            if not self.selectedChars:
+                # 如果沒有選擇字符，則直接返回，不做任何處理
+                print("沒有選擇字符，無法生成排列")
+                return
+            
+            # 檢查鎖頭狀態 - 只有在鎖頭上鎖狀態時才應用鎖定字符
+            should_apply_locks = False
+            is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
+            
+            # 檢查鎖頭狀態
+            if (hasattr(self, 'windowController') and self.windowController and 
+                hasattr(self.windowController, 'sidebarView') and 
+                self.windowController.sidebarView and 
+                hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                
+                # False = 上鎖狀態（輸入框和預覽關聯）, True = 解鎖狀態（輸入框和預覽不關聯）
+                is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                should_apply_locks = not is_in_clear_mode
+                print(f"亂數排列：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態，{'不' if is_in_clear_mode else ''}應用鎖定字符")
+            
+            # 根據鎖頭狀態使用不同的邏輯
+            if is_in_clear_mode:
+                # 解鎖狀態：完全不使用鎖定字符
+                print("解鎖狀態：完全不使用鎖定字符")
+                
+                # 產生新的隨機排列
+                import random
+                arrangement_size = 9
+                new_arrangement = []
+                
+                # 選擇字符並生成排列
+                for _ in range(arrangement_size):
+                    if self.selectedChars:
+                        # 從 selectedChars 中隨機選擇一個字符
+                        char = random.choice(self.selectedChars)
+                        new_arrangement.append(char)
+                    else:
+                        # 若無選擇字符，加入空白
+                        new_arrangement.append("")
+                
+                # 直接使用新排列，不套用任何鎖定字元
+                self.currentArrangement = new_arrangement
+                print("解鎖狀態下生成的完全隨機排列")
+            else:
+                # 上鎖狀態：使用原有邏輯，應用鎖定字符
+                print("上鎖狀態：應用鎖定字符")
+                
                 # 產生新的隨機排列 / Generate a new random arrangement
                 new_arrangement = self.generate_arrangement(self.selectedChars, 8)
                 
                 # 應用鎖定字符設定 / Apply locked characters
                 if hasattr(self, 'lockedChars') and self.lockedChars:
+                    print("應用鎖定字符到排列中")
                     # 複製一份新排列，以便修改
                     self.currentArrangement = list(new_arrangement)
                     
@@ -496,6 +589,7 @@ try:
                             glyph = Glyphs.font.glyphs[char_or_name]
                             if glyph:
                                 self.currentArrangement[position] = char_or_name
+                                print(f"位置 {position} 已套用鎖定字符 '{char_or_name}'")
                             else:
                                 # 如果字符不存在，移除鎖定
                                 if position in self.lockedChars:
@@ -509,9 +603,12 @@ try:
                                             position in self.windowController.sidebarView.lockFields):
                                             self.windowController.sidebarView.lockFields[position].setStringValue_("")
                 else:
+                    # 沒有鎖定字符，直接使用新的隨機排列
+                    print("無鎖定字符，使用純隨機排列")
                     self.currentArrangement = new_arrangement
-                
-                self.savePreferences()  # 儲存偏好設定 / Save preferences
+            
+            # 儲存偏好設定，無論鎖頭狀態如何
+            self.savePreferences()  # 儲存偏好設定 / Save preferences
 
         @objc.python_method
         def loadPreferences(self):
@@ -635,7 +732,7 @@ try:
                 
         @objc.python_method
         def clearAllLockFieldsCallback(self, sender):
-            """清空所有鎖定字符輸入框的回調函數 / Callback function for clearing all lock fields"""
+            """鎖定所有字符輸入框的回調函數 / Callback function for locking all character fields"""
             try:
                 # 檢查是否有開啟字型檔案
                 if not Glyphs.font:
@@ -651,36 +748,49 @@ try:
                 # 備份目前的鎖定字符狀態以便還原
                 self.previousLockedChars = self.lockedChars.copy()
                 
-                # 清空所有鎖定字符
-                self.lockedChars = {}
-                
-                # 更新排列中對應的字符
-                if hasattr(self, 'currentArrangement') and self.currentArrangement and hasattr(self, 'selectedChars') and self.selectedChars:
-                    # 重新生成排列
-                    self.generateNewArrangement()
-                
-                # 更新側邊欄中的鎖定輸入框
+                # 取得側邊欄輸入框中的內容並套用到九宮格預覽
                 if hasattr(self, 'windowController') and self.windowController:
                     if (hasattr(self.windowController, 'sidebarView') and 
                         self.windowController.sidebarView and 
                         not self.windowController.sidebarView.isHidden() and
                         hasattr(self.windowController.sidebarView, 'lockFields')):
+                        
+                        # 先清空現有鎖定
+                        self.lockedChars = {}
+                        
+                        # 逐一處理每個輸入框
                         for position, field in self.windowController.sidebarView.lockFields.items():
-                            field.setStringValue_("")
+                            input_text = field.stringValue().strip()
+                            if input_text:
+                                # 嘗試驗證字符是否存在於字型中
+                                glyph = Glyphs.font.glyphs[input_text]
+                                if glyph:
+                                    self.lockedChars[position] = input_text
+                                else:
+                                    # 嘗試解析字符
+                                    parsed_chars = self.parse_input_text(input_text)
+                                    if parsed_chars:
+                                        self.lockedChars[position] = parsed_chars[0]
+                
+                # 更新排列中對應的字符
+                if hasattr(self, 'currentArrangement') and self.currentArrangement:
+                    for position, char_or_name in self.lockedChars.items():
+                        if position < len(self.currentArrangement):
+                            self.currentArrangement[position] = char_or_name
                 
                 # 儲存偏好設定
                 self.savePreferences()
                 
                 # 更新介面
                 self.updateInterface(None)
-                print("已清空所有鎖定字符")
+                print("已鎖定所有輸入框中的字符")
             except Exception as e:
-                print(f"清空所有鎖定字符時發生錯誤: {e}")
+                print(f"鎖定字符時發生錯誤: {e}")
                 print(traceback.format_exc())
 
         @objc.python_method
         def restoreAllLockFieldsCallback(self, sender):
-            """還原所有鎖定字符輸入框的回調函數 / Callback function for restoring all lock fields"""
+            """解除鎖定所有字符輸入框的回調函數 / Callback function for unlocking all character fields"""
             try:
                 # 檢查是否有開啟字型檔案
                 if not Glyphs.font:
@@ -693,43 +803,25 @@ try:
                 if not hasattr(self, 'previousLockedChars'):
                     self.previousLockedChars = {}
                 
-                # 如果沒有前一個狀態可還原，則提示並返回
-                if not self.previousLockedChars:
-                    print("沒有可還原的鎖定字符狀態")
-                    return
+                # 備份目前的鎖定字符狀態以便還原
+                self.previousLockedChars = self.lockedChars.copy()
                 
-                # 交換當前和前一個狀態
-                current_state = self.lockedChars.copy()
-                self.lockedChars = self.previousLockedChars.copy()
-                self.previousLockedChars = current_state
+                # 解除所有鎖定，直接清空鎖定字典
+                self.lockedChars = {}
                 
-                # 更新排列中的鎖定字符
-                if hasattr(self, 'currentArrangement') and self.currentArrangement:
-                    for position, char_or_name in self.lockedChars.items():
-                        if position < len(self.currentArrangement):
-                            # 確保鎖定的字符/Nice Name 存在於字型中
-                            glyph = Glyphs.font.glyphs[char_or_name]
-                            if glyph:
-                                self.currentArrangement[position] = char_or_name
-                
-                # 更新側邊欄中的鎖定輸入框
-                if hasattr(self, 'windowController') and self.windowController:
-                    if (hasattr(self.windowController, 'sidebarView') and 
-                        self.windowController.sidebarView and 
-                        not self.windowController.sidebarView.isHidden() and
-                        hasattr(self.windowController.sidebarView, 'lockFields')):
-                        for position, field in self.windowController.sidebarView.lockFields.items():
-                            value = self.lockedChars.get(position, "")
-                            field.setStringValue_(value)
+                # 如果有選擇的字符，重新生成排列（解除鎖定後允許字符位置變動）
+                if hasattr(self, 'selectedChars') and self.selectedChars:
+                    # 重新生成排列
+                    self.generateNewArrangement()
                 
                 # 儲存偏好設定
                 self.savePreferences()
                 
                 # 更新介面
                 self.updateInterface(None)
-                print("已還原所有鎖定字符")
+                print("已解除所有字符的鎖定")
             except Exception as e:
-                print(f"還原所有鎖定字符時發生錯誤: {e}")
+                print(f"解除鎖定字符時發生錯誤: {e}")
                 print(traceback.format_exc())
 
 except Exception as e:

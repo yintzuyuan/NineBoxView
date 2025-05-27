@@ -20,7 +20,7 @@ from AppKit import (
     NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification,
     NSApp, NSViewWidthSizable, NSViewHeightSizable, NSViewMinYMargin, NSViewMaxYMargin,
     NSMenu, NSMenuItem, NSApplication, NSEventMask, NSEventTypeRightMouseDown,
-    NSPointInRect
+    NSPointInRect, NSImage, NSBezelStyleRegularSquare, NSImageOnly
 )
 from Foundation import NSObject
 
@@ -76,8 +76,16 @@ class CustomTextField(NSTextField):
         """文本變更時的回調函數"""
         try:
             if hasattr(self, 'plugin') and self.plugin:
-                # 直接調用 plugin 的搜尋欄位回調函數，傳遞自己作為參數
-                self.plugin.searchFieldCallback(self)
+                # 先保存當前的 sender 對象，用於 updateInterface 判斷來源
+                self.plugin.lastSender = self
+                
+                # 如果有可用的專用函數，則使用它，確保長文本輸入框始終能更新預覽
+                if hasattr(self.plugin, 'updateInterfaceForSearchField'):
+                    # 使用專用的長文本輸入框更新函數，確保不受鎖頭狀態影響
+                    self.plugin.searchFieldCallback(self)
+                else:
+                    # 向後兼容：使用普通的回調函數
+                    self.plugin.searchFieldCallback(self)
         except Exception as e:
             print(f"處理文本變更時發生錯誤: {e}")
             print(traceback.format_exc())
@@ -177,17 +185,60 @@ class LockCharacterField(NSTextField):
             # 獲取當前輸入內容
             input_text = self.stringValue()
             
-            # 如果輸入為空，立即處理清空事件
+            # 如果輸入為空，直接處理清空事件
             if not input_text:
-                if hasattr(self, 'plugin') and hasattr(self.plugin, 'handleLockFieldCleared'):
-                    self.plugin.handleLockFieldCleared(self)
-                    # 確保欄位保持為空
-                    self.setStringValue_("")
+                # 直接在這裡處理清空邏輯，不再調用已移除的 handleLockFieldCleared
+                if hasattr(self, 'plugin') and hasattr(self.plugin, 'lockedChars'):
+                    position = self.position
+                    
+                    # 從鎖定字典中移除此位置
+                    if position in self.plugin.lockedChars:
+                        del self.plugin.lockedChars[position]
+                        print(f"已移除位置 {position} 的鎖定")
+                    
+                    # 檢查鎖頭狀態：只有在鎖頭上鎖狀態（輸入框和預覽畫面關聯時）才更新預覽
+                    should_update_preview = False
+                    
+                    if (hasattr(self.plugin, 'windowController') and self.plugin.windowController and 
+                        hasattr(self.plugin.windowController, 'sidebarView') and 
+                        self.plugin.windowController.sidebarView and 
+                        hasattr(self.plugin.windowController.sidebarView, 'isInClearMode')):
+                        
+                        # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
+                        # True = 解鎖狀態（輸入框和預覽不關聯）
+                        if not self.plugin.windowController.sidebarView.isInClearMode:
+                            should_update_preview = True
+                            print(f"預覽畫面已更新 - 鎖頭處於上鎖狀態")
+                        else:
+                            print(f"預覽畫面未更新 - 鎖頭處於解鎖狀態")
+                    
+                    # 只有當鎖頭處於上鎖狀態時，才更新當前排列中的字符
+                    if should_update_preview and hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                        if position < len(self.plugin.currentArrangement) and hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                            # 使用隨機字符替換
+                            import random
+                            random_char = random.choice(self.plugin.selectedChars)
+                            self.plugin.currentArrangement[position] = random_char
+                            print(f"位置 {position} 已使用隨機字符 '{random_char}' 替換")
+                    
+                    # 總是儲存偏好設定，無論鎖頭狀態如何
+                    self.plugin.savePreferences()
+                    
+                    # 但只在鎖頭上鎖時更新預覽畫面
+                    if should_update_preview:
+                        self.plugin.updateInterface(None)
+                    else:
+                        print("因鎖頭解鎖，預覽畫面未更新")
+                
+                # 確保欄位保持為空
+                self.setStringValue_("")
                 return
             
-            # 對於非空輸入，直接處理（不再使用延遲）
-            # 讓 smartLockCharacterCallback 自己處理頻率控制
+            # 檢查鎖頭狀態，根據狀態決定是否需要調用 smartLockCharacterCallback
+            # 在解鎖狀態下，仍然允許修改鎖定字典，但不會觸發預覽更新
+            # 注意：plugin.smartLockCharacterCallback 已經有檢查鎖頭狀態的邏輯
             if hasattr(self, 'plugin') and hasattr(self.plugin, 'smartLockCharacterCallback'):
+                # 我們繼續調用回調函數，但讓回調函數內部邏輯決定是否更新預覽
                 self.plugin.smartLockCharacterCallback(self)
             
         except Exception as e:
@@ -223,8 +274,16 @@ class SidebarView(NSView):
         if self:
             self.plugin = plugin
             
-            # 追蹤清空/還原按鈕的狀態 (True = 清空模式，False = 還原模式)
-            self.isInClearMode = True
+            # 追蹤鎖定/解除鎖定按鈕的狀態 (True = 鎖定模式，False = 解除鎖定模式)
+            # 根據是否有鎖定的字符來設定初始狀態
+            if hasattr(plugin, 'lockedChars') and plugin.lockedChars:
+                # 已有鎖定字符，設為解除鎖定模式 (下一步是解除鎖定)
+                self.isInClearMode = False
+                print("初始化為解除鎖定模式 - 因有鎖定字符")
+            else:
+                # 沒有鎖定字符，設為鎖定模式 (下一步是鎖定)
+                self.isInClearMode = True
+                print("初始化為鎖定模式 - 因沒有鎖定字符")
             
             # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度可調整
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
@@ -239,6 +298,15 @@ class SidebarView(NSView):
                 "NSViewFrameDidChangeNotification",
                 self
             )
+            
+            # 確保初始化時按鈕圖示正確顯示
+            if hasattr(self, 'actionButton'):
+                # 延遲一小段時間確保其他初始化完成後才設置圖示
+                self.performSelector_withObject_afterDelay_(
+                    "forceUpdateActionButtonImage", 
+                    None, 
+                    0.1
+                )
         
         return self
     
@@ -301,32 +369,12 @@ class SidebarView(NSView):
         self.lockTitle.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
         self.addSubview_(self.lockTitle)
         
-        # === 第二部分：清空/還原按鈕（標題下方） ===
-        
-        # 計算按鈕位置（在標題下方）
-        buttonsY = totalHeight - titleHeight - topMargin - buttonHeight - elementSpacing
-        
-        # 清空/還原按鈕 (兩功能合一)
-        self.actionButtonRect = NSMakeRect(
-            margin,  # x 座標
-            buttonsY,  # y 座標
-            frameWidth - margin * 2,  # 寬度
-            buttonHeight  # 高度
-        )
-        self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
-        self.updateActionButtonTitle()  # 初始化按鈕標題
-        self.actionButton.setBezelStyle_(NSBezelStyleRounded)
-        self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-        self.actionButton.setTarget_(self)
-        self.actionButton.setAction_("actionButtonAction:")
-        self.actionButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
-        self.updateActionButtonTooltip()  # 初始化按鈕提示
-        self.addSubview_(self.actionButton)
+        # === 第二部分：不再創建按鈕，將在鎖定框中央創建圖示按鈕 ===
         
         # === 第三部分：鎖定字符輸入框 ===
         
-        # 計算九宮格區域的頂部位置（在按鈕下方加上間距）
-        lockFieldsTopY = buttonsY - sectionSpacing
+        # 計算九宮格區域的頂部位置（直接在標題下方）
+        lockFieldsTopY = totalHeight - titleHeight - topMargin - elementSpacing
         
         # 計算鎖定字符區域所佔用的空間比例
         lockFieldsHeightRatio = 0.38  # 整個鎖定字符區域佔總高度的最大比例
@@ -433,6 +481,46 @@ class SidebarView(NSView):
             if hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars and i in self.plugin.lockedChars:
                 lockField.setStringValue_(self.plugin.lockedChars[i])
         
+        # === 添加鎖頭圖示按鈕在中央位置 ===
+        # 計算中央位置
+        centerX = margin + cellWidth + horizontalMargin
+        centerY = lockFieldsTopY - fieldHeight * 2 - smallMargin
+        
+        # 設定鎖頭按鈕大小
+        lockButtonSize = min(32, max(24, fieldHeight * 1.2))  # 適當大小的按鈕
+        
+        # 計算按鈕位置 (置中)
+        lockButtonX = centerX + (cellWidth - lockButtonSize) / 2
+        lockButtonY = centerY + (fieldHeight - lockButtonSize) / 2
+        
+        # 創建鎖頭按鈕
+        lockButtonRect = NSMakeRect(
+            lockButtonX,  # x 座標
+            lockButtonY,  # y 座標
+            lockButtonSize,  # 寬度
+            lockButtonSize  # 高度
+        )
+        
+        self.actionButton = NSButton.alloc().initWithFrame_(lockButtonRect)
+        self.actionButton.setBezelStyle_(NSBezelStyleRegularSquare)  # 使用方形按鈕樣式
+        self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)  # 使用瞬時按鈕類型，避免自動切換狀態
+        self.actionButton.setBordered_(False)  # 無邊框
+        self.actionButton.setTarget_(self)
+        self.actionButton.setAction_("actionButtonAction:")
+        self.actionButton.setAutoresizingMask_(NSViewMinYMargin)
+        self.actionButton.setTitle_("")  # 確保按鈕沒有文字
+        
+        # 設置鎖頭圖示 (稍後會在 updateActionButtonImage 中設置)
+        
+        # 設定工具提示
+        self.updateActionButtonTooltip()
+        
+        # 添加到視圖
+        self.addSubview_(self.actionButton)
+        
+        # 立即更新按鈕圖示
+        self.updateActionButtonImage()
+        
         # === 第四部分：長文本輸入框（底部） ===
         
         # 計算長文本輸入框的位置和大小
@@ -503,20 +591,37 @@ class SidebarView(NSView):
         try:
             # 暫存當前鎖定字符和輸入文字
             lockedCharsValues = {}
-            for pos, field in self.lockFields.items():
-                lockedCharsValues[pos] = field.stringValue()
+            if hasattr(self, 'lockFields'):
+                for pos, field in self.lockFields.items():
+                    lockedCharsValues[pos] = field.stringValue()
             
-            searchFieldValue = self.searchField.stringValue()
+            # 保存當前按鈕狀態
+            currentIsInClearMode = self.isInClearMode if hasattr(self, 'isInClearMode') else True
+            
+            # 保存搜索欄位值
+            searchFieldValue = ""
+            if hasattr(self, 'searchField'):
+                searchFieldValue = self.searchField.stringValue()
             
             # 重新初始化視圖
             self.initializeViews()
             
-            # 恢復暫存的值
-            for pos, value in lockedCharsValues.items():
-                if pos in self.lockFields:
-                    self.lockFields[pos].setStringValue_(value)
+            # 恢復按鈕狀態
+            self.isInClearMode = currentIsInClearMode
+            print(f"視窗重繪後恢復按鈕狀態: {'鎖定模式' if self.isInClearMode else '解除鎖定模式'}")
             
-            self.searchField.setStringValue_(searchFieldValue)
+            # 恢復暫存的值
+            if hasattr(self, 'lockFields'):
+                for pos, value in lockedCharsValues.items():
+                    if pos in self.lockFields:
+                        self.lockFields[pos].setStringValue_(value)
+            
+            if hasattr(self, 'searchField'):
+                self.searchField.setStringValue_(searchFieldValue)
+            
+            # 確保按鈕圖示正確
+            if hasattr(self, 'actionButton'):
+                self.forceUpdateActionButtonImage()
             
         except Exception as e:
             print(f"視圖尺寸變更處理時發生錯誤: {e}")
@@ -544,8 +649,6 @@ class SidebarView(NSView):
             for i in range(8):
                 if i in self.plugin.lockedChars:
                     self.lockFields[i].setStringValue_(self.plugin.lockedChars[i])
-                else:
-                    self.lockFields[i].setStringValue_("")
     
     def randomizeAction_(self, sender):
         """隨機按鈕點擊事件 / Randomize button click event"""
@@ -558,72 +661,105 @@ class SidebarView(NSView):
             self.plugin.pickGlyphCallback(sender)
             
     def actionButtonAction_(self, sender):
-        """清空/還原按鈕點擊事件 / Clear/Restore button click event"""
+        """鎖定/解除鎖定按鈕點擊事件 / Lock/Unlock button click event"""
         if self.plugin:
+            # 記錄動作開始
+            print("------ 按鈕點擊開始 ------")
+            
+            # 保存變更前的狀態，用於後續判斷
+            previousState = self.isInClearMode
+            
+            # 根據當前狀態執行相應操作
             if self.isInClearMode:
-                # 目前是清空模式，執行清空操作
+                # 目前是解鎖模式，執行鎖定操作
+                print("執行操作: 鎖定全部")
                 self.plugin.clearAllLockFieldsCallback(sender)
-                # 切換到還原模式
+                # 切換到上鎖模式
                 self.isInClearMode = False
             else:
-                # 目前是還原模式，執行還原操作
+                # 目前是上鎖模式，執行解除鎖定操作
+                print("執行操作: 解除鎖定")
                 self.plugin.restoreAllLockFieldsCallback(sender)
-                # 切換到清空模式
+                # 切換到解鎖模式
                 self.isInClearMode = True
+                
+                # 在切換到解鎖模式後，進行一次完全隨機的字符排列
+                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                    print("切換到解鎖模式：進行一次完全隨機的字符排列")
+                    
+                    # 直接調用隨機排列函數，強制忽略鎖定狀態
+                    if hasattr(self.plugin, 'randomizeCallback'):
+                        self.plugin.randomizeCallback(sender)
+                    
+            # 更新按鈕狀態和文字
+            self.updateButtonAppearance()
             
-            # 更新按鈕標題和提示
-            self.updateActionButtonTitle()
-            self.updateActionButtonTooltip()
-    
-    def updateActionButtonTitle(self):
-        """根據當前模式更新按鈕標題 / Update button title based on current mode"""
+            # 特殊處理：狀態從解鎖變為上鎖時，強制更新預覽畫面一次
+            if previousState and not self.isInClearMode:  # 從 True (解鎖) 變為 False (上鎖)
+                print("特殊處理：狀態從解鎖變為上鎖，強制更新預覽畫面")
+                if hasattr(self.plugin, 'windowController') and self.plugin.windowController:
+                    if hasattr(self.plugin.windowController, 'redrawIgnoreLockState'):
+                        self.plugin.windowController.redrawIgnoreLockState()
+            
+            # 記錄動作結束
+            print(f"------ 按鈕點擊結束：當前狀態 = {'解鎖' if self.isInClearMode else '上鎖'} ------")
+            
+    def forceUpdateActionButtonImage(self):
+        """強制更新按鈕圖示，確保顯示正確"""
         if hasattr(self, 'actionButton'):
-            if self.isInClearMode:
-                self.actionButton.setTitle_(Glyphs.localize({
-                    'en': u'Clear All',
-                    'zh-Hant': u'清空全部',
-                    'zh-Hans': u'清空全部',
-                    'ja': u'すべてクリア',
-                    'ko': u'전체 지우기',
-                }))
-            else:
-                self.actionButton.setTitle_(Glyphs.localize({
-                    'en': u'Restore',
-                    'zh-Hant': u'還原',
-                    'zh-Hans': u'还原',
-                    'ja': u'復元',
-                    'ko': u'복원',
-                }))
+            # 根據當前狀態確定應該顯示的圖示
+            is_locked = not self.isInClearMode  # True = 顯示鎖定圖示, False = 顯示解鎖圖示
+            
+            print(f"強制更新圖示: {'鎖定圖示' if is_locked else '解鎖圖示'}")
+            
+            # 創建對應的圖示
+            lockImage = self.createLockImage(is_locked)
+            
+            if lockImage:
+                # 設置圖示
+                self.actionButton.setImage_(lockImage)
+                self.actionButton.setImagePosition_(NSImageOnly)
+                
+                # 不設置替代圖示，避免系統自動切換
+                # self.actionButton.setAlternateImage_(None)
+                
+                # 強制重繪
+                self.actionButton.setNeedsDisplay_(True)
+    
+    def updateActionButtonImage(self):
+        """更新按鈕圖示"""
+        # 轉發到強制更新方法，確保一致性
+        self.forceUpdateActionButtonImage()
     
     def updateActionButtonTooltip(self):
         """根據當前模式更新按鈕提示 / Update button tooltip based on current mode"""
         if hasattr(self, 'actionButton'):
             if self.isInClearMode:
                 self.actionButton.setToolTip_(Glyphs.localize({
-                    'en': u'Clear all locked characters',
-                    'zh-Hant': u'清空所有鎖定字符',
-                    'zh-Hans': u'清空所有锁定字符',
-                    'ja': u'すべてのロックされた文字をクリア',
-                    'ko': u'모든 고정된 글자 지우기',
+                    'en': u'Lock all characters in input fields',
+                    'zh-Hant': u'鎖定所有輸入框中的字符',
+                    'zh-Hans': u'锁定所有输入框中的字符',
+                    'ja': u'入力フィールド内のすべての文字をロック',
+                    'ko': u'입력 필드의 모든 글자 잠금',
                 }))
             else:
                 self.actionButton.setToolTip_(Glyphs.localize({
-                    'en': u'Restore previous locked characters',
-                    'zh-Hant': u'還原上一次的鎖定字符',
-                    'zh-Hans': u'还原上一次的锁定字符',
-                    'ja': u'前回のロックされた文字を復元',
-                    'ko': u'이전 고정된 글자 복원',
+                    'en': u'Unlock all characters',
+                    'zh-Hant': u'解除所有字符的鎖定',
+                    'zh-Hans': u'解除所有字符的锁定',
+                    'ja': u'すべての文字のロックを解除',
+                    'ko': u'모든 글자 잠금 해제',
                 }))
     
     def clearButtonAction_(self, sender):
-        """舊版清空按鈕點擊事件（為了向後兼容） / Legacy clear button click event (for backward compatibility)"""
+        """舊版鎖定按鈕點擊事件（為了向後兼容） / Legacy lock button click event (for backward compatibility)"""
         self.actionButtonAction_(sender)
             
     def restoreButtonAction_(self, sender):
-        """舊版還原按鈕點擊事件（為了向後兼容） / Legacy restore button click event (for backward compatibility)"""
-        # 先切換到還原模式再執行操作
+        """舊版解除鎖定按鈕點擊事件（為了向後兼容） / Legacy unlock button click event (for backward compatibility)"""
+        # 先切換到解除鎖定模式再執行操作
         self.isInClearMode = False
-        self.updateActionButtonTitle()
+        self.updateActionButtonImage()
         self.updateActionButtonTooltip()
         self.actionButtonAction_(sender)
     
@@ -644,3 +780,151 @@ class SidebarView(NSView):
         except Exception as e:
             print(f"繪製側邊欄時發生錯誤: {e}")
             print(traceback.format_exc()) 
+
+    def updateActionButtonTitle(self):
+        """已不再使用，保留向後兼容"""
+        # 改為調用圖示更新方法
+        self.updateActionButtonImage() 
+
+    def createLockImage(self, locked=True):
+        """
+        創建自定義鎖頭圖示，使用Unicode符號確保顯示正確
+        
+        Args:
+            locked: 是否為鎖定狀態
+            
+        Returns:
+            NSImage: 鎖頭圖示
+        """
+        # 設定圖像大小，確保留有足夠邊距
+        imageSize = 22
+        
+        # 創建空白圖像
+        lockImage = NSImage.alloc().initWithSize_((imageSize, imageSize))
+        
+        # 開始編輯圖像
+        lockImage.lockFocus()
+        
+        try:
+            # 清除背景 (透明)
+            NSColor.clearColor().set()
+            NSBezierPath.fillRect_(((0, 0), (imageSize, imageSize)))
+            
+            # 設定文字屬性 - 使用稍小一點的字體確保不會被切掉
+            fontSize = 14.0
+            font = NSFont.systemFontOfSize_(fontSize)
+            attrs = {
+                NSFontAttributeName: font, 
+                NSForegroundColorAttributeName: NSColor.controlTextColor()
+            }
+            
+            # 使用Unicode符號 - 開源且跨平台
+            if locked:
+                # 鎖定符號 - 可選多種Unicode鎖頭
+                symbol = "🔒"  # 標準鎖頭
+                # 其他備選："\u{1F512}" (🔒) 或 "\u{1F510}" (🔐)
+            else:
+                # 解鎖符號 - 可選多種Unicode解鎖
+                symbol = "🔓"  # 標準開鎖
+                # 其他備選："\u{1F513}" (🔓)
+            
+            # 創建文字並計算尺寸
+            string = NSString.stringWithString_(symbol)
+            stringSize = string.sizeWithAttributes_(attrs)
+            
+            # 計算居中位置，確保完全在繪製範圍內
+            x = (imageSize - stringSize.width) / 2
+            y = (imageSize - stringSize.height) / 2
+            
+            # 確保座標是正數且不超出邊界
+            x = max(1, min(x, imageSize - stringSize.width - 1))
+            y = max(1, min(y, imageSize - stringSize.height - 1))
+            
+            # 繪製符號
+            string.drawAtPoint_withAttributes_(NSMakePoint(x, y), attrs)
+            
+            # 輸出調試信息
+            print(f"已使用Unicode符號創建{'鎖定' if locked else '解鎖'}圖示：{symbol}")
+            
+        except Exception as e:
+            print(f"創建鎖頭圖示時發生錯誤: {e}")
+            print(traceback.format_exc())
+            
+            # 如果Unicode方法失敗，嘗試使用NSImage
+            try:
+                # 在macOS上嘗試使用系統提供的圖示
+                systemIcon = None
+                
+                if locked:
+                    # 嘗試幾種可能的系統鎖定圖示名稱
+                    for iconName in ["NSLockLockedTemplate", "lockLocked", "lock"]:
+                        systemIcon = NSImage.imageNamed_(iconName)
+                        if systemIcon:
+                            break
+                else:
+                    # 嘗試幾種可能的系統解鎖圖示名稱
+                    for iconName in ["NSLockUnlockedTemplate", "lockUnlocked", "unlock"]:
+                        systemIcon = NSImage.imageNamed_(iconName)
+                        if systemIcon:
+                            break
+                
+                # 如果找到系統圖示，使用它
+                if systemIcon:
+                    # 清除當前繪製
+                    lockImage.unlockFocus()
+                    
+                    # 創建新圖像並繪製系統圖示
+                    newImage = NSImage.alloc().initWithSize_((imageSize, imageSize))
+                    newImage.lockFocus()
+                    
+                    # 清除背景
+                    NSColor.clearColor().set()
+                    NSBezierPath.fillRect_(((0, 0), (imageSize, imageSize)))
+                    
+                    # 計算居中位置
+                    srcWidth = systemIcon.size().width
+                    srcHeight = systemIcon.size().height
+                    
+                    # 確保不超出邊界的縮放比例
+                    scale = min((imageSize - 4) / srcWidth, (imageSize - 4) / srcHeight)
+                    
+                    destWidth = srcWidth * scale
+                    destHeight = srcHeight * scale
+                    
+                    destX = (imageSize - destWidth) / 2
+                    destY = (imageSize - destHeight) / 2
+                    
+                    # 繪製系統圖示
+                    systemIcon.drawInRect_fromRect_operation_fraction_(
+                        NSMakeRect(destX, destY, destWidth, destHeight),
+                        NSMakeRect(0, 0, srcWidth, srcHeight),
+                        NSCompositingOperationSourceOver,
+                        1.0
+                    )
+                    
+                    newImage.unlockFocus()
+                    
+                    # 設置為模板圖像以支援暗色模式
+                    newImage.setTemplate_(True)
+                    
+                    print(f"已使用系統圖示創建{'鎖定' if locked else '解鎖'}圖示: {iconName}")
+                    return newImage
+            except:
+                pass
+            
+        finally:
+            # 結束編輯
+            lockImage.unlockFocus()
+        
+        # 設置為模板圖像以支援暗色模式
+        lockImage.setTemplate_(True)
+        
+        return lockImage 
+
+    def updateButtonAppearance(self):
+        """更新按鈕外觀和提示文字 / Update button appearance and tooltip"""
+        # 更新按鈕圖示
+        self.forceUpdateActionButtonImage()
+        
+        # 更新提示文字
+        self.updateActionButtonTooltip() 

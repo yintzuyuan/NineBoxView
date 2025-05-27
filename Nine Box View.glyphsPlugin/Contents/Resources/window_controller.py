@@ -326,6 +326,24 @@ class NineBoxWindow(NSWindowController):
                 contentView = self.window().contentView()
                 contentSize = contentView.frame().size
                 
+                # 檢查是否應該更新預覽視圖 - 只在鎖頭上鎖狀態才更新
+                should_update_preview = True  # 預設允許更新
+                
+                # 檢查鎖頭狀態 - 只有當側邊欄可見、且存在 sidebarView 和 isInClearMode 屬性時才檢查
+                if (hasattr(self, 'sidebarView') and self.sidebarView and 
+                    not self.sidebarView.isHidden() and 
+                    hasattr(self.sidebarView, 'isInClearMode')):
+                    
+                    # 只有當鎖頭處於上鎖狀態時，才允許更新預覽
+                    # 鎖頭上鎖狀態為 isInClearMode == False，意味著下一次動作是「解除鎖定」
+                    if self.sidebarView.isInClearMode:
+                        # 處於解鎖模式，不更新預覽畫面
+                        should_update_preview = False
+                        print("重繪：鎖頭處於解鎖狀態，預覽畫面不更新")
+                    else:
+                        # 處於上鎖模式，更新預覽畫面
+                        print("重繪：鎖頭處於上鎖狀態，預覽畫面已更新")
+                
                 # 調整側邊欄位置 / Adjust sidebar position
                 if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
                     self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
@@ -337,8 +355,12 @@ class NineBoxWindow(NSWindowController):
                 
                 # 更新預覽視圖尺寸 / Update preview view size
                 if hasattr(self, 'previewView') and self.previewView:
+                    # 總是更新視圖尺寸 - 這不影響內容，只是更新位置和大小
                     self.previewView.setFrame_(NSMakeRect(0, 0, previewWidth, contentSize.height))
-                    self.previewView.setNeedsDisplay_(True)
+                    
+                    # 但只在鎖頭上鎖時重繪預覽內容
+                    if should_update_preview:
+                        self.previewView.setNeedsDisplay_(True)
                 
                 # 更新側邊欄搜尋欄位 / Update sidebar search field
                 if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
@@ -356,6 +378,53 @@ class NineBoxWindow(NSWindowController):
             print(f"重繪視窗時發生錯誤: {e}")
             print(traceback.format_exc())
     
+    def redrawIgnoreLockState(self):
+        """
+        專門處理長文本輸入框的重繪方法 - 不受鎖頭狀態影響
+        Special redraw method for the long text input field - not affected by lock state
+        """
+        try:
+            # 獲取視窗尺寸 / Get window size
+            if self.window():
+                # 儲存視窗大小 / Save window size
+                from constants import WINDOW_SIZE_KEY
+                frame = self.window().frame()
+                Glyphs.defaults[WINDOW_SIZE_KEY] = (frame.size.width, frame.size.height)
+                
+                # 先更新側邊欄位置和大小
+                contentView = self.window().contentView()
+                contentSize = contentView.frame().size
+                
+                # 調整側邊欄位置 / Adjust sidebar position
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    self.sidebarView.setFrame_(NSMakeRect(contentSize.width - self.SIDEBAR_WIDTH, 0, self.SIDEBAR_WIDTH, contentSize.height))
+                    # 側邊欄可見時，預覽視圖寬度需減去側邊欄寬度
+                    previewWidth = contentSize.width - self.SIDEBAR_WIDTH
+                else:
+                    # 側邊欄不可見時，預覽視圖佔據整個寬度
+                    previewWidth = contentSize.width
+                
+                # 更新預覽視圖尺寸 / Update preview view size
+                if hasattr(self, 'previewView') and self.previewView:
+                    # 總是更新視圖尺寸 - 這不影響內容，只是更新位置和大小
+                    self.previewView.setFrame_(NSMakeRect(0, 0, previewWidth, contentSize.height))
+                    
+                    # 對於長文本輸入框，始終更新預覽內容，不受鎖頭狀態影響
+                    self.previewView.setNeedsDisplay_(True)
+                    print("長文本輸入框更新：始終更新預覽畫面，不受鎖頭狀態影響")
+                
+                # 更新側邊欄搜尋欄位 / Update sidebar search field
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    self.sidebarView.updateSearchField()
+                
+                # 更新側邊欄按鈕狀態 / Update sidebar button state
+                if hasattr(self, 'sidebarButton') and self.sidebarButton:
+                    self.sidebarButton.setState_(1 if self.plugin.sidebarVisible else 0)
+                
+        except Exception as e:
+            print(f"長文本輸入框重繪視窗時發生錯誤: {e}")
+            print(traceback.format_exc())
+    
     def userDefaultsDidChange_(self, notification):
         """
         處理 NSUserDefaults 變更通知
@@ -370,8 +439,26 @@ class NineBoxWindow(NSWindowController):
             
             # 如果視窗存在並可見，只重新繪製預覽介面
             if self.window() and self.window().isVisible():
-                # 重繪預覽視圖
-                if hasattr(self, 'previewView') and self.previewView:
+                # 檢查鎖頭狀態 - 只在鎖頭上鎖狀態才更新預覽
+                should_update_preview = True  # 預設允許更新
+                
+                # 檢查鎖頭狀態 - 只有當側邊欄可見、且存在 sidebarView 和 isInClearMode 屬性時才檢查
+                if (hasattr(self, 'sidebarView') and self.sidebarView and 
+                    not self.sidebarView.isHidden() and 
+                    hasattr(self.sidebarView, 'isInClearMode')):
+                    
+                    # 只有當鎖頭處於上鎖狀態時，才允許更新預覽
+                    # 鎖頭上鎖狀態為 isInClearMode == False，意味著下一次動作是「解除鎖定」
+                    if self.sidebarView.isInClearMode:
+                        # 處於解鎖模式，不更新預覽畫面
+                        should_update_preview = False
+                        print("UserDefaults變更：鎖頭處於解鎖狀態，預覽畫面不更新")
+                    else:
+                        # 處於上鎖模式，更新預覽畫面
+                        print("UserDefaults變更：鎖頭處於上鎖狀態，預覽畫面已更新")
+                
+                # 重繪預覽視圖 - 只在鎖頭上鎖時更新
+                if hasattr(self, 'previewView') and self.previewView and should_update_preview:
                     self.previewView.setNeedsDisplay_(True)
         except Exception as e:
             print(f"處理 NSUserDefaults 變更通知時發生錯誤: {e}")
