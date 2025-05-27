@@ -229,251 +229,304 @@ class SidebarView(NSView):
             # 設置側邊欄視圖的自動調整掩碼 - 視圖寬度可調整，高度可調整
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             
-            # === 布局常數設定 ===
-            margin = 10  # 基本邊距
-            totalHeight = frame.size.height  # 側邊欄總高度
-            frameWidth = frame.size.width  # 側邊欄寬度
+            # 初始化所有視圖元素
+            self.initializeViews()
             
-            # 計算各區塊的大小比例（使用相對尺寸）
-            titleHeightRatio = 0.04  # 標題高度佔總高度的比例
-            buttonHeightRatio = 0.06  # 按鈕高度佔總高度的比例
-            lockFieldHeightRatio = 0.05  # 鎖定輸入框高度佔總高度的比例
-            
-            # 計算實際尺寸（但設定最小值避免過小）
-            titleHeight = max(20, totalHeight * titleHeightRatio)
-            buttonHeight = max(24, totalHeight * buttonHeightRatio)
-            fieldHeight = max(20, totalHeight * lockFieldHeightRatio)
-            
-            # 各元素間距（也使用相對尺寸）
-            sectionSpacingRatio = 0.025  # 主要區塊間距佔總高度的比例
-            elementSpacingRatio = 0.02  # 元素間距佔總高度的比例
-            
-            # 計算實際間距（但設定最小值避免過小）
-            sectionSpacing = max(10, totalHeight * sectionSpacingRatio)
-            elementSpacing = max(8, totalHeight * elementSpacingRatio)
-            
-            # 確保上邊距也是相對的
-            topMarginRatio = 0.02  # 頂部間距佔總高度的比例
-            topMargin = max(8, totalHeight * topMarginRatio)
-            
-            # === 第一部分：標題區域（頂部） ===
-            
-            # 鎖定字符標題 - 位於頂部
-            titleRect = NSMakeRect(
-                margin,  # x 座標
-                totalHeight - titleHeight - topMargin,  # y 座標，從頂部開始
-                frameWidth - margin * 2,  # 寬度
-                titleHeight  # 高度
+            # 註冊視圖尺寸變更通知
+            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                self,
+                "viewFrameDidChange:",
+                "NSViewFrameDidChangeNotification",
+                self
             )
-            self.lockTitle = NSTextField.alloc().initWithFrame_(titleRect)
-            self.lockTitle.setStringValue_(Glyphs.localize({
-                'en': u'Lock Characters (support Nice Name):',
-                'zh-Hant': u'鎖定字符（支援 Nice Name）:',
-                'zh-Hans': u'锁定字符（支持 Nice Name）:',
-                'ja': u'文字をロック（Nice Name対応）:',
-                'ko': u'글자 고정 (Nice Name 지원):',
-            }))
-            self.lockTitle.setBezeled_(False)
-            self.lockTitle.setDrawsBackground_(False)
-            self.lockTitle.setEditable_(False)
-            self.lockTitle.setSelectable_(False)
-            self.lockTitle.setFont_(NSFont.boldSystemFontOfSize_(12.0))
-            self.lockTitle.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
-            self.addSubview_(self.lockTitle)
-            
-            # === 第二部分：清空/還原按鈕（標題下方） ===
-            
-            # 計算按鈕位置（在標題下方）
-            buttonsY = totalHeight - titleHeight - topMargin - buttonHeight - elementSpacing
-            
-            # 清空/還原按鈕 (兩功能合一)
-            self.actionButtonRect = NSMakeRect(
-                margin,  # x 座標
-                buttonsY,  # y 座標
-                frameWidth - margin * 2,  # 寬度
-                buttonHeight  # 高度
-            )
-            self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
-            self.updateActionButtonTitle()  # 初始化按鈕標題
-            self.actionButton.setBezelStyle_(NSBezelStyleRounded)
-            self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-            self.actionButton.setTarget_(self)
-            self.actionButton.setAction_("actionButtonAction:")
-            self.actionButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
-            self.updateActionButtonTooltip()  # 初始化按鈕提示
-            self.addSubview_(self.actionButton)
-            
-            # === 第三部分：鎖定字符輸入框 ===
-            
-            # 計算九宮格區域的頂部位置（在按鈕下方加上間距）
-            lockFieldsTopY = buttonsY - sectionSpacing
-            
-            # 計算鎖定字符區域所佔用的空間比例
-            lockFieldsHeightRatio = 0.38  # 整個鎖定字符區域佔總高度的最大比例
-            
-            # 根據可用空間計算實際高度（但不超過最大比例）
-            availableHeightForLockFields = min(
-                lockFieldsTopY - (margin * 2), 
-                totalHeight * lockFieldsHeightRatio
-            )
-            
-            # 根據可用空間重新計算字段高度和間距
-            # 總共需要3行輸入框和2個間距
-            numRows = 3
-            numSpaces = 2
-            
-            # 設定理想尺寸（與原始設計一致）
-            idealFieldHeight = 24  # 原始設計中的輸入框高度
-            idealSmallMargin = 8   # 原始設計中的間距
-            
-            # 分配可用空間，但優先使用理想尺寸
-            if availableHeightForLockFields >= (idealFieldHeight * numRows + idealSmallMargin * numSpaces):
-                # 空間充足，使用理想尺寸
-                fieldHeight = idealFieldHeight
-                smallMargin = idealSmallMargin
-            else:
-                # 空間不足，按比例縮小
-                # 根據比例分配高度和間距
-                fieldHeight = availableHeightForLockFields * 0.8 / numRows  # 高度佔80%
-                smallMargin = availableHeightForLockFields * 0.2 / numSpaces  # 間距佔20%
-                
-                # 確保最小尺寸
-                fieldHeight = max(16, fieldHeight)
-                smallMargin = max(3, smallMargin)
-            
-            # 計算九宮格區域的整體高度
-            totalFieldsHeight = numRows * fieldHeight + numSpaces * smallMargin
-            
-            # 計算九宮格區域的底部位置
-            lockFieldsBottomY = lockFieldsTopY - totalFieldsHeight
-            
-            # 計算每個單元格的寬度和橫向間距
-            totalCellsPerRow = 3  # 每行最多3個輸入框
-            horizontalSpaces = 2  # 每行2個水平間距
-            
-            # 理想的單元格寬度和間距
-            idealCellWidth = (frameWidth - margin * 2 - idealSmallMargin * 2) / 3  # 原始設計的寬度
-            idealHorizontalMargin = idealSmallMargin  # 使用相同的間距值
-            
-            # 可用寬度
-            availableWidth = frameWidth - margin * 2
-            
-            # 優先使用理想尺寸
-            if availableWidth >= (idealCellWidth * totalCellsPerRow + idealHorizontalMargin * horizontalSpaces):
-                # 空間充足，使用理想尺寸
-                cellWidth = idealCellWidth
-                horizontalMargin = idealHorizontalMargin
-            else:
-                # 空間不足，按比例縮小
-                cellWidth = availableWidth * 0.8 / totalCellsPerRow  # 單元格佔80%
-                horizontalMargin = availableWidth * 0.2 / horizontalSpaces  # 間距佔20%
-                
-                # 確保最小尺寸
-                cellWidth = max(35, cellWidth)
-                horizontalMargin = max(4, horizontalMargin)
-            
-            # 九宮格區域的位置分布 - 使用相對計算
-            positions = [
-                # 上排三個 - 正確對應預覽畫面的上排
-                (margin, lockFieldsTopY - fieldHeight),
-                (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight),
-                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight),
-                
-                # 中排左右兩個
-                (margin, lockFieldsTopY - fieldHeight * 2 - smallMargin),
-                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 2 - smallMargin),
-                
-                # 下排三個 - 正確對應預覽畫面的下排
-                (margin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
-                (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
-                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2)
-            ]
-            
-            # 建立八個鎖定字符輸入框
-            self.lockFields = {}  # 使用字典保存所有鎖定框的引用
-            for i in range(8):
-                fieldRect = NSMakeRect(
-                    positions[i][0],  # x 座標
-                    positions[i][1],  # y 座標
-                    cellWidth,  # 寬度
-                    fieldHeight  # 高度
-                )
-                lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(fieldRect, i, plugin)
-                
-                # 設置額外的樣式以便於輸入 Nice Name
-                lockField.setFont_(NSFont.systemFontOfSize_(12.0))
-                
-                # 設置自動調整掩碼，確保鎖定框跟著上邊緣移動
-                lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
-                
-                self.lockFields[i] = lockField
-                self.addSubview_(lockField)
-                
-                # 如果外掛中已有鎖定字符設定，初始化填入
-                if hasattr(plugin, 'lockedChars') and plugin.lockedChars and i in plugin.lockedChars:
-                    lockField.setStringValue_(plugin.lockedChars[i])
-            
-            # === 第四部分：長文本輸入框（底部） ===
-            
-            # 計算長文本輸入框的位置和大小
-            searchFieldTopMargin = sectionSpacing  # 與鎖定字符區域底部的間距
-            searchFieldBottomMargin = margin  # 與側邊欄底部的間距
-            
-            # 計算長文本輸入框的位置
-            searchFieldTopY = lockFieldsBottomY - searchFieldTopMargin
-            searchFieldHeight = searchFieldTopY - searchFieldBottomMargin
-            
-            # 確保最小高度
-            searchFieldHeight = max(40, searchFieldHeight)
-            
-            # 搜尋欄位 - 位於底部
-            searchFieldRect = NSMakeRect(
-                margin,  # x 座標
-                searchFieldBottomMargin,  # y 座標
-                frameWidth - margin * 2,  # 寬度
-                searchFieldHeight  # 高度
-            )
-            self.searchField = CustomTextField.alloc().initWithFrame_plugin_(searchFieldRect, plugin)
-            
-            placeholder = Glyphs.localize({
-                'en': u'Input glyphs or nice names (only nice names need spaces)',
-                'zh-Hant': u'輸入字符或 Nice Name（僅 Nice Name 需要空格分隔）',
-                'zh-Hans': u'输入字符或 Nice Name（仅 Nice Name 需要空格分隔）',
-                'ja': u'文字または Nice Name を入力してください（Nice Name のみスペースが必要）',
-                'ko': u'문자 또는 Nice Name을 입력하세요 (Nice Name만 공백 필요)',
-            })
-            
-            self.searchField.setStringValue_(plugin.lastInput)
-            self.searchField.setPlaceholderString_(placeholder)
-            
-            # 設定文本框外觀
-            self.searchField.setFont_(NSFont.systemFontOfSize_(12.0))
-            self.searchField.setFocusRingType_(NSFocusRingTypeNone)
-            self.searchField.setBezeled_(True)
-            self.searchField.setEditable_(True)
-            
-            # 設定為多行文本框
-            self.searchField.setUsesSingleLineMode_(False)
-            
-            # 設定提示
-            searchTooltip = Glyphs.localize({
-                'en': u'Enter glyphs or nice names (only nice names need spaces)\nRight-click to select glyphs from font',
-                'zh-Hant': u'輸入字符或 Nice Name，只有 Nice Name 需要用空格分隔\n右鍵點擊可從字型中選擇字符',
-                'zh-Hans': u'输入字符或 Nice Name，只有 Nice Name 需要用空格分隔\n右键点击可从字体中选择字符',
-                'ja': u'文字または Nice Name を入力してください（Nice Name のみスペースが必要）\n右クリックでフォントから文字を選択',
-                'ko': u'문자 또는 Nice Name을 입력하세요 (Nice Name만 공백 필요)\n마우스 오른쪽 버튼으로 글꼴에서 글자 선택',
-            })
-            
-            self.searchField.setToolTip_(searchTooltip)
-            self.searchField.setTarget_(self)
-            self.searchField.setAction_("searchFieldAction:")
-            
-            # 設置自動調整掩碼，使長文本輸入框的寬度和高度都能自動調整
-            self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
-            
-            self.addSubview_(self.searchField)
         
         return self
+    
+    def initializeViews(self):
+        """初始化所有視圖元素並計算它們的布局"""
+        # 先移除所有現有子視圖（如果有的話）
+        for subview in list(self.subviews()):
+            subview.removeFromSuperview()
+        
+        # === 布局常數設定 ===
+        frame = self.frame()
+        margin = 10  # 基本邊距
+        totalHeight = frame.size.height  # 側邊欄總高度
+        frameWidth = frame.size.width  # 側邊欄寬度
+        
+        # 計算各區塊的大小比例（使用相對尺寸）
+        titleHeightRatio = 0.04  # 標題高度佔總高度的比例
+        buttonHeightRatio = 0.06  # 按鈕高度佔總高度的比例
+        lockFieldHeightRatio = 0.05  # 鎖定輸入框高度佔總高度的比例
+        
+        # 計算實際尺寸（但設定最小值避免過小）
+        titleHeight = max(20, totalHeight * titleHeightRatio)
+        buttonHeight = max(24, totalHeight * buttonHeightRatio)
+        fieldHeight = max(20, totalHeight * lockFieldHeightRatio)
+        
+        # 各元素間距（也使用相對尺寸）
+        sectionSpacingRatio = 0.025  # 主要區塊間距佔總高度的比例
+        elementSpacingRatio = 0.02  # 元素間距佔總高度的比例
+        
+        # 計算實際間距（但設定最小值避免過小）
+        sectionSpacing = max(10, totalHeight * sectionSpacingRatio)
+        elementSpacing = max(8, totalHeight * elementSpacingRatio)
+        
+        # 確保上邊距也是相對的
+        topMarginRatio = 0.02  # 頂部間距佔總高度的比例
+        topMargin = max(8, totalHeight * topMarginRatio)
+        
+        # === 第一部分：標題區域（頂部） ===
+        
+        # 鎖定字符標題 - 位於頂部
+        titleRect = NSMakeRect(
+            margin,  # x 座標
+            totalHeight - titleHeight - topMargin,  # y 座標，從頂部開始
+            frameWidth - margin * 2,  # 寬度
+            titleHeight  # 高度
+        )
+        self.lockTitle = NSTextField.alloc().initWithFrame_(titleRect)
+        self.lockTitle.setStringValue_(Glyphs.localize({
+            'en': u'Lock Characters (support Nice Name):',
+            'zh-Hant': u'鎖定字符（支援 Nice Name）:',
+            'zh-Hans': u'锁定字符（支持 Nice Name）:',
+            'ja': u'文字をロック（Nice Name対応）:',
+            'ko': u'글자 고정 (Nice Name 지원):',
+        }))
+        self.lockTitle.setBezeled_(False)
+        self.lockTitle.setDrawsBackground_(False)
+        self.lockTitle.setEditable_(False)
+        self.lockTitle.setSelectable_(False)
+        self.lockTitle.setFont_(NSFont.boldSystemFontOfSize_(12.0))
+        self.lockTitle.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+        self.addSubview_(self.lockTitle)
+        
+        # === 第二部分：清空/還原按鈕（標題下方） ===
+        
+        # 計算按鈕位置（在標題下方）
+        buttonsY = totalHeight - titleHeight - topMargin - buttonHeight - elementSpacing
+        
+        # 清空/還原按鈕 (兩功能合一)
+        self.actionButtonRect = NSMakeRect(
+            margin,  # x 座標
+            buttonsY,  # y 座標
+            frameWidth - margin * 2,  # 寬度
+            buttonHeight  # 高度
+        )
+        self.actionButton = NSButton.alloc().initWithFrame_(self.actionButtonRect)
+        self.updateActionButtonTitle()  # 初始化按鈕標題
+        self.actionButton.setBezelStyle_(NSBezelStyleRounded)
+        self.actionButton.setButtonType_(NSButtonTypeMomentaryPushIn)
+        self.actionButton.setTarget_(self)
+        self.actionButton.setAction_("actionButtonAction:")
+        self.actionButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+        self.updateActionButtonTooltip()  # 初始化按鈕提示
+        self.addSubview_(self.actionButton)
+        
+        # === 第三部分：鎖定字符輸入框 ===
+        
+        # 計算九宮格區域的頂部位置（在按鈕下方加上間距）
+        lockFieldsTopY = buttonsY - sectionSpacing
+        
+        # 計算鎖定字符區域所佔用的空間比例
+        lockFieldsHeightRatio = 0.38  # 整個鎖定字符區域佔總高度的最大比例
+        
+        # 根據可用空間計算實際高度（但不超過最大比例）
+        availableHeightForLockFields = min(
+            lockFieldsTopY - (margin * 2), 
+            totalHeight * lockFieldsHeightRatio
+        )
+        
+        # 根據可用空間重新計算字段高度和間距
+        # 總共需要3行輸入框和2個間距
+        numRows = 3
+        numSpaces = 2
+        
+        # 設定理想尺寸（與原始設計一致）
+        idealFieldHeight = 24  # 原始設計中的輸入框高度
+        idealSmallMargin = 8   # 原始設計中的間距
+        
+        # 分配可用空間，但優先使用理想尺寸
+        if availableHeightForLockFields >= (idealFieldHeight * numRows + idealSmallMargin * numSpaces):
+            # 空間充足，使用理想尺寸
+            fieldHeight = idealFieldHeight
+            smallMargin = idealSmallMargin
+        else:
+            # 空間不足，按比例縮小
+            # 根據比例分配高度和間距
+            fieldHeight = availableHeightForLockFields * 0.8 / numRows  # 高度佔80%
+            smallMargin = availableHeightForLockFields * 0.2 / numSpaces  # 間距佔20%
+            
+            # 確保最小尺寸
+            fieldHeight = max(16, fieldHeight)
+            smallMargin = max(3, smallMargin)
+        
+        # 計算九宮格區域的整體高度
+        totalFieldsHeight = numRows * fieldHeight + numSpaces * smallMargin
+        
+        # 計算九宮格區域的底部位置
+        lockFieldsBottomY = lockFieldsTopY - totalFieldsHeight
+        
+        # 計算每個單元格的寬度和橫向間距
+        totalCellsPerRow = 3  # 每行最多3個輸入框
+        horizontalSpaces = 2  # 每行2個水平間距
+        
+        # 理想的單元格寬度和間距
+        idealCellWidth = (frameWidth - margin * 2 - idealSmallMargin * 2) / 3  # 原始設計的寬度
+        idealHorizontalMargin = idealSmallMargin  # 使用相同的間距值
+        
+        # 可用寬度
+        availableWidth = frameWidth - margin * 2
+        
+        # 優先使用理想尺寸
+        if availableWidth >= (idealCellWidth * totalCellsPerRow + idealHorizontalMargin * horizontalSpaces):
+            # 空間充足，使用理想尺寸
+            cellWidth = idealCellWidth
+            horizontalMargin = idealHorizontalMargin
+        else:
+            # 空間不足，按比例縮小
+            cellWidth = availableWidth * 0.8 / totalCellsPerRow  # 單元格佔80%
+            horizontalMargin = availableWidth * 0.2 / horizontalSpaces  # 間距佔20%
+            
+            # 確保最小尺寸
+            cellWidth = max(35, cellWidth)
+            horizontalMargin = max(4, horizontalMargin)
+        
+        # 九宮格區域的位置分布 - 使用相對計算
+        positions = [
+            # 上排三個 - 正確對應預覽畫面的上排
+            (margin, lockFieldsTopY - fieldHeight),
+            (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight),
+            (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight),
+            
+            # 中排左右兩個
+            (margin, lockFieldsTopY - fieldHeight * 2 - smallMargin),
+            (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 2 - smallMargin),
+            
+            # 下排三個 - 正確對應預覽畫面的下排
+            (margin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
+            (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
+            (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2)
+        ]
+        
+        # 建立八個鎖定字符輸入框
+        self.lockFields = {}  # 使用字典保存所有鎖定框的引用
+        for i in range(8):
+            fieldRect = NSMakeRect(
+                positions[i][0],  # x 座標
+                positions[i][1],  # y 座標
+                cellWidth,  # 寬度
+                fieldHeight  # 高度
+            )
+            lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(fieldRect, i, self.plugin)
+            
+            # 設置額外的樣式以便於輸入 Nice Name
+            lockField.setFont_(NSFont.systemFontOfSize_(12.0))
+            
+            # 設置自動調整掩碼，確保鎖定框跟著上邊緣移動
+            lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMinYMargin)
+            
+            self.lockFields[i] = lockField
+            self.addSubview_(lockField)
+            
+            # 如果外掛中已有鎖定字符設定，初始化填入
+            if hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars and i in self.plugin.lockedChars:
+                lockField.setStringValue_(self.plugin.lockedChars[i])
+        
+        # === 第四部分：長文本輸入框（底部） ===
+        
+        # 計算長文本輸入框的位置和大小
+        searchFieldTopMargin = sectionSpacing  # 與鎖定字符區域底部的間距
+        searchFieldBottomMargin = margin  # 與側邊欄底部的間距
+        
+        # 計算長文本輸入框的位置
+        searchFieldTopY = lockFieldsBottomY - searchFieldTopMargin
+        searchFieldHeight = searchFieldTopY - searchFieldBottomMargin
+        
+        # 確保最小高度
+        searchFieldHeight = max(40, searchFieldHeight)
+        
+        # 搜尋欄位 - 位於底部
+        searchFieldRect = NSMakeRect(
+            margin,  # x 座標
+            searchFieldBottomMargin,  # y 座標
+            frameWidth - margin * 2,  # 寬度
+            searchFieldHeight  # 高度
+        )
+        self.searchField = CustomTextField.alloc().initWithFrame_plugin_(searchFieldRect, self.plugin)
+        
+        placeholder = Glyphs.localize({
+            'en': u'Input glyphs or nice names (only nice names need spaces)',
+            'zh-Hant': u'輸入字符或 Nice Name（僅 Nice Name 需要空格分隔）',
+            'zh-Hans': u'输入字符或 Nice Name（仅 Nice Name 需要空格分隔）',
+            'ja': u'文字または Nice Name を入力してください（Nice Name のみスペースが必要）',
+            'ko': u'문자 또는 Nice Name을 입력하세요 (Nice Name만 공백 필요)',
+        })
+        
+        self.searchField.setStringValue_(self.plugin.lastInput)
+        self.searchField.setPlaceholderString_(placeholder)
+        
+        # 設定文本框外觀
+        self.searchField.setFont_(NSFont.systemFontOfSize_(12.0))
+        self.searchField.setFocusRingType_(NSFocusRingTypeNone)
+        self.searchField.setBezeled_(True)
+        self.searchField.setEditable_(True)
+        
+        # 設定為多行文本框
+        self.searchField.setUsesSingleLineMode_(False)
+        
+        # 設定提示
+        searchTooltip = Glyphs.localize({
+            'en': u'Enter glyphs or nice names (only nice names need spaces)\nRight-click to select glyphs from font',
+            'zh-Hant': u'輸入字符或 Nice Name，只有 Nice Name 需要用空格分隔\n右鍵點擊可從字型中選擇字符',
+            'zh-Hans': u'输入字符或 Nice Name，只有 Nice Name 需要用空格分隔\n右键点击可从字体中选择字符',
+            'ja': u'文字または Nice Name を入力してください（Nice Name のみスペースが必要）\n右クリックでフォントから文字を選択',
+            'ko': u'문자 또는 Nice Name을 입력하세요 (Nice Name만 공백 필요)\n마우스 오른쪽 버튼으로 글꼴에서 글자 선택',
+        })
+        
+        self.searchField.setToolTip_(searchTooltip)
+        self.searchField.setTarget_(self)
+        self.searchField.setAction_("searchFieldAction:")
+        
+        # 設置自動調整掩碼，使長文本輸入框的寬度和高度都能自動調整
+        self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        
+        self.addSubview_(self.searchField)
+    
+    def viewFrameDidChange_(self, notification):
+        """視圖尺寸變更時重新計算布局"""
+        # 延遲執行以避免過於頻繁的更新
+        self.performSelector_withObject_afterDelay_("delayedViewFrameDidChange:", None, 0.2)
+    
+    def delayedViewFrameDidChange_(self, sender):
+        """延遲執行的視圖尺寸變更處理"""
+        try:
+            # 暫存當前鎖定字符和輸入文字
+            lockedCharsValues = {}
+            for pos, field in self.lockFields.items():
+                lockedCharsValues[pos] = field.stringValue()
+            
+            searchFieldValue = self.searchField.stringValue()
+            
+            # 重新初始化視圖
+            self.initializeViews()
+            
+            # 恢復暫存的值
+            for pos, value in lockedCharsValues.items():
+                if pos in self.lockFields:
+                    self.lockFields[pos].setStringValue_(value)
+            
+            self.searchField.setStringValue_(searchFieldValue)
+            
+        except Exception as e:
+            print(f"視圖尺寸變更處理時發生錯誤: {e}")
+            print(traceback.format_exc())
+    
+    def dealloc(self):
+        """釋放資源"""
+        # 移除通知觀察者
+        NSNotificationCenter.defaultCenter().removeObserver_(self)
+        objc.super(SidebarView, self).dealloc()
     
     def searchFieldAction_(self, sender):
         """處理輸入框的回調函數 / Callback function for the input field"""
