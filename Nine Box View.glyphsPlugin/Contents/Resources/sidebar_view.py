@@ -234,17 +234,29 @@ class SidebarView(NSView):
             totalHeight = frame.size.height  # 側邊欄總高度
             frameWidth = frame.size.width  # 側邊欄寬度
             
-            # 計算各區塊的大小比例
-            titleHeight = 20  # 標題高度
-            buttonHeight = 30  # 按鈕高度
-            fieldHeight = 24  # 單個鎖定輸入框高度
+            # 計算各區塊的大小比例（使用相對尺寸）
+            titleHeightRatio = 0.04  # 標題高度佔總高度的比例
+            buttonHeightRatio = 0.06  # 按鈕高度佔總高度的比例
+            lockFieldHeightRatio = 0.05  # 鎖定輸入框高度佔總高度的比例
             
-            # 各元素間距
-            sectionSpacing = 15  # 主要區塊之間的間距
-            elementSpacing = 10  # 元素之間的間距
+            # 計算實際尺寸（但設定最小值避免過小）
+            titleHeight = max(20, totalHeight * titleHeightRatio)
+            buttonHeight = max(24, totalHeight * buttonHeightRatio)
+            fieldHeight = max(20, totalHeight * lockFieldHeightRatio)
+            
+            # 各元素間距（也使用相對尺寸）
+            sectionSpacingRatio = 0.025  # 主要區塊間距佔總高度的比例
+            elementSpacingRatio = 0.02  # 元素間距佔總高度的比例
+            
+            # 計算實際間距（但設定最小值避免過小）
+            sectionSpacing = max(10, totalHeight * sectionSpacingRatio)
+            elementSpacing = max(8, totalHeight * elementSpacingRatio)
+            
+            # 確保上邊距也是相對的
+            topMarginRatio = 0.02  # 頂部間距佔總高度的比例
+            topMargin = max(8, totalHeight * topMarginRatio)
             
             # === 第一部分：標題區域（頂部） ===
-            topMargin = 10  # 頂部間距
             
             # 鎖定字符標題 - 位於頂部
             titleRect = NSMakeRect(
@@ -296,32 +308,86 @@ class SidebarView(NSView):
             # 計算九宮格區域的頂部位置（在按鈕下方加上間距）
             lockFieldsTopY = buttonsY - sectionSpacing
             
+            # 計算鎖定字符區域所佔用的空間比例
+            lockFieldsHeightRatio = 0.38  # 整個鎖定字符區域佔總高度的最大比例
+            
+            # 根據可用空間計算實際高度（但不超過最大比例）
+            availableHeightForLockFields = min(
+                lockFieldsTopY - (margin * 2), 
+                totalHeight * lockFieldsHeightRatio
+            )
+            
+            # 根據可用空間重新計算字段高度和間距
+            # 總共需要3行輸入框和2個間距
+            numRows = 3
+            numSpaces = 2
+            
+            # 設定理想尺寸（與原始設計一致）
+            idealFieldHeight = 24  # 原始設計中的輸入框高度
+            idealSmallMargin = 8   # 原始設計中的間距
+            
+            # 分配可用空間，但優先使用理想尺寸
+            if availableHeightForLockFields >= (idealFieldHeight * numRows + idealSmallMargin * numSpaces):
+                # 空間充足，使用理想尺寸
+                fieldHeight = idealFieldHeight
+                smallMargin = idealSmallMargin
+            else:
+                # 空間不足，按比例縮小
+                # 根據比例分配高度和間距
+                fieldHeight = availableHeightForLockFields * 0.8 / numRows  # 高度佔80%
+                smallMargin = availableHeightForLockFields * 0.2 / numSpaces  # 間距佔20%
+                
+                # 確保最小尺寸
+                fieldHeight = max(16, fieldHeight)
+                smallMargin = max(3, smallMargin)
+            
             # 計算九宮格區域的整體高度
-            smallMargin = 8  # 輸入框之間的間距
-            totalFieldsHeight = 3 * fieldHeight + 2 * smallMargin
+            totalFieldsHeight = numRows * fieldHeight + numSpaces * smallMargin
             
             # 計算九宮格區域的底部位置
             lockFieldsBottomY = lockFieldsTopY - totalFieldsHeight
             
-            # 九宮格區域的位置分布 - 按照九宮格周圍順序
+            # 計算每個單元格的寬度和橫向間距
+            totalCellsPerRow = 3  # 每行最多3個輸入框
+            horizontalSpaces = 2  # 每行2個水平間距
+            
+            # 理想的單元格寬度和間距
+            idealCellWidth = (frameWidth - margin * 2 - idealSmallMargin * 2) / 3  # 原始設計的寬度
+            idealHorizontalMargin = idealSmallMargin  # 使用相同的間距值
+            
+            # 可用寬度
+            availableWidth = frameWidth - margin * 2
+            
+            # 優先使用理想尺寸
+            if availableWidth >= (idealCellWidth * totalCellsPerRow + idealHorizontalMargin * horizontalSpaces):
+                # 空間充足，使用理想尺寸
+                cellWidth = idealCellWidth
+                horizontalMargin = idealHorizontalMargin
+            else:
+                # 空間不足，按比例縮小
+                cellWidth = availableWidth * 0.8 / totalCellsPerRow  # 單元格佔80%
+                horizontalMargin = availableWidth * 0.2 / horizontalSpaces  # 間距佔20%
+                
+                # 確保最小尺寸
+                cellWidth = max(35, cellWidth)
+                horizontalMargin = max(4, horizontalMargin)
+            
+            # 九宮格區域的位置分布 - 使用相對計算
             positions = [
                 # 上排三個 - 正確對應預覽畫面的上排
                 (margin, lockFieldsTopY - fieldHeight),
-                (margin + (frameWidth - margin * 2) / 3 + smallMargin, lockFieldsTopY - fieldHeight),
-                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight),
+                (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight),
+                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight),
                 
                 # 中排左右兩個
                 (margin, lockFieldsTopY - fieldHeight * 2 - smallMargin),
-                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight * 2 - smallMargin),
+                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 2 - smallMargin),
                 
                 # 下排三個 - 正確對應預覽畫面的下排
                 (margin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
-                (margin + (frameWidth - margin * 2) / 3 + smallMargin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
-                (margin + (frameWidth - margin * 2) / 3 * 2 + smallMargin * 2, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2)
+                (margin + cellWidth + horizontalMargin, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2),
+                (margin + cellWidth * 2 + horizontalMargin * 2, lockFieldsTopY - fieldHeight * 3 - smallMargin * 2)
             ]
-            
-            # 計算單個鎖定輸入框的寬度
-            fieldWidth = (frameWidth - margin * 2 - smallMargin * 2) / 3
             
             # 建立八個鎖定字符輸入框
             self.lockFields = {}  # 使用字典保存所有鎖定框的引用
@@ -329,7 +395,7 @@ class SidebarView(NSView):
                 fieldRect = NSMakeRect(
                     positions[i][0],  # x 座標
                     positions[i][1],  # y 座標
-                    fieldWidth,  # 寬度
+                    cellWidth,  # 寬度
                     fieldHeight  # 高度
                 )
                 lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(fieldRect, i, plugin)
@@ -356,6 +422,9 @@ class SidebarView(NSView):
             # 計算長文本輸入框的位置
             searchFieldTopY = lockFieldsBottomY - searchFieldTopMargin
             searchFieldHeight = searchFieldTopY - searchFieldBottomMargin
+            
+            # 確保最小高度
+            searchFieldHeight = max(40, searchFieldHeight)
             
             # 搜尋欄位 - 位於底部
             searchFieldRect = NSMakeRect(
