@@ -20,7 +20,7 @@ import traceback
 try:
     import objc
     from Foundation import NSObject, NSNotificationCenter, NSUserDefaultsDidChangeNotification
-    from AppKit import NSMenuItem, NSUserDefaults
+    from AppKit import NSMenuItem, NSUserDefaults, NSTextField
     from GlyphsApp import *
     from GlyphsApp.plugins import *
     
@@ -163,7 +163,7 @@ try:
                     # 這個檢查是為了補充 windowController.redraw() 中的檢查
                     # 因為有時候更新可能不是通過 redraw() 觸發的
                     
-                    should_update = True  # 預設允許更新
+                    should_update = True  # 預設允許更新，除非明確來自鎖定輸入框
                     
                     # 檢查是否是從長文本輸入框調用 - 使用 sender 參數區分來源
                     # 長文本輸入框調用時總是允許更新
@@ -173,23 +173,38 @@ try:
                                            hasattr(self.windowController.sidebarView, 'searchField') and
                                            sender == self.windowController.sidebarView.searchField)
                     
-                    # 如果是從長文本輸入框調用，則直接允許更新
+                    # 檢查是否是從鎖定輸入框調用
+                    is_from_lock_field = (sender is not None and hasattr(sender, 'isKindOfClass_') and 
+                                         sender.isKindOfClass_(NSTextField) and
+                                         hasattr(sender, 'position'))  # 鎖定輸入框有 position 屬性
+                                         
                     if is_from_search_field:
+                        # 來自長文本輸入框的更新始終允許
                         should_update = True
                         print("來自長文本輸入框的更新 - 始終允許")
-                    else:
-                        # 否則，檢查鎖頭狀態 - 只在側邊欄可見且鎖頭處於上鎖狀態時更新預覽
+                    elif is_from_lock_field:
+                        # 鎖定輸入框需要根據鎖頭狀態決定
+                        is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
+                        
                         if (hasattr(self.windowController, 'sidebarView') and 
                             self.windowController.sidebarView and 
-                            not self.windowController.sidebarView.isHidden() and
                             hasattr(self.windowController.sidebarView, 'isInClearMode')):
                             
-                            # 鎖頭處於解鎖狀態 (isInClearMode = True) 時不更新預覽
-                            if self.windowController.sidebarView.isInClearMode:
-                                should_update = False
-                                print("更新介面：鎖頭處於解鎖狀態，預覽畫面不更新")
+                            # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
+                            # True = 解鎖狀態（輸入框和預覽不關聯）
+                            is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                            
+                            # 只有在鎖頭上鎖狀態（False）時才允許更新預覽
+                            if not is_in_clear_mode:
+                                should_update = True
+                                print("鎖定輸入框更新：鎖頭處於上鎖狀態 - 允許更新預覽")
                             else:
-                                print("更新介面：鎖頭處於上鎖狀態，預覽畫面已更新")
+                                should_update = False
+                                print("鎖定輸入框更新：鎖頭處於解鎖狀態 - 不更新預覽")
+                    else:
+                        # 來自其他位置的更新（如編輯畫面）始終允許
+                        should_update = True
+                        print("來自其他來源的更新 - 始終允許")
                     
                     # 重繪介面 / Redraw interface - 只在允許更新時呼叫
                     if should_update and hasattr(self.windowController, 'redraw'):
@@ -287,12 +302,14 @@ try:
                 input_text = sender.stringValue()  # 不要 strip，保留原始輸入
                 
                 if not input_text:
-                    # 空輸入直接返回，不做任何處理
+                    # 空輸入時，無論鎖頭狀態如何，都清除該位置的鎖定
+                    if position in self.lockedChars:
+                        del self.lockedChars[position]
+                        print(f"位置 {position} 的鎖定已清除（空輸入）")
+                        self.savePreferences()
                     return
                 
-                # 先檢查鎖頭狀態：只有在鎖頭上鎖狀態（輸入框和預覽畫面關聯時）才允許更新預覽
-                # 檢查 windowController 和 sidebarView 是否存在
-                should_update_preview = False
+                # 先檢查鎖頭狀態
                 is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
                 
                 if (hasattr(self, 'windowController') and self.windowController and 
@@ -303,11 +320,19 @@ try:
                     # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
                     # True = 解鎖狀態（輸入框和預覽不關聯）
                     is_in_clear_mode = self.windowController.sidebarView.isInClearMode
-                    if not is_in_clear_mode:
-                        should_update_preview = True
-                        print(f"鎖頭處於上鎖狀態 - 允許更新預覽")
-                    else:
-                        print(f"鎖頭處於解鎖狀態 - 不更新預覽")
+                    
+                    # 解鎖狀態下，不進行任何鎖定相關操作
+                    if is_in_clear_mode:
+                        print(f"鎖頭處於解鎖狀態 - 忽略鎖定輸入框的輸入")
+                        return
+                    
+                    print(f"鎖頭處於上鎖狀態 - 允許鎖定操作")
+                else:
+                    # 如果無法確定鎖頭狀態，為安全起見，不進行任何操作
+                    print(f"無法確定鎖頭狀態 - 為安全起見，不進行任何鎖定操作")
+                    return
+                
+                # 只有在鎖頭上鎖狀態下才執行下面的鎖定邏輯
                 
                 # 智能辨識邏輯（優先級順序）：
                 recognized_char = None
@@ -346,44 +371,22 @@ try:
                 if recognized_char:
                     # 檢查是否真的變更了，避免不必要的更新
                     if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
-                        # 更新鎖定字典 - 無論鎖頭狀態如何，都要更新字典
+                        # 更新鎖定字典
                         self.lockedChars[position] = recognized_char
                         
-                        # 只有當鎖頭處於上鎖狀態時，才更新當前排列中的字符
-                        if should_update_preview and hasattr(self, 'currentArrangement') and self.currentArrangement:
+                        # 更新當前排列中的字符
+                        if hasattr(self, 'currentArrangement') and self.currentArrangement:
                             if position < len(self.currentArrangement):
-                                # 只在鎖頭上鎖時更新排列
                                 self.currentArrangement[position] = recognized_char
                                 print(f"位置 {position} 已更新字符為 '{recognized_char}'")
-                        # 關鍵修改：在解鎖狀態下，確保 currentArrangement 不包含鎖定信息
-                        elif not should_update_preview and hasattr(self, 'currentArrangement') and self.currentArrangement:
-                            # 檢查是否存在 currentArrangement 且位置有效
-                            if position < len(self.currentArrangement) and hasattr(self, 'selectedChars') and self.selectedChars:
-                                # 確保該位置不使用鎖定字符
-                                import random
-                                # 取一個隨機字符替換，確保不是當前被鎖定的字符
-                                available_chars = [c for c in self.selectedChars if c != recognized_char]
-                                if available_chars:
-                                    random_char = random.choice(available_chars)
-                                else:
-                                    # 如果沒有其他可用字符，仍使用第一個字符
-                                    random_char = self.selectedChars[0] if self.selectedChars else recognized_char
-                                
-                                if self.currentArrangement[position] == recognized_char:
-                                    # 只有當當前排列中的字符等於被鎖定的字符時才替換
-                                    self.currentArrangement[position] = random_char
-                                    print(f"解鎖狀態：位置 {position} 的字符已從 '{recognized_char}' 替換為 '{random_char}'")
                         
-                        # 總是儲存偏好設定，無論鎖頭狀態如何
+                        # 儲存偏好設定
                         self.savePreferences()
                         
-                        # 但只在鎖頭上鎖時更新預覽畫面
-                        if should_update_preview:
-                            print("鎖頭上鎖 - 更新預覽畫面")
-                            self.updateInterface(None)
-                        else:
-                            print("鎖頭解鎖 - 預覽畫面不更新")
-                    
+                        # 更新預覽畫面
+                        print("鎖頭上鎖 - 更新預覽畫面")
+                        self.updateInterface(sender)  # 將 sender 傳遞過去，使 updateInterface 可以識別來源
+            
             except Exception as e:
                 print(f"智能鎖定字符處理時發生錯誤: {e}")
                 print(traceback.format_exc())

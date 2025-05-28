@@ -326,23 +326,10 @@ class NineBoxWindow(NSWindowController):
                 contentView = self.window().contentView()
                 contentSize = contentView.frame().size
                 
-                # 檢查是否應該更新預覽視圖 - 只在鎖頭上鎖狀態才更新
-                should_update_preview = True  # 預設允許更新
-                
-                # 檢查鎖頭狀態 - 只有當側邊欄可見、且存在 sidebarView 和 isInClearMode 屬性時才檢查
-                if (hasattr(self, 'sidebarView') and self.sidebarView and 
-                    not self.sidebarView.isHidden() and 
-                    hasattr(self.sidebarView, 'isInClearMode')):
-                    
-                    # 只有當鎖頭處於上鎖狀態時，才允許更新預覽
-                    # 鎖頭上鎖狀態為 isInClearMode == False，意味著下一次動作是「解除鎖定」
-                    if self.sidebarView.isInClearMode:
-                        # 處於解鎖模式，不更新預覽畫面
-                        should_update_preview = False
-                        print("重繪：鎖頭處於解鎖狀態，預覽畫面不更新")
-                    else:
-                        # 處於上鎖模式，更新預覽畫面
-                        print("重繪：鎖頭處於上鎖狀態，預覽畫面已更新")
+                # 始終允許更新預覽畫面 - 此方法已不檢查鎖頭狀態
+                # 鎖頭狀態的檢查已移至 plugin.py 的 updateInterface 方法中
+                # 只有明確來自鎖定輸入框的更新會在那裡被過濾
+                should_update_preview = True
                 
                 # 調整側邊欄位置 / Adjust sidebar position
                 if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
@@ -358,9 +345,9 @@ class NineBoxWindow(NSWindowController):
                     # 總是更新視圖尺寸 - 這不影響內容，只是更新位置和大小
                     self.previewView.setFrame_(NSMakeRect(0, 0, previewWidth, contentSize.height))
                     
-                    # 但只在鎖頭上鎖時重繪預覽內容
-                    if should_update_preview:
-                        self.previewView.setNeedsDisplay_(True)
+                    # 始終更新預覽內容
+                    self.previewView.setNeedsDisplay_(True)
+                    print("重繪：已更新預覽畫面")
                 
                 # 更新側邊欄搜尋欄位 / Update sidebar search field
                 if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
@@ -437,29 +424,12 @@ class NineBoxWindow(NSWindowController):
             # 檢查是否變更了深色模式設定
             currentDarkMode = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
             
-            # 如果視窗存在並可見，只重新繪製預覽介面
+            # 如果視窗存在並可見，重新繪製預覽介面
             if self.window() and self.window().isVisible():
-                # 檢查鎖頭狀態 - 只在鎖頭上鎖狀態才更新預覽
-                should_update_preview = True  # 預設允許更新
-                
-                # 檢查鎖頭狀態 - 只有當側邊欄可見、且存在 sidebarView 和 isInClearMode 屬性時才檢查
-                if (hasattr(self, 'sidebarView') and self.sidebarView and 
-                    not self.sidebarView.isHidden() and 
-                    hasattr(self.sidebarView, 'isInClearMode')):
-                    
-                    # 只有當鎖頭處於上鎖狀態時，才允許更新預覽
-                    # 鎖頭上鎖狀態為 isInClearMode == False，意味著下一次動作是「解除鎖定」
-                    if self.sidebarView.isInClearMode:
-                        # 處於解鎖模式，不更新預覽畫面
-                        should_update_preview = False
-                        print("UserDefaults變更：鎖頭處於解鎖狀態，預覽畫面不更新")
-                    else:
-                        # 處於上鎖模式，更新預覽畫面
-                        print("UserDefaults變更：鎖頭處於上鎖狀態，預覽畫面已更新")
-                
-                # 重繪預覽視圖 - 只在鎖頭上鎖時更新
-                if hasattr(self, 'previewView') and self.previewView and should_update_preview:
+                # 偏好設定變更時始終更新預覽畫面，不考慮鎖頭狀態
+                if hasattr(self, 'previewView') and self.previewView:
                     self.previewView.setNeedsDisplay_(True)
+                    print("偏好設定變更：已更新預覽畫面")
         except Exception as e:
             print(f"處理 NSUserDefaults 變更通知時發生錯誤: {e}")
-            print(traceback.format_exc()) 
+            print(traceback.format_exc())

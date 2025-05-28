@@ -185,9 +185,33 @@ class LockCharacterField(NSTextField):
             # 獲取當前輸入內容
             input_text = self.stringValue()
             
+            # 檢查鎖頭狀態
+            is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
+            
+            if (hasattr(self, 'plugin') and hasattr(self.plugin, 'windowController') and 
+                self.plugin.windowController and 
+                hasattr(self.plugin.windowController, 'sidebarView') and 
+                self.plugin.windowController.sidebarView and 
+                hasattr(self.plugin.windowController.sidebarView, 'isInClearMode')):
+                
+                # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
+                # True = 解鎖狀態（輸入框和預覽不關聯）
+                is_in_clear_mode = self.plugin.windowController.sidebarView.isInClearMode
+                
+                # 在解鎖狀態下，直接返回，不處理任何鎖定相關邏輯
+                if is_in_clear_mode:
+                    print(f"鎖頭處於解鎖狀態 - 忽略鎖定輸入框的變更")
+                    return
+            else:
+                # 如果無法確定鎖頭狀態，為安全起見不做任何處理
+                print(f"無法確定鎖頭狀態 - 為安全起見，不處理輸入框變更")
+                return
+            
+            # 只在鎖頭上鎖狀態下執行以下代碼
+            
             # 如果輸入為空，直接處理清空事件
             if not input_text:
-                # 直接在這裡處理清空邏輯，不再調用已移除的 handleLockFieldCleared
+                # 直接在這裡處理清空邏輯
                 if hasattr(self, 'plugin') and hasattr(self.plugin, 'lockedChars'):
                     position = self.position
                     
@@ -196,53 +220,21 @@ class LockCharacterField(NSTextField):
                         del self.plugin.lockedChars[position]
                         print(f"已移除位置 {position} 的鎖定")
                     
-                    # 檢查鎖頭狀態：只有在鎖頭上鎖狀態（輸入框和預覽畫面關聯時）才更新預覽
-                    should_update_preview = False
+                    # 儲存偏好設定
+                    if hasattr(self.plugin, 'savePreferences'):
+                        self.plugin.savePreferences()
                     
-                    if (hasattr(self.plugin, 'windowController') and self.plugin.windowController and 
-                        hasattr(self.plugin.windowController, 'sidebarView') and 
-                        self.plugin.windowController.sidebarView and 
-                        hasattr(self.plugin.windowController.sidebarView, 'isInClearMode')):
-                        
-                        # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
-                        # True = 解鎖狀態（輸入框和預覽不關聯）
-                        if not self.plugin.windowController.sidebarView.isInClearMode:
-                            should_update_preview = True
-                            print(f"預覽畫面已更新 - 鎖頭處於上鎖狀態")
-                        else:
-                            print(f"預覽畫面未更新 - 鎖頭處於解鎖狀態")
-                    
-                    # 只有當鎖頭處於上鎖狀態時，才更新當前排列中的字符
-                    if should_update_preview and hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
-                        if position < len(self.plugin.currentArrangement) and hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                            # 使用隨機字符替換
-                            import random
-                            random_char = random.choice(self.plugin.selectedChars)
-                            self.plugin.currentArrangement[position] = random_char
-                            print(f"位置 {position} 已使用隨機字符 '{random_char}' 替換")
-                    
-                    # 總是儲存偏好設定，無論鎖頭狀態如何
-                    self.plugin.savePreferences()
-                    
-                    # 但只在鎖頭上鎖時更新預覽畫面
-                    if should_update_preview:
-                        self.plugin.updateInterface(None)
-                    else:
-                        print("因鎖頭解鎖，預覽畫面未更新")
-                
-                # 確保欄位保持為空
-                self.setStringValue_("")
-                return
+                    # 更新預覽畫面
+                    print(f"鎖頭處於上鎖狀態 - 允許更新預覽畫面")
+                    if hasattr(self.plugin, 'updateInterface'):
+                        self.plugin.updateInterface(self)
             
-            # 檢查鎖頭狀態，根據狀態決定是否需要調用 smartLockCharacterCallback
-            # 在解鎖狀態下，仍然允許修改鎖定字典，但不會觸發預覽更新
-            # 注意：plugin.smartLockCharacterCallback 已經有檢查鎖頭狀態的邏輯
+            # 調用智能鎖定回調函數
             if hasattr(self, 'plugin') and hasattr(self.plugin, 'smartLockCharacterCallback'):
-                # 我們繼續調用回調函數，但讓回調函數內部邏輯決定是否更新預覽
                 self.plugin.smartLockCharacterCallback(self)
-            
+        
         except Exception as e:
-            print(f"處理文本變更時發生錯誤: {e}")
+            print(f"處理鎖定輸入框變更時發生錯誤: {e}")
             print(traceback.format_exc())
     
     def dealloc(self):
