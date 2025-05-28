@@ -491,37 +491,11 @@ try:
                 is_in_clear_mode = self.windowController.sidebarView.isInClearMode
                 print(f"亂數排列按鈕：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態")
             
-            # 在解鎖狀態下，確保完全不受鎖定字元影響
-            if is_in_clear_mode:
-                # 在解鎖狀態下，先生成完全不含鎖定字元的新排列
-                print("解鎖狀態：生成完全不含鎖定字元的新排列")
-                
-                # 直接生成新的隨機排列，不通過 generateNewArrangement 函數
-                import random
-                # 決定要生成多少字符
-                arrangement_size = 9
-                new_arrangement = []
-                
-                # 選擇字符並生成排列
-                for _ in range(arrangement_size):
-                    if self.selectedChars:
-                        # 從 selectedChars 中隨機選擇一個字符
-                        char = random.choice(self.selectedChars)
-                        new_arrangement.append(char)
-                    else:
-                        # 若無選擇字符，加入空白
-                        new_arrangement.append("")
-                
-                # 直接使用新排列，不套用任何鎖定字元
-                self.currentArrangement = new_arrangement
-                print("解鎖狀態下生成的完全隨機排列：", new_arrangement)
-                
-                # 保存偏好設定
-                self.savePreferences()
-            else:
-                # 在上鎖狀態下，使用標準的 generateNewArrangement 函數
-                print("上鎖狀態：使用標準的排列生成邏輯")
-                self.generateNewArrangement()
+            # 添加強制重排的標記，確保即使在鎖頭鎖定狀態下也能重新排列
+            self.force_randomize = True
+            
+            # 調用 generateNewArrangement 函數以確保每個字符至少出現一次
+            self.generateNewArrangement()
             
             # 更新介面 - 使用強制更新方法，忽略鎖頭狀態
             if hasattr(self, 'windowController') and self.windowController:
@@ -535,6 +509,9 @@ try:
             else:
                 # 如果窗口控制器不存在，仍使用標準方法
                 self.updateInterface(None)
+            
+            # 重置強制重排標記
+            self.force_randomize = False
 
         @objc.python_method
         def generateNewArrangement(self):
@@ -560,66 +537,159 @@ try:
                 should_apply_locks = not is_in_clear_mode
                 print(f"亂數排列：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態，{'不' if is_in_clear_mode else ''}應用鎖定字符")
             
+            # 檢查是否為強制重排（由 randomizeCallback 設置）
+            force_randomize = hasattr(self, 'force_randomize') and self.force_randomize
+            if force_randomize:
+                print("檢測到強制重排標記 - 即使鎖頭鎖定也將重新排列非鎖定位置")
+            
             # 根據鎖頭狀態使用不同的邏輯
             if is_in_clear_mode:
                 # 解鎖狀態：完全不使用鎖定字符
                 print("解鎖狀態：完全不使用鎖定字符")
                 
-                # 產生新的隨機排列
+                # 產生新的隨機排列，確保每個字符至少出現一次
                 import random
                 arrangement_size = 9
                 new_arrangement = []
                 
-                # 選擇字符並生成排列
-                for _ in range(arrangement_size):
-                    if self.selectedChars:
-                        # 從 selectedChars 中隨機選擇一個字符
-                        char = random.choice(self.selectedChars)
-                        new_arrangement.append(char)
-                    else:
-                        # 若無選擇字符，加入空白
-                        new_arrangement.append("")
+                # 1. 首先確保每個選擇的字符至少出現一次
+                # 創建字符列表的副本
+                chars_to_include = list(self.selectedChars)
+                
+                # 如果字符數量少於9，則重複字符直到達到9個
+                while len(chars_to_include) < arrangement_size:
+                    chars_to_include.extend(self.selectedChars[:arrangement_size - len(chars_to_include)])
+                
+                # 如果字符數量超過9，則隨機選擇9個（但確保每個字符至少選一次）
+                if len(chars_to_include) > arrangement_size:
+                    # 先選擇每個字符各一次
+                    unique_chars = list(set(self.selectedChars))
+                    # 確保不超過九宮格大小
+                    if len(unique_chars) > arrangement_size:
+                        unique_chars = random.sample(unique_chars, arrangement_size)
+                    
+                    # 把這些字符加入排列
+                    new_arrangement = unique_chars.copy()
+                    
+                    # 如果還有空位，則從原始列表中隨機選擇填充
+                    while len(new_arrangement) < arrangement_size:
+                        new_arrangement.append(random.choice(self.selectedChars))
+                else:
+                    # 字符數量剛好，打亂順序後使用
+                    new_arrangement = chars_to_include.copy()
+                
+                # 最後打亂整個排列的順序
+                random.shuffle(new_arrangement)
                 
                 # 直接使用新排列，不套用任何鎖定字元
                 self.currentArrangement = new_arrangement
-                print("解鎖狀態下生成的完全隨機排列")
+                print(f"解鎖狀態下生成的排列，確保每個字符至少出現一次: {new_arrangement}")
             else:
-                # 上鎖狀態：使用原有邏輯，應用鎖定字符
-                print("上鎖狀態：應用鎖定字符")
+                # 上鎖狀態：先生成排列，然後應用鎖定字符，同時確保每個字符至少出現一次
+                print("上鎖狀態：應用鎖定字符，但確保每個字符至少出現一次")
                 
-                # 產生新的隨機排列 / Generate a new random arrangement
-                new_arrangement = self.generate_arrangement(self.selectedChars, 8)
+                import random
+                arrangement_size = 9
                 
-                # 應用鎖定字符設定 / Apply locked characters
+                # 無論是否有強制重排標記，都先生成一個完全新的基礎排列
+                # 這確保每次點擊亂數排列按鈕時，至少非鎖定位置的字符會被重新隨機化
+                chars_to_include = list(self.selectedChars)
+                while len(chars_to_include) < arrangement_size:
+                    chars_to_include.extend(self.selectedChars[:arrangement_size - len(chars_to_include)])
+                
+                if len(chars_to_include) > arrangement_size:
+                    unique_chars = list(set(self.selectedChars))
+                    if len(unique_chars) > arrangement_size:
+                        unique_chars = random.sample(unique_chars, arrangement_size)
+                    base_arrangement = unique_chars.copy()
+                    while len(base_arrangement) < arrangement_size:
+                        base_arrangement.append(random.choice(self.selectedChars))
+                else:
+                    base_arrangement = chars_to_include.copy()
+                
+                # 每次都打亂順序，確保不會重複前一次的排列
+                random.shuffle(base_arrangement)
+                new_arrangement = list(base_arrangement)  # 複製一份基礎排列
+                
+                # 初始化鎖定位置的列表，用於追蹤有效和無效的鎖定
+                valid_locked_positions = []
+                invalid_locked_positions = []
+                
+                # 應用鎖定字符，但先檢查字符有效性
                 if hasattr(self, 'lockedChars') and self.lockedChars:
                     print("應用鎖定字符到排列中")
-                    # 複製一份新排列，以便修改
-                    self.currentArrangement = list(new_arrangement)
                     
                     # 將鎖定的字符應用到排列中
                     for position, char_or_name in self.lockedChars.items():
-                        if position < len(self.currentArrangement):
+                        if position < arrangement_size:
                             # 確保鎖定的字符/Nice Name 存在於字型中
                             glyph = Glyphs.font.glyphs[char_or_name]
                             if glyph:
-                                self.currentArrangement[position] = char_or_name
+                                new_arrangement[position] = char_or_name
+                                valid_locked_positions.append(position)
                                 print(f"位置 {position} 已套用鎖定字符 '{char_or_name}'")
                             else:
                                 # 如果字符不存在，移除鎖定
-                                if position in self.lockedChars:
-                                    del self.lockedChars[position]
-                                    # 如果是視窗已存在，則同步更新輸入框
-                                    if hasattr(self, 'windowController') and self.windowController:
-                                        if (hasattr(self.windowController, 'sidebarView') and 
-                                            self.windowController.sidebarView and 
-                                            not self.windowController.sidebarView.isHidden() and
-                                            hasattr(self.windowController.sidebarView, 'lockFields') and
-                                            position in self.windowController.sidebarView.lockFields):
-                                            self.windowController.sidebarView.lockFields[position].setStringValue_("")
-                else:
-                    # 沒有鎖定字符，直接使用新的隨機排列
-                    print("無鎖定字符，使用純隨機排列")
-                    self.currentArrangement = new_arrangement
+                                invalid_locked_positions.append(position)
+                                print(f"位置 {position} 的鎖定字符 '{char_or_name}' 無效，將被移除")
+                
+                # 處理無效鎖定
+                for position in invalid_locked_positions:
+                    if position in self.lockedChars:
+                        del self.lockedChars[position]
+                        # 如果是視窗已存在，則同步更新輸入框
+                        if hasattr(self, 'windowController') and self.windowController:
+                            if (hasattr(self.windowController, 'sidebarView') and 
+                                self.windowController.sidebarView and 
+                                not self.windowController.sidebarView.isHidden() and
+                                hasattr(self.windowController.sidebarView, 'lockFields') and
+                                position in self.windowController.sidebarView.lockFields):
+                                self.windowController.sidebarView.lockFields[position].setStringValue_("")
+                
+                # 確保每個選定的字符至少出現一次（如果可能）
+                if valid_locked_positions:
+                    # 檢查哪些字符已經在鎖定位置中使用
+                    locked_chars_used = [new_arrangement[pos] for pos in valid_locked_positions]
+                    
+                    # 找出還未在鎖定字符中使用的字符
+                    remaining_chars = [char for char in set(self.selectedChars) if char not in locked_chars_used]
+                    
+                    # 找出可用的位置（非鎖定位置）
+                    available_positions = [i for i in range(arrangement_size) if i not in valid_locked_positions]
+                    
+                    # 確保每個剩餘字符至少出現一次（如果空間允許）
+                    if remaining_chars and available_positions:
+                        # 如果剩餘位置不足以容納所有未使用字符，則隨機選擇部分字符
+                        if len(remaining_chars) > len(available_positions):
+                            # 每次強制生成新的隨機選擇，確保連續點擊時排列變化
+                            chars_to_use = random.sample(remaining_chars, len(available_positions))
+                            for i, pos in enumerate(available_positions):
+                                new_arrangement[pos] = chars_to_use[i]
+                        else:
+                            # 首先確保每個剩餘字符至少出現一次
+                            for i, char in enumerate(remaining_chars):
+                                if i < len(available_positions):
+                                    new_arrangement[available_positions[i]] = char
+                            
+                            # 如果還有空位，則從所有字符中隨機選擇填充
+                            remaining_positions = available_positions[len(remaining_chars):]
+                            
+                            # 每次強制生成新的隨機選擇，確保連續點擊時排列變化
+                            for pos in remaining_positions:
+                                new_arrangement[pos] = random.choice(self.selectedChars)
+                    
+                    # 如果強制重排，確保非鎖定位置的字符順序被打亂
+                    if force_randomize and available_positions:
+                        # 提取非鎖定位置的當前字符
+                        non_locked_chars = [new_arrangement[pos] for pos in available_positions]
+                        # 打亂這些字符
+                        random.shuffle(non_locked_chars)
+                        # 將打亂後的字符放回非鎖定位置
+                        for i, pos in enumerate(available_positions):
+                            new_arrangement[pos] = non_locked_chars[i]
+                
+                self.currentArrangement = new_arrangement
+                print(f"上鎖狀態下生成的排列，確保每個字符至少出現一次: {new_arrangement}")
             
             # 儲存偏好設定，無論鎖頭狀態如何
             self.savePreferences()  # 儲存偏好設定 / Save preferences
