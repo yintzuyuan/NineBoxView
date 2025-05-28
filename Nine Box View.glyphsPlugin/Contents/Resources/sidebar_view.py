@@ -120,7 +120,7 @@ class LockCharacterField(NSTextField):
             self.setEditable_(True)
             
             # 關鍵修改：設置為可接受多行輸入
-            self.setUsesSingleLineMode_(False)
+            self.setUsesSingleLineMode_(True)
             
             # 設置居中對齊
             self.setAlignment_(NSCenterTextAlignment)
