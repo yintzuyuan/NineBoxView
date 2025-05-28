@@ -121,13 +121,24 @@ try:
             """切換視窗的顯示狀態 / Toggle the visibility of the window"""
 
             try:
+                # 確保偏好設定已經載入
+                self.loadPreferences()
+                
                 # 如果視窗不存在，則建立 / If window doesn't exist, create it
                 if self.windowController is None:
+                    # 在建立視窗前，確保字符排列已經正確初始化
+                    # Ensure character arrangement is correctly initialized before creating the window
+                    if self.selectedChars and not self.currentArrangement:
+                        print("視窗初始化前產生新排列...")
+                        self.generateNewArrangement()
+                    
                     self.windowController = self.NineBoxWindow.alloc().initWithPlugin_(self)
                     
                 # 顯示視窗 / Show window
                 self.windowController.makeKeyAndOrderFront()
-                self.updateInterface(None)
+                
+                # 不再需要手動呼叫 updateInterface，因為 makeKeyAndOrderFront 中已經添加了完整初始化步驟
+                # 這有助於避免重複更新
             except Exception as e:
                 print(f"切換視窗時發生錯誤: {str(e)}")
                 print(traceback.format_exc())

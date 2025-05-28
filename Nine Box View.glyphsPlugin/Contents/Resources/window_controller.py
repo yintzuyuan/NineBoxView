@@ -53,6 +53,10 @@ class NineBoxWindow(NSWindowController):
             self.NineBoxPreviewView = NineBoxPreviewView
             self.SidebarView = SidebarView
             
+            # 先確保外掛的偏好設定已經載入
+            # Ensure plugin preferences are loaded first
+            plugin.loadPreferences()
+            
             # 載入上次儲存的視窗大小 / Load last saved window size
             from constants import WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, SIDEBAR_WIDTH
             self.SIDEBAR_WIDTH = SIDEBAR_WIDTH
@@ -148,8 +152,10 @@ class NineBoxWindow(NSWindowController):
                     panel
                 )
                 
-                # 如果有選取的字符但沒有排列，則生成新排列 / Generate a new arrangement if there are selected characters but no arrangement
+                # 確保有效的字符排列 / Ensure valid character arrangement
+                # 如果有選取的字符但沒有排列，則生成新排列
                 if plugin.selectedChars and not plugin.currentArrangement:
+                    print("視窗初始化時產生新排列...")
                     plugin.generateNewArrangement()
                 
                 # 如果側邊欄可見，則創建並顯示側邊欄
@@ -163,6 +169,10 @@ class NineBoxWindow(NSWindowController):
                     NSUserDefaultsDidChangeNotification,
                     None
                 )
+                
+                # 確保初始化時預覽視圖已更新
+                print("視窗初始化時更新預覽視圖...")
+                self.previewView.setNeedsDisplay_(True)
             
         except Exception as e:
             print(f"初始化視窗時發生錯誤: {e}")
@@ -308,6 +318,25 @@ class NineBoxWindow(NSWindowController):
         """
         if hasattr(self, 'window') and self.window():
             self.window().makeKeyAndOrderFront_(self)
+            
+            # 新增：初次顯示視窗時進行完整初始化
+            # 強制更新預覽畫面，確保正確載入之前儲存的所有狀態
+            if hasattr(self, 'previewView') and self.previewView:
+                print("視窗開啟時進行完整初始化...")
+                
+                # 1. 更新側邊欄中的字符輸入欄位
+                if hasattr(self, 'sidebarView') and self.sidebarView and not self.sidebarView.isHidden():
+                    self.sidebarView.updateSearchField()
+                    self.sidebarView.updateLockFields()
+                
+                # 2. 確保已儲存的排列被正確套用
+                if (hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and 
+                    hasattr(self.plugin, 'currentArrangement') and not self.plugin.currentArrangement):
+                    print("初始化時產生新排列...")
+                    self.plugin.generateNewArrangement()
+                
+                # 3. 強制更新預覽畫面，不受鎖頭狀態影響
+                self.redrawIgnoreLockState()
     
     def redraw(self):
         """

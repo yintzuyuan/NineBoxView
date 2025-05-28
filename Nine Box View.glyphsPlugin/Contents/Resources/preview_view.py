@@ -94,9 +94,21 @@ class NineBoxPreviewView(NSView):
                 return
 
             currentMaster = Glyphs.font.selectedFontMaster
-
+            
+            # === 確保字符資料有效 ===
+            # 確保 plugin.currentArrangement 是有效的
+            if (hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and 
+                (not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement)):
+                print("預覽畫面繪製前重新生成排列...")
+                self.plugin.generateNewArrangement()
+            
             # 使用目前的排列 / Use the current arrangement
             display_chars = self.plugin.currentArrangement if self.plugin.selectedChars else []
+            
+            # 額外檢查：如果有選擇的字符但 display_chars 仍為空，嘗試使用選擇的字符
+            if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and not display_chars:
+                print("警告：使用 selectedChars 作為備用顯示字符")
+                display_chars = self.plugin.selectedChars[:8]  # 使用前8個字符
 
             # === 設定基本尺寸 / Set basic sizes ===
             # 計算字符高度和邊距 / Calculate the character height and margin
