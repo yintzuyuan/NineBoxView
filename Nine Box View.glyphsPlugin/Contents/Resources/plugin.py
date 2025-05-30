@@ -222,6 +222,9 @@ try:
                     # 重繪介面 / Redraw interface - 只在允許更新時呼叫
                     if should_update and hasattr(self.windowController, 'redraw'):
                         self.windowController.redraw()
+                        # 同時更新控制面板
+                        if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                            self.windowController.request_controls_panel_ui_update()
             except Exception as e:
                 self.log_to_macro_window(f"更新介面時發生錯誤: {e}")
                 print(traceback.format_exc())
@@ -239,7 +242,8 @@ try:
                         self.windowController.controlsPanelView is not None and
                         hasattr(self.windowController, 'controlsPanelVisible') and
                         self.windowController.controlsPanelVisible):
-                        self.windowController.controlsPanelView.updateSearchField()
+                        # 更新整個控制面板UI，不只是搜尋欄位
+                        self.windowController.controlsPanelView.update_ui(self)
             except Exception as e:
                 print(f"選擇變更處理時發生錯誤: {e}")
                 print(traceback.format_exc())
@@ -283,6 +287,11 @@ try:
             # 長文本輸入框始終與預覽畫面關聯，無條件更新界面
             # 直接呼叫 updateInterfaceForSearchField 而非 updateInterface，確保長文本輸入框的更新不受鎖頭狀態影響
             self.updateInterfaceForSearchField(None)
+            
+            # 同時更新控制面板
+            if hasattr(self, 'windowController') and self.windowController:
+                if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                    self.windowController.request_controls_panel_ui_update()
 
         @objc.python_method
         def updateInterfaceForSearchField(self, sender):
@@ -400,6 +409,11 @@ try:
                         # 更新預覽畫面
                         print("鎖頭上鎖 - 更新預覽畫面")
                         self.updateInterface(sender)  # 將 sender 傳遞過去，使 updateInterface 可以識別來源
+                        
+                        # 同時更新控制面板
+                        if hasattr(self, 'windowController') and self.windowController:
+                            if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                                self.windowController.request_controls_panel_ui_update()
             
             except Exception as e:
                 print(f"智能鎖定字符處理時發生錯誤: {e}")

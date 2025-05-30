@@ -240,6 +240,9 @@ class ControlsPanelView(NSView):
             for subview in self.subviews():
                 subview.removeFromSuperview()
             
+            # 清除舊的鎖定欄位參照
+            self.lockFields = {}
+            
             # 獲取視圖尺寸
             bounds = self.bounds()
             width = bounds.size.width
@@ -423,6 +426,15 @@ class ControlsPanelView(NSView):
             # 更新搜尋欄位內容
             self.updateSearchField()
             
+            # 更新鎖定輸入框內容
+            if hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars:
+                for position, char_or_name in self.plugin.lockedChars.items():
+                    if position in self.lockFields:
+                        self.lockFields[position].setStringValue_(char_or_name)
+            
+            # 確保視窗可以接受輸入
+            # 但不要在這裡強制設定 first responder，由視窗控制器處理
+            
         except Exception as e:
             print(f"設定UI時發生錯誤: {e}")
             print(traceback.format_exc())
@@ -499,17 +511,27 @@ class ControlsPanelView(NSView):
     def update_ui(self, plugin_state):
         """根據外掛狀態更新UI元素"""
         try:
+            print("更新控制面板 UI...")
+            
             # 更新搜尋欄位
-            if hasattr(plugin_state, 'lastInput'):
-                self.searchField.setStringValue_(plugin_state.lastInput or "")
+            if hasattr(plugin_state, 'lastInput') and hasattr(self, 'searchField'):
+                input_value = plugin_state.lastInput or ""
+                self.searchField.setStringValue_(input_value)
+                print(f"更新搜尋欄位: '{input_value}'")
             
             # 更新鎖定輸入框
-            if hasattr(plugin_state, 'lockedChars'):
+            if hasattr(plugin_state, 'lockedChars') and hasattr(self, 'lockFields'):
+                print(f"更新鎖定欄位: {plugin_state.lockedChars}")
                 for position, field in self.lockFields.items():
                     if position in plugin_state.lockedChars:
-                        field.setStringValue_(plugin_state.lockedChars[position])
+                        char_value = plugin_state.lockedChars[position]
+                        field.setStringValue_(char_value)
+                        print(f"  位置 {position}: '{char_value}'")
                     else:
                         field.setStringValue_("")
+            
+            # 確保視圖重新顯示
+            self.setNeedsDisplay_(True)
             
         except Exception as e:
             print(f"更新UI時發生錯誤: {e}")

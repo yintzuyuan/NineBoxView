@@ -5,9 +5,9 @@ alwaysApply: true
 ---
 ## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.4 (即時更新優化版)
 
-**文件版本:** 1.4
-**日期:** 2025-01-27
-**變更摘要:** 修正初次開啟工具視窗和更動視窗尺寸時的即時更新機制，確保預覽畫面能夠立即反映變更。
+**文件版本:** 1.5
+**日期:** 2025-05-31
+**變更摘要:** 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
 
 ### 1. 系統架構 (System Architecture)
 
@@ -91,6 +91,7 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
     * `styleMask`: 設定為不包含 `NSTitledWindowMask`，例如 `NSWindowStyleMaskUtilityWindow | NSWindowStyleMaskBorderless` 或 `NSWindowStyleMaskHUDWindow` (若適用其外觀)。
     * `floatingPanel`: 可能設為 `True`。
     * `hidesOnDeactivate`: 根據需求設定。
+    * **重要：** 必須設定 `canBecomeKeyWindow` 為 `True`，並覆寫 `canBecomeKeyWindow` 方法返回 `True`，以確保控制面板可以接受鍵盤輸入。
 * **高度同步:**
     * 主視窗控制器監聽自身 `NSWindowDidResizeNotification`。
     * 獲取主視窗新的 `contentView.frame.size.height`。
@@ -106,10 +107,16 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
     * 在 `initWithPlugin_` 中創建預覽視圖後立即設置正確框架並觸發初始重繪。
     * 在 `makeKeyAndOrderFront` 中除了調用 `updateInterface` 外，額外觸發 `setNeedsDisplay_(True)`。
     * 確保視窗初次顯示時預覽內容立即可見。
+    * **新增：** 確保控制面板內容在初始化時被正確載入。
 
 * **視窗尺寸變更:**
     * 在 `windowDidResize_` 中調整預覽畫面大小後立即觸發 `setNeedsDisplay_(True)`。
     * 確保視窗尺寸變更時預覽畫面即時反映新的佈局。
+
+* **控制面板同步更新:**
+    * **新增：** 所有狀態改變時（`updateInterface`、`searchFieldCallback`、`smartLockCharacterCallback` 等），都會呼叫 `request_controls_panel_ui_update`。
+    * **新增：** `request_controls_panel_ui_update` 方法確保控制面板視窗可以接受輸入（`makeKeyWindow`）。
+    * **新增：** 在 `showControlsPanel` 中，確保搜尋欄位成為 first responder。
 
 * **除錯支援:**
     * 在關鍵重繪點加入除錯日誌，便於追蹤更新時機。

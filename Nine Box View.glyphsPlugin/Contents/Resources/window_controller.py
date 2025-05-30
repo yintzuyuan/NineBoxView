@@ -21,41 +21,13 @@ from AppKit import (
     NSView, NSViewMaxYMargin, NSViewMinYMargin, NSLayoutAttributeBottom,
     NSLayoutAttributeTop, NSLayoutAttributeRight, NSLayoutAttributeLeft,
     NSLayoutRelationEqual, NSStackView, NSStackViewGravityTrailing,
-    NSUserDefaults, NSBorderlessWindowMask, NSUtilityWindowMask
+    NSUserDefaults, NSBorderlessWindowMask, NSUtilityWindowMask,
+    NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton
 )
 from Foundation import NSObject, NSString, NSDictionary, NSAttributedString, NSUserDefaultsDidChangeNotification
 
 # 注意：NineBoxPreviewView 和 ControlsPanelView 將在初始化時動態導入，避免循環依賴
 # Note: NineBoxPreviewView and ControlsPanelView will be dynamically imported during initialization to avoid circular dependencies
-
-class ControlsPanelWindow(NSPanel):
-    """
-    控制面板子視窗類別，無標題列的獨立面板
-    Controls Panel Sub-window class, independent panel without title bar
-    """
-    
-    def initWithContentRect_styleMask_backing_defer_mainWindow_(self, contentRect, styleMask, backing, defer, mainWindow):
-        """初始化控制面板視窗"""
-        # 使用無邊框樣式移除標題列
-        styleMask = NSBorderlessWindowMask | NSUtilityWindowMask
-        
-        self = objc.super(ControlsPanelWindow, self).initWithContentRect_styleMask_backing_defer_(
-            contentRect, styleMask, backing, defer
-        )
-        
-        if self:
-            self.mainWindow = mainWindow
-            
-            # 設定面板屬性
-            self.setLevel_(NSFloatingWindowLevel)
-            self.setReleasedWhenClosed_(False)
-            self.setHidesOnDeactivate_(False)  # 不要在失去焦點時隱藏
-            self.setFloatingPanel_(True)
-            
-            # 設定背景顏色
-            self.setBackgroundColor_(NSColor.controlBackgroundColor())
-            
-        return self
 
 
 class NineBoxWindow(NSWindowController):
@@ -229,14 +201,31 @@ class NineBoxWindow(NSWindowController):
             
             panelRect = NSMakeRect(panelX, panelY, self.CONTROLS_PANEL_WIDTH, panelHeight)
             
-            # 創建控制面板視窗
-            self.controlsPanelWindow = ControlsPanelWindow.alloc().initWithContentRect_styleMask_backing_defer_mainWindow_(
+            # 創建控制面板視窗 - 使用標準 NSPanel 但移除標題列
+            # 使用 NSTitledWindowMask + NSClosableWindowMask 確保視窗可以正常工作
+            self.controlsPanelWindow = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 panelRect,
-                NSBorderlessWindowMask | NSUtilityWindowMask,
+                NSTitledWindowMask | NSClosableWindowMask,
                 NSBackingStoreBuffered,
-                False,
-                self.window()
+                False
             )
+            
+            # 設定面板屬性
+            self.controlsPanelWindow.setTitle_("Controls")
+            self.controlsPanelWindow.setLevel_(NSFloatingWindowLevel)
+            self.controlsPanelWindow.setReleasedWhenClosed_(False)
+            self.controlsPanelWindow.setHidesOnDeactivate_(False)
+            self.controlsPanelWindow.setFloatingPanel_(True)
+            self.controlsPanelWindow.setBackgroundColor_(NSColor.controlBackgroundColor())
+            
+            # 隱藏標題列按鈕
+            self.controlsPanelWindow.standardWindowButton_(NSWindowCloseButton).setHidden_(True)
+            self.controlsPanelWindow.standardWindowButton_(NSWindowMiniaturizeButton).setHidden_(True)
+            self.controlsPanelWindow.standardWindowButton_(NSWindowZoomButton).setHidden_(True)
+            
+            # 使標題列透明
+            self.controlsPanelWindow.setTitlebarAppearsTransparent_(True)
+            self.controlsPanelWindow.setTitleVisibility_(1)  # NSWindowTitleHidden
             
             # 創建控制面板視圖
             contentRect = NSMakeRect(0, 0, self.CONTROLS_PANEL_WIDTH, panelHeight)
@@ -260,6 +249,10 @@ class NineBoxWindow(NSWindowController):
                 
                 # 顯示控制面板
                 self.controlsPanelWindow.orderFront_(None)
+                
+                # 更新控制面板內容
+                if self.controlsPanelView:
+                    self.controlsPanelView.update_ui(self.plugin)
                 
                 # 更新狀態
                 self.controlsPanelVisible = True
@@ -434,8 +427,11 @@ class NineBoxWindow(NSWindowController):
     def request_controls_panel_ui_update(self):
         """請求控制面板UI更新"""
         try:
-            if hasattr(self, 'controlsPanelView') and self.controlsPanelView:
+            if hasattr(self, 'controlsPanelView') and self.controlsPanelView and self.controlsPanelVisible:
+                # 更新控制面板內容
                 self.controlsPanelView.update_ui(self.plugin)
+                print("已請求更新控制面板 UI")
+                    
         except Exception as e:
             print(f"請求控制面板UI更新時發生錯誤: {e}")
             print(traceback.format_exc())
@@ -482,6 +478,9 @@ class NineBoxWindow(NSWindowController):
             if self.controlsPanelVisible:
                 print("恢復控制面板顯示狀態...")
                 self.showControlsPanel()
+                # 確保控制面板內容被正確更新
+                if self.controlsPanelView:
+                    self.controlsPanelView.update_ui(self.plugin)
             
             # 初始化完成後更新介面，確保預覽畫面即時更新
             if hasattr(self, 'plugin'):
@@ -494,6 +493,19 @@ class NineBoxWindow(NSWindowController):
                 
         except Exception as e:
             print(f"顯示視窗時發生錯誤: {e}")
+            print(traceback.format_exc())
+    
+    def setControlsPanelFocus(self):
+        """設定控制面板的焦點"""
+        try:
+            if self.controlsPanelWindow:
+                # 不要讓控制面板成為 key window，因為這會影響主視窗
+                # 但是確保它可以接受滑鼠事件
+                if hasattr(self.controlsPanelView, 'searchField') and self.controlsPanelView.searchField:
+                    # 只在需要時才設定焦點
+                    pass
+        except Exception as e:
+            print(f"設定控制面板焦點時發生錯誤: {e}")
             print(traceback.format_exc())
     
     def dealloc(self):
