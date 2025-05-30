@@ -3,72 +3,136 @@ description:
 globs: 
 alwaysApply: true
 ---
-## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.1 (重構版)
+## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.4 (即時更新優化版)
 
-**文件版本:** 1.1
-**日期:** 2025-05-29
+**文件版本:** 1.4
+**日期:** 2025-01-27
+**變更摘要:** 修正初次開啟工具視窗和更動視窗尺寸時的即時更新機制，確保預覽畫面能夠立即反映變更。
 
 ### 1. 系統架構 (System Architecture)
 
-本外掛將採用**集中式狀態管理**架構。`plugin.py` 作為核心控制器，負責維護所有應用程式狀態 (輸入、鎖定、模式等) 並處理核心邏輯。UI 模組 (`sidebar_view.py`) 轉變為純粹的事件發送器與狀態顯示器。繪圖模組 (`preview_view.py`) 轉變為純粹的數據渲染器。`window_controller.py` 負責視窗管理與協調重繪請求。所有數據流向皆由 `plugin.py` 驅動。
+本外掛採用集中式狀態管理。`plugin.py` 作為核心控制器，負責狀態與邏輯。系統包含兩個主要視窗：
+
+* **主預覽視窗 (`NineBoxPreviewWindow`):** 由 `window_controller.py` (主視窗控制器) 管理，負責顯示九宮格預覽。
+* **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，且無標題列。此視窗的生命週期與顯示狀態由主視窗控制器管理。
+
+UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責控制面板的內容佈局與事件轉發。繪圖模組 (`preview_view.py`) 負責預覽渲染。
 
 ### 2. 主要模組職責 (Module Responsibilities)
 
 * **`plugin.py` (核心控制器):**
-    * **職責:**
-        * 維護所有狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `isLockModeActive`, `zoomFactor`。
-        * 接收並處理所有來自 Glyphs 的回呼和來自 `sidebar_view` 的 UI 事件。
-        * 實現 `_recalculate_arrangement()`：**唯一**根據所有狀態計算最終 9 格字符列表 (`currentArrangement`) 的地方。
-        * 實現 `_update_and_redraw()`：統一的內部方法，用於在狀態變更後，觸發 `windowController.requestRedraw()` 並儲存偏好設定。
-        * 管理偏好設定的載入與儲存。
-    * **移除:** 複雜的 `updateInterface` 判斷邏輯。
+    * **職責:** (基本不變)
+        * 維護所有核心狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `isLockModeActive`, `zoomFactor`。
+        * 接收並處理所有來自 Glyphs 的回呼和來自**控制面板子視窗**的 UI 事件。
+        * 實現 `_recalculate_arrangement()`：根據所有狀態計算最終 `currentArrangement`。
+        * 實現 `_update_and_redraw()`：觸發主視窗控制器重繪請求 (`request_main_redraw()`) 並更新控制面板 UI (`request_controls_panel_ui_update()`)，儲存偏好。
+        * 管理偏好設定。
 
-* **`window_controller.py` (視窗管理器):**
+* **`window_controller.py` (主視窗控制器 - `NineBoxWindow`):**
     * **職責:**
-        * 管理 `NSPanel`、`NineBoxPreviewView` 和 `SidebarView` 的生命週期與佈局。
-        * 提供**單一**的 `requestRedraw()` 方法：此方法會觸發 `previewView.setNeedsDisplay_(True)` 並通知 `sidebarView` 更新其外觀。
-        * 處理視窗事件 (縮放、關閉) 和側邊欄切換。
-    * **移除:** `redrawIgnoreLockState` 等多個重繪方法。
+        * 管理主預覽視窗 (`NSPanel`) 的生命週期、佈局、事件。
+        * **新增:** 管理**控制面板子視窗 (`ControlsPanelWindow`)** 的實例、生命週期、顯示與隱藏。
+        * **新增:** 實現控制面板子視窗的創建：
+            * 設定為固定寬度。
+            * 設定 `styleMask` 以移除標題列 (例如，使用 `NSWindowStyleMaskBorderless` 或組合不包含 `NSWindowStyleMaskTitled` 的樣式)。
+            * 確保其行為像一個輔助面板 (utility panel)。
+        * **新增:** 監聽主預覽視窗的 `NSWindowDidResizeNotification`，並在觸發時同步更新控制面板子視窗的高度，並調整其位置以保持與主視窗的相對關係 (例如，始終在主視窗右側)。
+        * **修正:** 在 `windowDidResize_` 方法中，除了調整預覽畫面大小外，立即觸發 `setNeedsDisplay_(True)` 確保視窗尺寸變更時畫面即時更新。
+        * **修正:** 在 `makeKeyAndOrderFront` 方法中，除了調用 `updateInterface` 外，額外觸發 `setNeedsDisplay_(True)` 確保初次開啟視窗時預覽畫面即時顯示。
+        * **修正:** 在預覽視圖創建後立即設置正確的框架並觸發初始重繪。
+        * 處理原有的標題列按鈕 (`sidebarButton`) 的動作，現在用於切換控制面板子視窗的顯示/隱藏。
+        * 提供 `request_main_redraw()` 方法：觸發 `previewView.setNeedsDisplay_(True)`。
+        * **新增:** 提供 `request_controls_panel_ui_update()` 方法：呼叫控制面板視窗的內容視圖 (`ControlsPanelView`) 更新其 UI 元素。
 
-* **`preview_view.py` (繪圖器):**
-    * **職責:**
-        * 實現 `drawRect_`，**僅**根據 `self.plugin.currentArrangement` 和 `Glyphs.font.selectedLayers[0]` 進行繪製。
-        * 處理繪圖相關計算 (縮放、佈局) 和顏色設定。
-    * **移除:** 所有關於鎖定狀態的檢查與字符決策邏輯。
+* **[新] `controls_panel_controller.py` (控制面板視窗控制器 - 可選):**
+    * 或者，將控制面板子視窗的管理邏輯封裝在一個新的 `NSWindowController` 子類中，由主視窗控制器持有其引用。這有助於職責分離。如果邏輯簡單，也可以直接在主視窗控制器中管理。
 
-* **`sidebar_view.py` (UI 介面):**
+* **`preview_view.py` (繪圖器 - `NineBoxPreviewView`):**
     * **職責:**
-        * 建立與佈局 UI 元素。
-        * 將 UI 事件 (輸入、點擊) **轉發**給 `plugin.py` 的處理函數。
-        * 提供方法 (如 `update_ui()`) 讓 `window_controller` 呼叫，以根據 `plugin.py` 的狀態更新輸入框內容和按鈕圖示。
-    * **移除:** 內部狀態管理 (`isInClearMode`) 和複雜的回呼邏輯。
+        * 根據 `self.plugin.currentArrangement` 和 `Glyphs.font.selectedLayers[0]` 繪圖。
+        * **新增:** 自動檢測並適應 Glyphs 預覽區域的明暗主題 (`GSPreview_Black` 用戶偏好設定)。
+        * **新增:** 監聽 `NSUserDefaultsDidChangeNotification` 通知，當 Glyphs 預覽主題變更時自動重繪視圖。
+        * **新增:** 根據主題狀態自動調整背景顏色 (黑色/白色) 和字符顏色 (淺色/深色)。
+        * **新增:** 實現 `glyphsPreviewThemeChanged:` 方法處理主題變更事件。
+        * **新增:** 在 `dealloc` 方法中正確移除通知觀察者。
+        * **新增:** 在 `drawRect_` 方法中加入除錯日誌，以便追蹤重繪時機和視窗尺寸變更。
+
+* **`sidebar_view.py` (建議更名為 `controls_panel_view.py` - `ControlsPanelView`):**
+    * **職責:**
+        * 作為控制面板子視窗的 `contentView`。
+        * 在其固定寬度和可變高度的框架內佈局 UI 元素。
+        * 將 UI 事件轉發給 `plugin.py`。
+        * 實現 `update_ui(plugin_state)` 方法，根據 `plugin.py` 的狀態更新內部 UI 元素 (輸入框內容、按鈕圖示等)。
 
 * **`utils.py` & `constants.py`:**
-    * **職責:** 保持不變，提供純粹的輔助函數 和常數定義。
+    * **職責:** (不變) 提供輔助函數和常數。`constants.py` 可能需要新增控制面板固定寬度的常數。
 
 ### 3. 數據流 (Data Flow)
 
-1.  **事件觸發:** `sidebar_view` (如 `textDidChange_`) 或 Glyphs (如 `SELECTIONCHANGED`) 觸發事件。
-2.  **事件處理:** 事件呼叫 `plugin.py` 中對應的處理函數 (如 `handle_search_input`, `handle_glyph_selection_changed`)。
-3.  **狀態更新:** `plugin.py` 更新其內部狀態變數。
-4.  **排列計算:** `plugin.py` 呼叫 `_recalculate_arrangement()` 更新 `currentArrangement`。
-5.  **請求重繪:** `plugin.py` 呼叫 `_update_and_redraw()`，進而呼叫 `windowController.requestRedraw()`。
-6.  **執行重繪:** `windowController` 觸發 `previewView.setNeedsDisplay_(True)` 和 `sidebarView.update_ui()`。
-7.  **畫面渲染:** `previewView` 讀取 `plugin.currentArrangement` 繪圖；`sidebarView` 讀取 `plugin` 狀態更新 UI。
+1.  **事件觸發 (UI):** `ControlsPanelView` 中的 UI 元素產生事件 -> 轉發給 `plugin.py` 的處理函數。
+2.  **事件觸發 (Glyphs):** Glyphs 回呼 -> `plugin.py` 的處理函數。
+3.  **狀態更新:** `plugin.py` 更新內部狀態。
+4.  **排列計算:** `plugin.py` 呼叫 `_recalculate_arrangement()`。
+5.  **請求更新:** `plugin.py` 呼叫 `_update_and_redraw()`。
+6.  `_update_and_redraw()` 內部:
+    * 呼叫主視窗控制器的 `request_main_redraw()` -> `preview_view` 重繪。
+    * 呼叫主視窗控制器的 `request_controls_panel_ui_update()` -> `ControlsPanelView` 更新 UI。
+    * 儲存偏好設定。
 
 ### 4. 關鍵資料結構 (Key Data Structures)
 
-* `plugin.lastInput (str)`: 長文本輸入。
-* `plugin.selectedChars (list)`: 解析後的字符池。
-* `plugin.lockedChars (dict)`: `{position_index (int): char_name (str)}`。
-* `plugin.isLockModeActive (bool)`: 當前是否處於鎖定模式。
-* `plugin.currentArrangement (list[str])`: 長度為 9，代表九宮格最終顯示的字符/Nice Name。
+* (與 v1.1 基本相同)
+* `plugin.isControlsPanelVisible (bool)`: 新增，用於追蹤控制面板子視窗的顯示狀態 (用於偏好設定)。
 
-### 5. 依賴與 API (Dependencies & APIs)
+### 5. 視窗管理細節 (Window Management Details)
 
-* **核心:** `GlyphsApp`, `objc`, `AppKit`, `Foundation`。
-* **API 使用:** 遵循 PyObjC 規範與 Glyphs SDK。
+* **控制面板創建:**
+    * 使用 `NSPanel` 或 `NSWindow` 實例。
+    * `styleMask`: 設定為不包含 `NSTitledWindowMask`，例如 `NSWindowStyleMaskUtilityWindow | NSWindowStyleMaskBorderless` 或 `NSWindowStyleMaskHUDWindow` (若適用其外觀)。
+    * `floatingPanel`: 可能設為 `True`。
+    * `hidesOnDeactivate`: 根據需求設定。
+* **高度同步:**
+    * 主視窗控制器監聽自身 `NSWindowDidResizeNotification`。
+    * 獲取主視窗新的 `contentView.frame.size.height`。
+    * 計算控制面板的 `frame`，設定其 `origin` (例如，緊貼主視窗右側) 和 `size` (固定寬度，同步高度)。
+* **顯示/隱藏:**
+    * 主視窗標題列按鈕 (`sidebarButton`) 觸發主視窗控制器的方法。
+    * 該方法呼叫控制面板視窗的 `orderFront:` 或 `orderOut:`。
+    * 更新 `plugin.isControlsPanelVisible` 並儲存。
 
-### 6. 持久化 (Persistence)
+### 6. 即時更新機制 (Real-time Update Mechanism)
 
-* 使用 `Glyphs.defaults`，由 `plugin.py` 統一在 `_update_and_redraw()` 或適當時機儲存。
+* **初次開啟視窗:**
+    * 在 `initWithPlugin_` 中創建預覽視圖後立即設置正確框架並觸發初始重繪。
+    * 在 `makeKeyAndOrderFront` 中除了調用 `updateInterface` 外，額外觸發 `setNeedsDisplay_(True)`。
+    * 確保視窗初次顯示時預覽內容立即可見。
+
+* **視窗尺寸變更:**
+    * 在 `windowDidResize_` 中調整預覽畫面大小後立即觸發 `setNeedsDisplay_(True)`。
+    * 確保視窗尺寸變更時預覽畫面即時反映新的佈局。
+
+* **除錯支援:**
+    * 在關鍵重繪點加入除錯日誌，便於追蹤更新時機。
+    * 在 `drawRect_` 中記錄視窗尺寸，在視窗事件處理中記錄處理流程。
+
+### 7. 持久化 (Persistence)
+
+* `plugin.py` 儲存主視窗尺寸、控制面板的顯示狀態、`zoomFactor`以及所有與預覽內容相關的狀態。
+* 控制面板子視窗的**位置**通常是相對於主視窗計算的，所以其絕對位置可能不需要單獨儲存。
+
+### 8. 主題自動適應機制 (Theme Auto-Adaptation Mechanism)
+
+* **主題檢測:**
+    * 使用 `NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")` 檢測 Glyphs 預覽區域的主題狀態。
+    * `True` 表示深色背景模式，`False` 表示淺色背景模式。
+
+* **自動更新:**
+    * `NineBoxPreviewView` 監聽 `NSUserDefaultsDidChangeNotification` 通知。
+    * 當偏好設定變更時，自動調用 `setNeedsDisplay_(True)` 重繪視圖。
+
+* **顏色配置:**
+    * **深色背景模式:** 背景使用純黑色 (`NSColor.blackColor`)，字符使用淺灰色 (`rgb(0.95, 0.95, 0.95)`)。
+    * **淺色背景模式:** 背景使用純白色 (`NSColor.whiteColor`)，字符使用純黑色 (`rgb(0.0, 0.0, 0.0)`)。
+
+* **記憶體管理:**
+    * 在視圖析構時正確移除通知觀察者，避免記憶體洩漏。

@@ -51,7 +51,33 @@ class NineBoxPreviewView(NSView):
             self.MIN_ZOOM = MIN_ZOOM
             self.MAX_ZOOM = MAX_ZOOM
             
+            # 監聽 Glyphs 預覽區域主題變更
+            # Listen for Glyphs preview area theme changes
+            NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
+                self,
+                "glyphsPreviewThemeChanged:",
+                NSUserDefaultsDidChangeNotification,
+                None
+            )
+            
         return self
+    
+    def glyphsPreviewThemeChanged_(self, notification):
+        """
+        處理 Glyphs 預覽區域主題變更
+        Handle Glyphs preview area theme changes
+        
+        Args:
+            notification: 通知對象
+        """
+        try:
+            # 當偏好設定變更時，重新繪製視圖以反映新的主題
+            # When preferences change, redraw the view to reflect the new theme
+            self.setNeedsDisplay_(True)
+            print("九宮格預覽已適應 Glyphs 預覽區域主題變更")
+        except Exception as e:
+            print(f"處理主題變更時發生錯誤: {e}")
+            print(traceback.format_exc())
     
     def mouseDown_(self, event):
         """
@@ -78,14 +104,18 @@ class NineBoxPreviewView(NSView):
             rect: 要繪製的矩形區域
         """
         try:
+            # 添加除錯訊息以追蹤重繪時機
+            print(f"九宮格預覽重繪：視窗尺寸 {rect.size.width}x{rect.size.height}")
+            
             # === 設定背景顏色 / Set the background color ===
-            # 使用系統深淺色模式設定取代原本的 darkMode 變數
+            # 自動適應 Glyphs 預覽區域的明暗主題
+            # Automatically adapt to Glyphs preview area light/dark theme
             is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
             
             if is_black:
-                NSColor.blackColor().set()  # 使用純黑色
+                NSColor.blackColor().set()  # 使用純黑色背景
             else:
-                NSColor.whiteColor().set()  # 使用純白色
+                NSColor.whiteColor().set()  # 使用純白色背景
             NSRectFill(rect)
 
             # === 取得基本參數 / Get basic parameters ===
@@ -230,12 +260,16 @@ class NineBoxPreviewView(NSView):
                     openBezierPath.transformUsingAffineTransform_(transform)
 
                     # 設定填充顏色 / Set the fill color
+                    # 根據 Glyphs 預覽區域主題自動調整字符顏色
+                    # Automatically adjust character color based on Glyphs preview area theme
                     if is_black:
-                        # 深色模式 - 所有字符使用相同的顏色
+                        # 深色背景模式 - 字符使用淺色
+                        # Dark background mode - use light color for characters
                         fillColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
                         strokeColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
                     else:
-                        # 淺色模式 - 所有字符使用相同的顏色
+                        # 淺色背景模式 - 字符使用深色
+                        # Light background mode - use dark color for characters
                         fillColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 1.0)
                         strokeColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.0, 0.0, 0.0, 1.0)
 
@@ -249,4 +283,16 @@ class NineBoxPreviewView(NSView):
                     openBezierPath.stroke()
 
         except Exception as e:
-            print(traceback.format_exc()) 
+            print(f"繪製預覽畫面時發生錯誤: {e}")
+            print(traceback.format_exc())
+    
+    def dealloc(self):
+        """
+        析構函數，移除通知觀察者
+        Destructor, remove notification observers
+        """
+        try:
+            NSNotificationCenter.defaultCenter().removeObserver_(self)
+        except:
+            pass
+        objc.super(NineBoxPreviewView, self).dealloc() 

@@ -58,8 +58,8 @@ try:
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
-                SIDEBAR_VISIBLE_KEY, SIDEBAR_WIDTH, LOCKED_CHARS_KEY,
-                PREVIOUS_LOCKED_CHARS_KEY
+                SIDEBAR_VISIBLE_KEY, CONTROLS_PANEL_VISIBLE_KEY, CONTROLS_PANEL_WIDTH, 
+                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY
             )
             
             from utils import parse_input_text, generate_arrangement, get_base_width, log_to_macro_window
@@ -81,7 +81,8 @@ try:
             self.ZOOM_FACTOR_KEY = ZOOM_FACTOR_KEY
             self.SHOW_NUMBERS_KEY = SHOW_NUMBERS_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
-            self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY
+            self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY  # 保留向後相容性
+            self.CONTROLS_PANEL_VISIBLE_KEY = CONTROLS_PANEL_VISIBLE_KEY
             self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
@@ -91,6 +92,7 @@ try:
             self.currentArrangement = []  # 儲存目前的排列 / Store current arrangement
             self.windowController = None  # 視窗控制器 / Window controller
             self.previousLockedChars = {}  # 儲存前一次鎖定字符狀態 / Store previous locked characters state
+            self.controlsPanelVisible = True  # 控制面板顯示狀態 / Controls panel visibility state
             
             # 印出一條訊息確認外掛已被載入
             print("九宮格預覽外掛已成功載入。")
@@ -180,9 +182,9 @@ try:
                     # 長文本輸入框調用時總是允許更新
                     is_from_search_field = (sender is not None and hasattr(sender, 'isKindOfClass_') and 
                                            sender.isKindOfClass_(NSTextField) and 
-                                           hasattr(self.windowController, 'sidebarView') and
-                                           hasattr(self.windowController.sidebarView, 'searchField') and
-                                           sender == self.windowController.sidebarView.searchField)
+                                           hasattr(self.windowController, 'controlsPanelView') and
+                                           hasattr(self.windowController.controlsPanelView, 'searchField') and
+                                           sender == self.windowController.controlsPanelView.searchField)
                     
                     # 檢查是否是從鎖定輸入框調用
                     is_from_lock_field = (sender is not None and hasattr(sender, 'isKindOfClass_') and 
@@ -197,13 +199,13 @@ try:
                         # 鎖定輸入框需要根據鎖頭狀態決定
                         is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
                         
-                        if (hasattr(self.windowController, 'sidebarView') and 
-                            self.windowController.sidebarView and 
-                            hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                        if (hasattr(self.windowController, 'controlsPanelView') and 
+                            self.windowController.controlsPanelView and 
+                            hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                             
                             # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
                             # True = 解鎖狀態（輸入框和預覽不關聯）
-                            is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                            is_in_clear_mode = self.windowController.controlsPanelView.isInClearMode
                             
                             # 只有在鎖頭上鎖狀態（False）時才允許更新預覽
                             if not is_in_clear_mode:
@@ -233,10 +235,11 @@ try:
                 
                 # 更新側邊欄輸入欄位
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    if (hasattr(self.windowController, 'sidebarView') and 
-                        self.windowController.sidebarView is not None and
-                        not self.windowController.sidebarView.isHidden()):
-                        self.windowController.sidebarView.updateSearchField()
+                    if (hasattr(self.windowController, 'controlsPanelView') and 
+                        self.windowController.controlsPanelView is not None and
+                        hasattr(self.windowController, 'controlsPanelVisible') and
+                        self.windowController.controlsPanelVisible):
+                        self.windowController.controlsPanelView.updateSearchField()
             except Exception as e:
                 print(f"選擇變更處理時發生錯誤: {e}")
                 print(traceback.format_exc())
@@ -324,13 +327,13 @@ try:
                 is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
                 
                 if (hasattr(self, 'windowController') and self.windowController and 
-                    hasattr(self.windowController, 'sidebarView') and 
-                    self.windowController.sidebarView and 
-                    hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                    hasattr(self.windowController, 'controlsPanelView') and 
+                    self.windowController.controlsPanelView and 
+                    hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                     
                     # 判斷鎖頭狀態 - False = 上鎖狀態（輸入框和預覽關聯）
                     # True = 解鎖狀態（輸入框和預覽不關聯）
-                    is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                    is_in_clear_mode = self.windowController.controlsPanelView.isInClearMode
                     
                     # 解鎖狀態下，不進行任何鎖定相關操作
                     if is_in_clear_mode:
@@ -459,8 +462,8 @@ try:
                             # 更新側邊欄中的字符輸入欄位 - 不再使用空格分隔字符
                             self.lastInput = "".join(selected_chars)
                             if hasattr(self, 'windowController') and self.windowController:
-                                if hasattr(self.windowController, 'sidebarView') and self.windowController.sidebarView:
-                                    self.windowController.sidebarView.updateSearchField()
+                                if hasattr(self.windowController, 'controlsPanelView') and self.windowController.controlsPanelView:
+                                    self.windowController.controlsPanelView.updateSearchField()
                             # 儲存偏好設定 / Save preferences
                             self.savePreferences()
                             # 更新介面 / Update interface
@@ -484,11 +487,11 @@ try:
             is_in_clear_mode = True  # 預設為解鎖狀態 (安全)
             
             if (hasattr(self, 'windowController') and self.windowController and 
-                hasattr(self.windowController, 'sidebarView') and 
-                self.windowController.sidebarView and 
-                hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                hasattr(self.windowController, 'controlsPanelView') and 
+                self.windowController.controlsPanelView and 
+                hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                 
-                is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                is_in_clear_mode = self.windowController.controlsPanelView.isInClearMode
                 print(f"亂數排列按鈕：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態")
             
             # 添加強制重排的標記，確保即使在鎖頭鎖定狀態下也能重新排列
@@ -528,12 +531,12 @@ try:
             
             # 檢查鎖頭狀態
             if (hasattr(self, 'windowController') and self.windowController and 
-                hasattr(self.windowController, 'sidebarView') and 
-                self.windowController.sidebarView and 
-                hasattr(self.windowController.sidebarView, 'isInClearMode')):
+                hasattr(self.windowController, 'controlsPanelView') and 
+                self.windowController.controlsPanelView and 
+                hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                 
                 # False = 上鎖狀態（輸入框和預覽關聯）, True = 解鎖狀態（輸入框和預覽不關聯）
-                is_in_clear_mode = self.windowController.sidebarView.isInClearMode
+                is_in_clear_mode = self.windowController.controlsPanelView.isInClearMode
                 should_apply_locks = not is_in_clear_mode
                 print(f"亂數排列：鎖頭處於{'解鎖' if is_in_clear_mode else '上鎖'}狀態，{'不' if is_in_clear_mode else ''}應用鎖定字符")
             
@@ -639,12 +642,13 @@ try:
                         del self.lockedChars[position]
                         # 如果是視窗已存在，則同步更新輸入框
                         if hasattr(self, 'windowController') and self.windowController:
-                            if (hasattr(self.windowController, 'sidebarView') and 
-                                self.windowController.sidebarView and 
-                                not self.windowController.sidebarView.isHidden() and
-                                hasattr(self.windowController.sidebarView, 'lockFields') and
-                                position in self.windowController.sidebarView.lockFields):
-                                self.windowController.sidebarView.lockFields[position].setStringValue_("")
+                            if (hasattr(self.windowController, 'controlsPanelView') and 
+                                self.windowController.controlsPanelView and 
+                                hasattr(self.windowController, 'controlsPanelVisible') and
+                                self.windowController.controlsPanelVisible and
+                                hasattr(self.windowController.controlsPanelView, 'lockFields') and
+                                position in self.windowController.controlsPanelView.lockFields):
+                                self.windowController.controlsPanelView.lockFields[position].setStringValue_("")
                 
                 # 確保每個選定的字符至少出現一次（如果可能）
                 if valid_locked_positions:
@@ -718,8 +722,11 @@ try:
             # 縮放因子 / Zoom factor
             self.zoomFactor = float(Glyphs.defaults.get(self.ZOOM_FACTOR_KEY, self.DEFAULT_ZOOM))
             
-            # 側邊欄可見性 / Sidebar visibility
-            self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))  # 預設開啟側邊欄
+            # 側邊欄可見性（保留向後相容性）/ Sidebar visibility (backward compatibility)
+            self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))
+            
+            # 控制面板可見性 / Controls panel visibility
+            self.controlsPanelVisible = bool(Glyphs.defaults.get(self.CONTROLS_PANEL_VISIBLE_KEY, self.sidebarVisible))
             
             # 鎖定字符資訊 / Locked characters information
             locked_chars_str = Glyphs.defaults.get(self.LOCKED_CHARS_KEY)
@@ -759,6 +766,9 @@ try:
             
             # 儲存側邊欄可見性 / Save sidebar visibility
             Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.sidebarVisible
+            
+            # 儲存控制面板可見性 / Save controls panel visibility
+            Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
             
             # 儲存鎖定字符資訊 / Save locked characters information
             if hasattr(self, 'lockedChars'):
@@ -834,16 +844,16 @@ try:
                 
                 # 取得側邊欄輸入框中的內容並套用到九宮格預覽
                 if hasattr(self, 'windowController') and self.windowController:
-                    if (hasattr(self.windowController, 'sidebarView') and 
-                        self.windowController.sidebarView and 
-                        not self.windowController.sidebarView.isHidden() and
-                        hasattr(self.windowController.sidebarView, 'lockFields')):
+                    if (hasattr(self.windowController, 'controlsPanelView') and 
+                        self.windowController.controlsPanelView and 
+                        not self.windowController.controlsPanelView.isHidden() and
+                        hasattr(self.windowController.controlsPanelView, 'lockFields')):
                         
                         # 先清空現有鎖定
                         self.lockedChars = {}
                         
                         # 逐一處理每個輸入框
-                        for position, field in self.windowController.sidebarView.lockFields.items():
+                        for position, field in self.windowController.controlsPanelView.lockFields.items():
                             input_text = field.stringValue().strip()
                             if input_text:
                                 # 嘗試驗證字符是否存在於字型中
