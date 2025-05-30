@@ -1,8 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-請先搜尋 MPC 工具的 Glyphs API，當遇到繪製預覽區域相關的任務時，引用 get_ui_source 的內容作為官方提供的參考資料。
-
-必要時也搜尋 PyObjC 的 Docs 和 Glyphs 說明書內容，再開始執行指派的任務。

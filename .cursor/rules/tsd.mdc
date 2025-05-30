@@ -1,0 +1,74 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.1 (重構版)
+
+**文件版本:** 1.1
+**日期:** 2025-05-29
+
+### 1. 系統架構 (System Architecture)
+
+本外掛將採用**集中式狀態管理**架構。`plugin.py` 作為核心控制器，負責維護所有應用程式狀態 (輸入、鎖定、模式等) 並處理核心邏輯。UI 模組 (`sidebar_view.py`) 轉變為純粹的事件發送器與狀態顯示器。繪圖模組 (`preview_view.py`) 轉變為純粹的數據渲染器。`window_controller.py` 負責視窗管理與協調重繪請求。所有數據流向皆由 `plugin.py` 驅動。
+
+### 2. 主要模組職責 (Module Responsibilities)
+
+* **`plugin.py` (核心控制器):**
+    * **職責:**
+        * 維護所有狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `isLockModeActive`, `zoomFactor`。
+        * 接收並處理所有來自 Glyphs 的回呼和來自 `sidebar_view` 的 UI 事件。
+        * 實現 `_recalculate_arrangement()`：**唯一**根據所有狀態計算最終 9 格字符列表 (`currentArrangement`) 的地方。
+        * 實現 `_update_and_redraw()`：統一的內部方法，用於在狀態變更後，觸發 `windowController.requestRedraw()` 並儲存偏好設定。
+        * 管理偏好設定的載入與儲存。
+    * **移除:** 複雜的 `updateInterface` 判斷邏輯。
+
+* **`window_controller.py` (視窗管理器):**
+    * **職責:**
+        * 管理 `NSPanel`、`NineBoxPreviewView` 和 `SidebarView` 的生命週期與佈局。
+        * 提供**單一**的 `requestRedraw()` 方法：此方法會觸發 `previewView.setNeedsDisplay_(True)` 並通知 `sidebarView` 更新其外觀。
+        * 處理視窗事件 (縮放、關閉) 和側邊欄切換。
+    * **移除:** `redrawIgnoreLockState` 等多個重繪方法。
+
+* **`preview_view.py` (繪圖器):**
+    * **職責:**
+        * 實現 `drawRect_`，**僅**根據 `self.plugin.currentArrangement` 和 `Glyphs.font.selectedLayers[0]` 進行繪製。
+        * 處理繪圖相關計算 (縮放、佈局) 和顏色設定。
+    * **移除:** 所有關於鎖定狀態的檢查與字符決策邏輯。
+
+* **`sidebar_view.py` (UI 介面):**
+    * **職責:**
+        * 建立與佈局 UI 元素。
+        * 將 UI 事件 (輸入、點擊) **轉發**給 `plugin.py` 的處理函數。
+        * 提供方法 (如 `update_ui()`) 讓 `window_controller` 呼叫，以根據 `plugin.py` 的狀態更新輸入框內容和按鈕圖示。
+    * **移除:** 內部狀態管理 (`isInClearMode`) 和複雜的回呼邏輯。
+
+* **`utils.py` & `constants.py`:**
+    * **職責:** 保持不變，提供純粹的輔助函數 和常數定義。
+
+### 3. 數據流 (Data Flow)
+
+1.  **事件觸發:** `sidebar_view` (如 `textDidChange_`) 或 Glyphs (如 `SELECTIONCHANGED`) 觸發事件。
+2.  **事件處理:** 事件呼叫 `plugin.py` 中對應的處理函數 (如 `handle_search_input`, `handle_glyph_selection_changed`)。
+3.  **狀態更新:** `plugin.py` 更新其內部狀態變數。
+4.  **排列計算:** `plugin.py` 呼叫 `_recalculate_arrangement()` 更新 `currentArrangement`。
+5.  **請求重繪:** `plugin.py` 呼叫 `_update_and_redraw()`，進而呼叫 `windowController.requestRedraw()`。
+6.  **執行重繪:** `windowController` 觸發 `previewView.setNeedsDisplay_(True)` 和 `sidebarView.update_ui()`。
+7.  **畫面渲染:** `previewView` 讀取 `plugin.currentArrangement` 繪圖；`sidebarView` 讀取 `plugin` 狀態更新 UI。
+
+### 4. 關鍵資料結構 (Key Data Structures)
+
+* `plugin.lastInput (str)`: 長文本輸入。
+* `plugin.selectedChars (list)`: 解析後的字符池。
+* `plugin.lockedChars (dict)`: `{position_index (int): char_name (str)}`。
+* `plugin.isLockModeActive (bool)`: 當前是否處於鎖定模式。
+* `plugin.currentArrangement (list[str])`: 長度為 9，代表九宮格最終顯示的字符/Nice Name。
+
+### 5. 依賴與 API (Dependencies & APIs)
+
+* **核心:** `GlyphsApp`, `objc`, `AppKit`, `Foundation`。
+* **API 使用:** 遵循 PyObjC 規範與 Glyphs SDK。
+
+### 6. 持久化 (Persistence)
+
+* 使用 `Glyphs.defaults`，由 `plugin.py` 統一在 `_update_and_redraw()` 或適當時機儲存。
