@@ -1,7 +1,7 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 視窗控制器
-Nine Box Preview Plugin - Window Controller
+九宮格預覽外掛 - 視窗控制器（優化版）
+Nine Box Preview Plugin - Window Controller (Optimized)
 """
 
 from __future__ import division, print_function, unicode_literals
@@ -9,200 +9,182 @@ import traceback
 import objc
 from GlyphsApp import Glyphs
 from AppKit import (
-    NSWindowController, NSPanel, NSButton, NSTextField, NSRect, NSMakeRect, NSString, 
-    NSMakeSize, NSWindow, NSNotificationCenter, NSWindowWillCloseNotification, 
-    NSWindowDidResizeNotification, NSWindowDidMoveNotification, NSTitledWindowMask, NSClosableWindowMask,
-    NSResizableWindowMask, NSMiniaturizableWindowMask, NSFloatingWindowLevel,
-    NSVisualEffectView, NSVisualEffectMaterialLight, NSVisualEffectMaterialDark,
-    NSVisualEffectBlendingModeBehindWindow, NSSearchField, NSColor, NSFont,
-    NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSBezelStyleRounded,
-    NSTexturedRoundedBezelStyle, NSFocusRingTypeNone, NSToolTipAttributeName,
-    NSBackingStoreBuffered, NSTitlebarAccessoryViewController, NSLayoutConstraint,
-    NSView, NSViewMaxYMargin, NSViewMinYMargin, NSLayoutAttributeBottom,
-    NSLayoutAttributeTop, NSLayoutAttributeRight, NSLayoutAttributeLeft,
-    NSLayoutRelationEqual, NSStackView, NSStackViewGravityTrailing,
-    NSUserDefaults, NSBorderlessWindowMask, NSUtilityWindowMask,
-    NSWindowCloseButton, NSWindowMiniaturizeButton, NSWindowZoomButton
+    NSWindowController, NSPanel, NSButton, NSMakeRect, NSMakeSize,
+    NSWindow, NSNotificationCenter, NSWindowWillCloseNotification,
+    NSWindowDidResizeNotification, NSWindowDidMoveNotification,
+    NSTitledWindowMask, NSClosableWindowMask, NSResizableWindowMask,
+    NSMiniaturizableWindowMask, NSFloatingWindowLevel,
+    NSBackingStoreBuffered, NSTitlebarAccessoryViewController,
+    NSView, NSViewMaxYMargin, NSLayoutAttributeRight,
+    NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn,
+    NSBezelStyleRounded, NSTexturedRoundedBezelStyle,
+    NSFocusRingTypeNone, NSWindowCloseButton,
+    NSWindowMiniaturizeButton, NSWindowZoomButton
 )
-from Foundation import NSObject, NSString, NSDictionary, NSAttributedString, NSUserDefaultsDidChangeNotification
+from Foundation import NSObject
 
-# 注意：NineBoxPreviewView 和 ControlsPanelView 將在初始化時動態導入，避免循環依賴
-# Note: NineBoxPreviewView and ControlsPanelView will be dynamically imported during initialization to avoid circular dependencies
+from constants import (
+    WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
+    CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT,
+    CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
+)
+from utils import debug_log
 
 
 class NineBoxWindow(NSWindowController):
     """
-    九宮格預覽視窗控制器，管理主視窗和控制面板子視窗。
-    Nine Box Window Controller, manages main window and controls panel sub-window.
+    九宮格預覽視窗控制器（優化版）
+    Nine Box Window Controller (Optimized)
     """
     
     def initWithPlugin_(self, plugin):
-        """
-        初始化視窗控制器
-        Initialize the window controller
-        
-        Args:
-            plugin: 外掛主類別實例
-            
-        Returns:
-            self: 初始化後的視窗控制器實例
-        """
+        """初始化視窗控制器"""
         try:
-            # 在這裡導入以避免循環依賴
-            # Import here to avoid circular dependencies
+            # 動態導入以避免循環依賴
             from preview_view import NineBoxPreviewView
             from controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
             self.ControlsPanelView = ControlsPanelView
             
-            # 先確保外掛的偏好設定已經載入
-            # Ensure plugin preferences are loaded first
+            # 確保偏好設定已載入
             plugin.loadPreferences()
             
-            # 載入上次儲存的視窗大小 / Load last saved window size
-            from constants import (
-                WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, 
-                CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT,
-                CONTROLS_PANEL_VISIBLE_KEY
-            )
-            self.CONTROLS_PANEL_WIDTH = CONTROLS_PANEL_WIDTH
-            self.CONTROLS_PANEL_MIN_HEIGHT = CONTROLS_PANEL_MIN_HEIGHT
-            
+            # 載入視窗大小
             savedSize = Glyphs.defaults.get(WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE)
             
-            # 建立主視窗 / Create main window
+            # 建立主視窗
             windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
-            styleMask = NSTitledWindowMask | NSClosableWindowMask | NSResizableWindowMask | NSMiniaturizableWindowMask
+            styleMask = (NSTitledWindowMask | NSClosableWindowMask | 
+                        NSResizableWindowMask | NSMiniaturizableWindowMask)
+            
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
-                windowRect,
-                styleMask,
-                NSBackingStoreBuffered,
-                False
+                windowRect, styleMask, NSBackingStoreBuffered, False
             )
+            
             panel.setTitle_(plugin.name)
             panel.setMinSize_(NSMakeSize(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1]))
             panel.setLevel_(NSFloatingWindowLevel)
             panel.setReleasedWhenClosed_(False)
             
-            # 正確初始化 NSWindowController
-            # 使用 objc 的 super 正確地初始化父類別
+            # 初始化父類
             self = objc.super(NineBoxWindow, self).init()
             
             if self:
-                # 設置主視窗
+                # 設置屬性
                 self.setWindow_(panel)
-                
-                # 保存相關屬性
                 self.plugin = plugin
                 self.previewView = None
                 self.controlsPanelButton = None
                 self.controlsPanelWindow = None
                 self.controlsPanelView = None
                 
-                # 載入控制面板顯示狀態
+                # 載入控制面板狀態
                 self.controlsPanelVisible = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY, True)
                 
-                contentView = panel.contentView()
+                # 初始化UI
+                self._setup_main_window_ui(panel)
+                self._setup_controls_panel()
+                self._register_notifications(panel)
                 
-                # 建立預覽畫面 - 擴展到整個視窗區域
-                previewRect = NSMakeRect(0, 0, panel.frame().size.width, panel.frame().size.height)
-                self.previewView = self.NineBoxPreviewView.alloc().initWithFrame_plugin_(previewRect, plugin)
-                contentView.addSubview_(self.previewView)
-                
-                # 確保預覽畫面正確調整到內容區域大小，並觸發初始重繪
-                actualContentSize = contentView.frame().size
-                self.previewView.setFrame_(NSMakeRect(0, 0, actualContentSize.width, actualContentSize.height))
-                self.previewView.setNeedsDisplay_(True)
-                
-                # 建立控制面板按鈕並放置在標題列上
-                self.controlsPanelButton = NSButton.alloc().init()
-                self.controlsPanelButton.setTitle_("⚙")  # 使用齒輪圖示
-                self.controlsPanelButton.setTarget_(self)
-                self.controlsPanelButton.setAction_("controlsPanelAction:")
-                self.controlsPanelButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
-                self.controlsPanelButton.setButtonType_(NSButtonTypeToggle)
-                
-                # 設定控制面板按鈕提示
-                controlsPanelTooltip = Glyphs.localize({
-                    'en': u'Show/hide controls panel',
-                    'zh-Hant': u'顯示/隱藏控制面板',
-                    'zh-Hans': u'显示/隐藏控制面板',
-                    'ja': u'コントロールパネルを表示/非表示',
-                    'ko': u'컨트롤 패널 표시/숨기기',
-                })
-                self.controlsPanelButton.setToolTip_(controlsPanelTooltip)
-                
-                # 設定按鈕狀態
-                if self.controlsPanelVisible:
-                    self.controlsPanelButton.setState_(1)  # 1 表示開啟
-                else:
-                    self.controlsPanelButton.setState_(0)  # 0 表示關閉
-                
-                # 創建一個容器視圖來放置按鈕
-                buttonView = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 30, 24))
-                buttonView.addSubview_(self.controlsPanelButton)
-                self.controlsPanelButton.setFrame_(NSMakeRect(0, 0, 30, 24))
-                
-                # 創建標題列附件控制器
-                accessoryController = NSTitlebarAccessoryViewController.alloc().init()
-                accessoryController.setView_(buttonView)
-                accessoryController.setLayoutAttribute_(NSLayoutAttributeRight)  # 放在右邊
-                
-                # 添加到視窗的標題列
-                panel.addTitlebarAccessoryViewController_(accessoryController)
-                
-                # 創建控制面板子視窗
-                self.createControlsPanelWindow()
-                
-                # 監聽視窗大小調整 / Listen for window resize events
-                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                    self,
-                    "windowDidResize:",
-                    NSWindowDidResizeNotification,
-                    panel
-                )
-                
-                # 監聽視窗移動 / Listen for window move events
-                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                    self,
-                    "windowDidMove:",
-                    NSWindowDidMoveNotification,
-                    panel
-                )
-                
-                # 監聽視窗關閉 / Listen for window close events
-                NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
-                    self,
-                    "windowWillClose:",
-                    NSWindowWillCloseNotification,
-                    panel
-                )
-                
-                # 如果控制面板應該顯示，則顯示它
+                # 顯示控制面板（如果需要）
                 if self.controlsPanelVisible:
                     self.showControlsPanel()
-                
+            
             return self
+            
         except Exception as e:
-            print(f"初始化視窗控制器時發生錯誤: {e}")
-            print(traceback.format_exc())
+            print(f"初始化視窗控制器錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
             return None
+    
+    def _setup_main_window_ui(self, panel):
+        """設定主視窗UI"""
+        contentView = panel.contentView()
+        
+        # 建立預覽畫面
+        previewRect = NSMakeRect(0, 0, panel.frame().size.width, panel.frame().size.height)
+        self.previewView = self.NineBoxPreviewView.alloc().initWithFrame_plugin_(previewRect, self.plugin)
+        contentView.addSubview_(self.previewView)
+        
+        # 調整預覽畫面大小
+        actualContentSize = contentView.frame().size
+        self.previewView.setFrame_(NSMakeRect(0, 0, actualContentSize.width, actualContentSize.height))
+        self.previewView.setNeedsDisplay_(True)
+        
+        # 建立控制面板按鈕
+        self._create_controls_panel_button(panel)
+    
+    def _create_controls_panel_button(self, panel):
+        """創建控制面板按鈕"""
+        self.controlsPanelButton = NSButton.alloc().init()
+        self.controlsPanelButton.setTitle_("⚙")
+        self.controlsPanelButton.setTarget_(self)
+        self.controlsPanelButton.setAction_("controlsPanelAction:")
+        self.controlsPanelButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
+        self.controlsPanelButton.setButtonType_(NSButtonTypeToggle)
+        
+        # 設定提示
+        controlsPanelTooltip = Glyphs.localize({
+            'en': u'Show/hide controls panel',
+            'zh-Hant': u'顯示/隱藏控制面板',
+            'zh-Hans': u'显示/隐藏控制面板',
+            'ja': u'コントロールパネルを表示/非表示',
+            'ko': u'컨트롤 패널 표시/숨기기',
+        })
+        self.controlsPanelButton.setToolTip_(controlsPanelTooltip)
+        
+        # 設定按鈕狀態
+        self.controlsPanelButton.setState_(1 if self.controlsPanelVisible else 0)
+        
+        # 創建容器視圖
+        buttonView = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 30, 24))
+        buttonView.addSubview_(self.controlsPanelButton)
+        self.controlsPanelButton.setFrame_(NSMakeRect(0, 0, 30, 24))
+        
+        # 創建標題列附件控制器
+        accessoryController = NSTitlebarAccessoryViewController.alloc().init()
+        accessoryController.setView_(buttonView)
+        accessoryController.setLayoutAttribute_(NSLayoutAttributeRight)
+        
+        # 添加到視窗
+        panel.addTitlebarAccessoryViewController_(accessoryController)
+    
+    def _setup_controls_panel(self):
+        """設定控制面板"""
+        self.createControlsPanelWindow()
+    
+    def _register_notifications(self, panel):
+        """註冊通知監聽"""
+        notificationCenter = NSNotificationCenter.defaultCenter()
+        
+        # 視窗大小調整
+        notificationCenter.addObserver_selector_name_object_(
+            self, "windowDidResize:", NSWindowDidResizeNotification, panel
+        )
+        
+        # 視窗移動
+        notificationCenter.addObserver_selector_name_object_(
+            self, "windowDidMove:", NSWindowDidMoveNotification, panel
+        )
+        
+        # 視窗關閉
+        notificationCenter.addObserver_selector_name_object_(
+            self, "windowWillClose:", NSWindowWillCloseNotification, panel
+        )
     
     def createControlsPanelWindow(self):
         """創建控制面板子視窗"""
         try:
-            # 計算控制面板的位置和大小
+            # 計算位置和大小
             mainFrame = self.window().frame()
-            panelHeight = max(mainFrame.size.height, self.CONTROLS_PANEL_MIN_HEIGHT)
-            
-            # 控制面板位置在主視窗右側
-            panelX = mainFrame.origin.x + mainFrame.size.width + 10  # 10像素間距
+            panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
+            panelX = mainFrame.origin.x + mainFrame.size.width + 10
             panelY = mainFrame.origin.y
             
-            panelRect = NSMakeRect(panelX, panelY, self.CONTROLS_PANEL_WIDTH, panelHeight)
+            panelRect = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
             
-            # 創建控制面板視窗 - 使用標準 NSPanel 但移除標題列
-            # 使用 NSTitledWindowMask + NSClosableWindowMask 確保視窗可以正常工作
+            # 創建面板
             self.controlsPanelWindow = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 panelRect,
                 NSTitledWindowMask | NSClosableWindowMask,
@@ -211,310 +193,232 @@ class NineBoxWindow(NSWindowController):
             )
             
             # 設定面板屬性
-            self.controlsPanelWindow.setTitle_("Controls")
-            self.controlsPanelWindow.setLevel_(NSFloatingWindowLevel)
-            self.controlsPanelWindow.setReleasedWhenClosed_(False)
-            self.controlsPanelWindow.setHidesOnDeactivate_(False)
-            self.controlsPanelWindow.setFloatingPanel_(True)
-            self.controlsPanelWindow.setBackgroundColor_(NSColor.controlBackgroundColor())
-            
-            # 隱藏標題列按鈕
-            self.controlsPanelWindow.standardWindowButton_(NSWindowCloseButton).setHidden_(True)
-            self.controlsPanelWindow.standardWindowButton_(NSWindowMiniaturizeButton).setHidden_(True)
-            self.controlsPanelWindow.standardWindowButton_(NSWindowZoomButton).setHidden_(True)
-            
-            # 使標題列透明
-            self.controlsPanelWindow.setTitlebarAppearsTransparent_(True)
-            self.controlsPanelWindow.setTitleVisibility_(1)  # NSWindowTitleHidden
+            self._configure_controls_panel_window()
             
             # 創建控制面板視圖
-            contentRect = NSMakeRect(0, 0, self.CONTROLS_PANEL_WIDTH, panelHeight)
+            contentRect = NSMakeRect(0, 0, CONTROLS_PANEL_WIDTH, panelHeight)
             self.controlsPanelView = self.ControlsPanelView.alloc().initWithFrame_plugin_(
                 contentRect, self.plugin
             )
             
-            # 設定控制面板視窗的內容視圖
+            # 設定內容視圖
             self.controlsPanelWindow.setContentView_(self.controlsPanelView)
             
         except Exception as e:
-            print(f"創建控制面板視窗時發生錯誤: {e}")
-            print(traceback.format_exc())
+            print(f"創建控制面板視窗錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
+    
+    def _configure_controls_panel_window(self):
+        """配置控制面板視窗屬性"""
+        panel = self.controlsPanelWindow
+        
+        panel.setTitle_("Controls")
+        panel.setLevel_(NSFloatingWindowLevel)
+        panel.setReleasedWhenClosed_(False)
+        panel.setHidesOnDeactivate_(False)
+        panel.setFloatingPanel_(True)
+        panel.setBackgroundColor_(NSColor.controlBackgroundColor())
+        
+        # 隱藏標題列按鈕
+        panel.standardWindowButton_(NSWindowCloseButton).setHidden_(True)
+        panel.standardWindowButton_(NSWindowMiniaturizeButton).setHidden_(True)
+        panel.standardWindowButton_(NSWindowZoomButton).setHidden_(True)
+        
+        # 透明標題列
+        panel.setTitlebarAppearsTransparent_(True)
+        panel.setTitleVisibility_(1)  # NSWindowTitleHidden
     
     def showControlsPanel(self):
         """顯示控制面板"""
         try:
             if self.controlsPanelWindow:
-                # 更新控制面板位置和大小
                 self.updateControlsPanelPosition()
-                
-                # 顯示控制面板
                 self.controlsPanelWindow.orderFront_(None)
                 
-                # 更新控制面板內容
                 if self.controlsPanelView:
                     self.controlsPanelView.update_ui(self.plugin)
                 
-                # 更新狀態
                 self.controlsPanelVisible = True
                 self.controlsPanelButton.setState_(1)
                 
-                # 儲存偏好設定
-                from constants import CONTROLS_PANEL_VISIBLE_KEY
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
                 
         except Exception as e:
-            print(f"顯示控制面板時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"顯示控制面板錯誤: {e}")
     
     def hideControlsPanel(self):
         """隱藏控制面板"""
         try:
             if self.controlsPanelWindow:
-                # 隱藏控制面板
                 self.controlsPanelWindow.orderOut_(None)
                 
-                # 更新狀態
                 self.controlsPanelVisible = False
                 self.controlsPanelButton.setState_(0)
                 
-                # 儲存偏好設定
-                from constants import CONTROLS_PANEL_VISIBLE_KEY
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
                 
         except Exception as e:
-            print(f"隱藏控制面板時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"隱藏控制面板錯誤: {e}")
     
     def updateControlsPanelPosition(self):
-        """更新控制面板的位置和大小"""
+        """更新控制面板位置"""
         try:
             if self.controlsPanelWindow:
-                # 獲取主視窗的當前位置和大小
                 mainFrame = self.window().frame()
                 
-                # 計算控制面板的新位置和大小
-                panelHeight = max(mainFrame.size.height, self.CONTROLS_PANEL_MIN_HEIGHT)
-                panelX = mainFrame.origin.x + mainFrame.size.width + 10  # 10像素間距
+                panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
+                panelX = mainFrame.origin.x + mainFrame.size.width + 10
                 panelY = mainFrame.origin.y
                 
-                newPanelFrame = NSMakeRect(panelX, panelY, self.CONTROLS_PANEL_WIDTH, panelHeight)
-                
-                # 設定新的框架
+                newPanelFrame = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
                 self.controlsPanelWindow.setFrame_display_(newPanelFrame, True)
                 
-                # 更新內容視圖的大小
                 if self.controlsPanelView:
-                    contentRect = NSMakeRect(0, 0, self.CONTROLS_PANEL_WIDTH, panelHeight)
+                    contentRect = NSMakeRect(0, 0, CONTROLS_PANEL_WIDTH, panelHeight)
                     self.controlsPanelView.setFrame_(contentRect)
-                    self.controlsPanelView.setupUI()  # 重新佈局UI元件
+                    self.controlsPanelView.setupUI()
                 
         except Exception as e:
-            print(f"更新控制面板位置時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"更新控制面板位置錯誤: {e}")
     
     def controlsPanelAction_(self, sender):
         """控制面板按鈕動作"""
         try:
-            # 切換控制面板可見性
             if self.controlsPanelVisible:
                 self.hideControlsPanel()
             else:
                 self.showControlsPanel()
                 
         except Exception as e:
-            print(f"控制面板按鈕動作時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"控制面板按鈕動作錯誤: {e}")
     
     def windowDidResize_(self, notification):
-        """
-        視窗大小調整時的處理
-        Handle window resize events
-        
-        Args:
-            notification: 通知對象
-        """
+        """視窗大小調整處理"""
         try:
             if notification.object() == self.window():
-                # 獲取新的視窗大小
                 frame = self.window().frame()
                 contentSize = self.window().contentView().frame().size
                 
-                print(f"九宮格視窗大小調整：新尺寸 {frame.size.width}x{frame.size.height}, 內容區域 {contentSize.width}x{contentSize.height}")
+                debug_log(f"視窗調整：{frame.size.width}x{frame.size.height}")
                 
-                # 調整預覽畫面大小以佔據整個內容區域
+                # 調整預覽畫面
                 if hasattr(self, 'previewView') and self.previewView:
                     self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
-                    # 觸發預覽畫面重繪以即時反映尺寸變更
-                    self.previewView.setNeedsDisplay_(True)
-                    print("已觸發預覽畫面重繪")
+                    
+                    # 延遲強制重繪，等待框架實際調整完成
+                    if hasattr(self.previewView, 'force_redraw'):
+                        self.previewView.force_redraw()
+                    else:
+                        self.previewView.setNeedsDisplay_(True)
                 
-                # 更新控制面板的位置和大小
+                # 更新控制面板
                 if self.controlsPanelVisible:
                     self.updateControlsPanelPosition()
                 
-                # 儲存視窗大小 / Save the window size
+                # 儲存視窗大小
                 if hasattr(self, 'plugin'):
                     newSize = [frame.size.width, frame.size.height]
-                    Glyphs.defaults[self.plugin.WINDOW_SIZE_KEY] = newSize
+                    Glyphs.defaults[WINDOW_SIZE_KEY] = newSize
                 
         except Exception as e:
-            print(f"處理視窗大小調整時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"處理視窗調整錯誤: {e}")
     
     def windowDidMove_(self, notification):
-        """
-        視窗移動時的處理 - 子視窗跟隨移動
-        Handle window move events - sub-window follows main window
-        
-        Args:
-            notification: 通知對象
-        """
+        """視窗移動處理"""
         try:
             if notification.object() == self.window():
-                print("九宮格主視窗移動，更新控制面板位置...")
-                
-                # 如果控制面板正在顯示，更新其位置
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    print("控制面板已跟隨主視窗移動")
-                
+                    
         except Exception as e:
-            print(f"處理視窗移動時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"處理視窗移動錯誤: {e}")
     
     def windowWillClose_(self, notification):
-        """
-        視窗關閉時的處理
-        Handle window close events
-        
-        Args:
-            notification: 通知對象
-        """
+        """視窗關閉處理"""
         try:
-            print("九宮格主視窗即將關閉...")
+            debug_log("主視窗即將關閉")
             
-            # 保存控制面板當前的顯示狀態到偏好設定
-            from constants import CONTROLS_PANEL_VISIBLE_KEY
+            # 保存狀態
             Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
-            print(f"已保存控制面板狀態: {self.controlsPanelVisible}")
             
-            # 如果控制面板視窗存在且正在顯示，則關閉它
+            # 關閉控制面板
             if self.controlsPanelWindow:
-                if self.controlsPanelVisible:
-                    print("關閉控制面板視窗...")
                 self.controlsPanelWindow.orderOut_(None)
             
-            # 保存偏好設定 / Save preferences
+            # 保存偏好設定
             if hasattr(self, 'plugin'):
                 self.plugin.savePreferences()
-                
-            # 移除通知觀察者 / Remove notification observers
+            
+            # 移除通知觀察者
             NSNotificationCenter.defaultCenter().removeObserver_(self)
             
         except Exception as e:
-            print(f"處理視窗關閉時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"處理視窗關閉錯誤: {e}")
     
     def request_main_redraw(self):
         """請求主預覽視圖重繪"""
         try:
             if hasattr(self, 'previewView') and self.previewView:
-                self.previewView.setNeedsDisplay_(True)
+                # 使用強制重繪機制（如果存在）
+                if hasattr(self.previewView, 'force_redraw'):
+                    self.previewView.force_redraw()
+                else:
+                    self.previewView.setNeedsDisplay_(True)
         except Exception as e:
-            print(f"請求主預覽重繪時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"請求主預覽重繪錯誤: {e}")
     
     def request_controls_panel_ui_update(self):
         """請求控制面板UI更新"""
         try:
-            if hasattr(self, 'controlsPanelView') and self.controlsPanelView and self.controlsPanelVisible:
-                # 更新控制面板內容
+            if self.controlsPanelView and self.controlsPanelVisible:
                 self.controlsPanelView.update_ui(self.plugin)
-                print("已請求更新控制面板 UI")
+                debug_log("已更新控制面板 UI")
                     
         except Exception as e:
-            print(f"請求控制面板UI更新時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"請求控制面板UI更新錯誤: {e}")
     
     def redraw(self):
-        """重繪介面（保持向後相容性）"""
-        try:
-            # 檢查是否應該更新預覽畫面
-            should_update = True
-            
-            # 如果有控制面板視圖，檢查鎖頭狀態
-            if (hasattr(self, 'controlsPanelView') and self.controlsPanelView and 
-                hasattr(self.controlsPanelView, 'isInClearMode')):
-                
-                # 這裡可以添加額外的邏輯來決定是否更新
-                # 目前保持簡單，總是允許更新
-                pass
-            
-            if should_update:
-                self.request_main_redraw()
-                
-        except Exception as e:
-            print(f"重繪介面時發生錯誤: {e}")
-            print(traceback.format_exc())
+        """重繪介面（向後相容）"""
+        self.request_main_redraw()
     
     def redrawIgnoreLockState(self):
-        """強制重繪，忽略鎖頭狀態"""
-        try:
-            self.request_main_redraw()
-        except Exception as e:
-            print(f"強制重繪時發生錯誤: {e}")
-            print(traceback.format_exc())
+        """強制重繪"""
+        self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
         """顯示並激活視窗"""
         try:
-            print("九宮格視窗初次開啟...")
+            debug_log("初次開啟視窗")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)
             
-            # 根據儲存的狀態決定是否顯示控制面板
-            print(f"讀取到的控制面板狀態: {self.controlsPanelVisible}")
+            # 恢復控制面板
             if self.controlsPanelVisible:
-                print("恢復控制面板顯示狀態...")
                 self.showControlsPanel()
-                # 確保控制面板內容被正確更新
                 if self.controlsPanelView:
                     self.controlsPanelView.update_ui(self.plugin)
             
-            # 初始化完成後更新介面，確保預覽畫面即時更新
+            # 更新介面
             if hasattr(self, 'plugin'):
                 self.plugin.updateInterface(None)
-                
-            # 強制重繪預覽畫面，確保初次開啟時內容即時顯示
+            
+            # 強制重繪
             if hasattr(self, 'previewView') and self.previewView:
-                self.previewView.setNeedsDisplay_(True)
-                print("已觸發初次開啟時的預覽畫面重繪")
+                if hasattr(self.previewView, 'force_redraw'):
+                    self.previewView.force_redraw()
+                else:
+                    self.previewView.setNeedsDisplay_(True)
                 
         except Exception as e:
-            print(f"顯示視窗時發生錯誤: {e}")
-            print(traceback.format_exc())
-    
-    def setControlsPanelFocus(self):
-        """設定控制面板的焦點"""
-        try:
-            if self.controlsPanelWindow:
-                # 不要讓控制面板成為 key window，因為這會影響主視窗
-                # 但是確保它可以接受滑鼠事件
-                if hasattr(self.controlsPanelView, 'searchField') and self.controlsPanelView.searchField:
-                    # 只在需要時才設定焦點
-                    pass
-        except Exception as e:
-            print(f"設定控制面板焦點時發生錯誤: {e}")
-            print(traceback.format_exc())
+            debug_log(f"顯示視窗錯誤: {e}")
     
     def dealloc(self):
         """析構函數"""
         try:
-            # 移除通知觀察者
             NSNotificationCenter.defaultCenter().removeObserver_(self)
             
-            # 關閉控制面板視窗
             if hasattr(self, 'controlsPanelWindow') and self.controlsPanelWindow:
                 self.controlsPanelWindow.orderOut_(None)
                 
