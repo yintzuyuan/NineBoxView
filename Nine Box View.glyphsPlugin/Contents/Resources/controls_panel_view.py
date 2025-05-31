@@ -148,7 +148,7 @@ class ControlsPanelView(NSView):
     """
     
     def initWithFrame_plugin_(self, frame, plugin):
-        """初始化控制面板視圖（階段1.2：基礎版）"""
+        """初始化控制面板視圖（階段1.3：基礎版）"""
         try:
             self = objc.super(ControlsPanelView, self).initWithFrame_(frame)
             if self:
@@ -173,11 +173,11 @@ class ControlsPanelView(NSView):
                     None
                 )
                 
-                debug_log("[階段1.2] 控制面板視圖初始化完成")
+                debug_log("[階段1.3] 控制面板視圖初始化完成")
                 
             return self
         except Exception as e:
-            print(f"[階段1.2] 初始化控制面板視圖錯誤: {e}")
+            print(f"[階段1.3] 初始化控制面板視圖錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
             return None
@@ -386,6 +386,25 @@ class ControlsPanelView(NSView):
         self._ui_components['unlockAllButton'] = unlockAllButton
         self.addSubview_(unlockAllButton)
     
+    def setFrame_(self, frame):
+        """覆寫 setFrame_ 方法（階段1.3：新增）"""
+        # 記錄舊框架
+        oldFrame = self.frame()
+        
+        # 呼叫父類方法
+        objc.super(ControlsPanelView, self).setFrame_(frame)
+        
+        # 如果框架大小改變，重新佈局 UI
+        if (oldFrame.size.width != frame.size.width or 
+            oldFrame.size.height != frame.size.height):
+            debug_log(f"[階段1.3] 控制面板框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
+            
+            # 重新佈局 UI（不重建）
+            self.layoutUI()
+            
+            # 觸發重繪
+            self.setNeedsDisplay_(True)
+    
     def setupUI(self):
         """設定使用者介面元件（優化版）"""
         try:
@@ -411,6 +430,78 @@ class ControlsPanelView(NSView):
             
         except Exception as e:
             print(f"設定UI時發生錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
+    
+    def layoutUI(self):
+        """重新佈局 UI 元件（階段1.3：新增）"""
+        """不重建 UI，只調整現有元件位置"""
+        try:
+            bounds = self.bounds()
+            margin = 10
+            spacing = 8
+            current_y = bounds.size.height - margin
+            
+            # 調整搜尋欄位位置
+            if hasattr(self, 'searchField'):
+                search_height = 60
+                current_y -= search_height
+                searchRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, search_height)
+                self.searchField.setFrame_(searchRect)
+                current_y -= spacing
+            
+            # 調整按鈕位置
+            button_height = 30
+            if hasattr(self, 'randomizeButton'):
+                current_y -= button_height
+                self.randomizeButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+                current_y -= spacing
+            
+            if hasattr(self, 'lockButton'):
+                current_y -= button_height
+                self.lockButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+                current_y -= spacing
+            
+            # 重新佈局鎖定輸入框（保持中心對齊）
+            if hasattr(self, 'lockFields') and self.lockFields:
+                current_y -= 20  # 標題高度
+                current_y -= spacing + 10
+                
+                field_size = 30
+                field_spacing = 5
+                grid_width = 3 * field_size + 2 * field_spacing
+                start_x = (bounds.size.width - grid_width) / 2
+                
+                position = 0
+                for row in range(3):
+                    for col in range(3):
+                        if row == 1 and col == 1:  # 跳過中央
+                            continue
+                        
+                        if position in self.lockFields:
+                            x = start_x + col * (field_size + field_spacing)
+                            y = current_y - row * (field_size + field_spacing)
+                            fieldRect = NSMakeRect(x, y, field_size, field_size)
+                            self.lockFields[position].setFrame_(fieldRect)
+                        position += 1
+                
+                current_y -= 3 * (field_size + field_spacing) + spacing
+            
+            # 調整底部按鈕位置
+            button_height = 25
+            if hasattr(self, 'lockAllButton'):
+                current_y -= button_height
+                self.lockAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+                current_y -= spacing
+            
+            if hasattr(self, 'unlockAllButton'):
+                current_y -= button_height
+                self.unlockAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+            
+            debug_log(f"[階段1.3] 完成 UI 佈局調整")
+            
+        except Exception as e:
+            debug_log(f"[階段1.3] 重新佈局 UI 錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
     
@@ -522,18 +613,18 @@ class ControlsPanelView(NSView):
         except Exception as e:
             debug_log(f"主題變更處理錯誤: {e}")
     
-    # === 階段1.2：按鈕動作存根方法 ===
+    # === 階段1.3：按鈕動作存根方法 ===
     def randomizeStub_(self, sender):
-        """隨機排列按鈕存根（階段1.2）"""
-        debug_log("[階段1.2] 隨機排列按鈕被點擊")
+        """隨機排列按鈕存根（階段1.3）"""
+        debug_log("[階段1.3] 隨機排列按鈕被點擊")
     
     def lockAllStub_(self, sender):
-        """鎖定全部按鈕存根（階段1.2）"""
-        debug_log("[階段1.2] 鎖定全部按鈕被點擊")
+        """鎖定全部按鈕存根（階段1.3）"""
+        debug_log("[階段1.3] 鎖定全部按鈕被點擊")
     
     def unlockAllStub_(self, sender):
-        """解鎖全部按鈕存根（階段1.2）"""
-        debug_log("[階段1.2] 解鎖全部按鈕被點擊")
+        """解鎖全部按鈕存根（階段1.3）"""
+        debug_log("[階段1.3] 解鎖全部按鈕被點擊")
     
     def drawRect_(self, rect):
         """繪製背景（優化版）"""

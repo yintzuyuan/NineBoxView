@@ -90,10 +90,30 @@ class NineBoxPreviewView(NSView):
         return True
 
     def force_redraw(self):
-        """設置強制重繪標記"""
+        """設置強制重繪標記（階段1.3：優化版）"""
         self._force_redraw = True
+        self._last_redraw_time = 0  # 重置節流計時器
         self.setNeedsDisplay_(True)
-        debug_log("已請求強制重繪")
+        debug_log("[階段1.3] 已請求強制重繪，重置節流計時器")
+    
+    def setFrame_(self, frame):
+        """覆寫 setFrame_ 方法（階段1.3：新增）"""
+        # 記錄舊框架
+        oldFrame = self.frame()
+        
+        # 呼叫父類方法
+        objc.super(NineBoxPreviewView, self).setFrame_(frame)
+        
+        # 如果框架大小改變，觸發重繪
+        if (oldFrame.size.width != frame.size.width or 
+            oldFrame.size.height != frame.size.height):
+            debug_log(f"[階段1.3] 預覽視圖框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
+            
+            # 清除網格度量快取
+            self._cached_grid_metrics = None
+            
+            # 強制重繪
+            self.force_redraw()
 
     def _get_theme_is_black(self):
         """取得並快取主題設定"""
@@ -283,7 +303,7 @@ class NineBoxPreviewView(NSView):
             
             rect_width = rect.size.width
             rect_height = rect.size.height
-            debug_log(f"[階段1.1] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
+            debug_log(f"[階段1.3] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
             
             # 確保繪製區域有效
             if rect_width <= 0 or rect_height <= 0:
@@ -310,7 +330,7 @@ class NineBoxPreviewView(NSView):
             if Glyphs.font.selectedLayers:
                 layer = Glyphs.font.selectedLayers[0]
                 if layer:
-                    debug_log(f"[階段1.1] 繪製中央字符：{layer.parent.name}")
+                    debug_log(f"[階段1.3] 繪製中央字符：{layer.parent.name}")
                     
                     # 計算中央位置
                     centerX = rect_width / 2
@@ -326,11 +346,11 @@ class NineBoxPreviewView(NSView):
                         1.0, is_black
                     )
                     
-                    debug_log(f"[階段1.1] 完成繪製中央字符")
+                    debug_log(f"[階段1.3] 完成繪製中央字符")
                 else:
-                    debug_log("[階段1.1] 沒有選擇的圖層")
+                    debug_log("[階段1.3] 沒有選擇的圖層")
             else:
-                debug_log("[階段1.1] 沒有選擇的圖層")
+                debug_log("[階段1.3] 沒有選擇的圖層")
             
             # === 階段1.1：暫時停用周圍8個字符的顯示 ===
             # 以下程式碼暫時註解，待後續階段啟用
@@ -393,7 +413,7 @@ class NineBoxPreviewView(NSView):
             """
                     
         except Exception as e:
-            print(f"[階段1.1] 繪製預覽畫面時發生錯誤: {e}")
+            print(f"[階段1.3] 繪製預覽畫面時發生錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
     

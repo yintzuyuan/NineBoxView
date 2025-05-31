@@ -55,7 +55,7 @@ try:
             from constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, 
                 CURRENT_ARRANGEMENT_KEY, TEST_MODE_KEY, SEARCH_HISTORY_KEY,
-                ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY,
+                ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY, WINDOW_POSITION_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
                 SIDEBAR_VISIBLE_KEY, CONTROLS_PANEL_VISIBLE_KEY, CONTROLS_PANEL_WIDTH, 
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, DEBUG_MODE
@@ -89,6 +89,7 @@ try:
             self.ZOOM_FACTOR_KEY = ZOOM_FACTOR_KEY
             self.SHOW_NUMBERS_KEY = SHOW_NUMBERS_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
+            self.WINDOW_POSITION_KEY = WINDOW_POSITION_KEY
             self.SIDEBAR_VISIBLE_KEY = SIDEBAR_VISIBLE_KEY
             self.CONTROLS_PANEL_VISIBLE_KEY = CONTROLS_PANEL_VISIBLE_KEY
             self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
@@ -105,6 +106,7 @@ try:
             self.windowController = None
             self.previousLockedChars = {}
             self.controlsPanelVisible = True
+            self.windowPosition = None
             self._update_scheduled = False  # 防止重複更新
 
         @objc.python_method
@@ -142,9 +144,22 @@ try:
                         self.debug_log("初始化視窗前產生排列")
                         self.generateNewArrangement()
                     
+                    # 嘗試初始化視窗控制器
+                    self.debug_log("嘗試初始化視窗控制器")
                     self.windowController = self.NineBoxWindow.alloc().initWithPlugin_(self)
+                    
+                    # 檢查初始化是否成功
+                    if self.windowController is None:
+                        self.debug_log("初始化視窗控制器失敗")
+                        Glyphs.showNotification(
+                            self.name,
+                            "初始化視窗失敗，請檢查控制台日誌"
+                        )
+                        return
                 
-                self.windowController.makeKeyAndOrderFront()
+                # 確保視窗控制器有效後再顯示視窗
+                if self.windowController is not None:
+                    self.windowController.makeKeyAndOrderFront()
                 
             except Exception as e:
                 print(f"切換視窗時發生錯誤: {str(e)}")
@@ -515,11 +530,29 @@ try:
             self.currentArrangement = Glyphs.defaults.get(self.CURRENT_ARRANGEMENT_KEY, [])
             self.zoomFactor = float(Glyphs.defaults.get(self.ZOOM_FACTOR_KEY, self.DEFAULT_ZOOM))
             
-            # 側邊欄相容性
-            self.sidebarVisible = bool(Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY, True))
-            self.controlsPanelVisible = bool(Glyphs.defaults.get(
-                self.CONTROLS_PANEL_VISIBLE_KEY, self.sidebarVisible
-            ))
+            # 視窗位置
+            key_to_load_pos = self.WINDOW_POSITION_KEY
+            loaded_pos = Glyphs.defaults.get(key_to_load_pos, None)
+            self.debug_log(f"plugin.loadPreferences: Attempting to load windowPosition with key='{key_to_load_pos}'. Value from defaults: {loaded_pos}")
+            self.windowPosition = loaded_pos
+            
+            # 控制面板可見性
+            controls_panel_visible_value = Glyphs.defaults.get(self.CONTROLS_PANEL_VISIBLE_KEY)
+
+            if controls_panel_visible_value is not None:
+                self.controlsPanelVisible = bool(controls_panel_visible_value)
+                self.sidebarVisible = bool(controls_panel_visible_value)  # 同步 sidebarVisible
+                self.debug_log(f"plugin.loadPreferences: Loaded controlsPanelVisible={self.controlsPanelVisible} from CONTROLS_PANEL_VISIBLE_KEY")
+            else:
+                sidebar_visible_value = Glyphs.defaults.get(self.SIDEBAR_VISIBLE_KEY)
+                if sidebar_visible_value is not None:
+                    self.controlsPanelVisible = bool(sidebar_visible_value)
+                    self.sidebarVisible = bool(sidebar_visible_value)
+                    self.debug_log(f"plugin.loadPreferences: Loaded controlsPanelVisible={self.controlsPanelVisible} from SIDEBAR_VISIBLE_KEY")
+                else:
+                    self.controlsPanelVisible = True
+                    self.sidebarVisible = True
+                    self.debug_log(f"plugin.loadPreferences: Set controlsPanelVisible to default True")
             
             # 鎖定字符
             self._load_locked_chars()
@@ -542,14 +575,32 @@ try:
         @objc.python_method
         def savePreferences(self):
             """儲存偏好設定（優化版）"""
+            self.debug_log(f"plugin.savePreferences: Starting to save preferences.")
             # 基本設定
             Glyphs.defaults[self.LAST_INPUT_KEY] = self.lastInput
             Glyphs.defaults[self.SELECTED_CHARS_KEY] = self.selectedChars
             Glyphs.defaults[self.CURRENT_ARRANGEMENT_KEY] = self.currentArrangement
             Glyphs.defaults[self.ZOOM_FACTOR_KEY] = self.zoomFactor
-            Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.sidebarVisible
-            Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
             
+            # 控制面板可見性 - 同時更新新舊兩個 key
+            if hasattr(self, 'controlsPanelVisible'):
+                Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
+                Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.controlsPanelVisible
+                self.debug_log(f"plugin.savePreferences: Saved controlsPanelVisible={self.controlsPanelVisible}")
+            else:
+                Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = True
+                Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = True
+                self.debug_log(f"plugin.savePreferences: Saved default controlsPanelVisible=True")
+            
+            # 視窗位置
+            if hasattr(self, 'windowPosition') and self.windowPosition:
+                key_to_save_pos = self.WINDOW_POSITION_KEY
+                val_to_save_pos = self.windowPosition
+                self.debug_log(f"plugin.savePreferences: Saving windowPosition. Key='{key_to_save_pos}', Value={val_to_save_pos}")
+                Glyphs.defaults[key_to_save_pos] = val_to_save_pos
+            else:
+                self.debug_log(f"plugin.savePreferences: windowPosition not saved (either not present or None/empty). Current value: {getattr(self, 'windowPosition', 'Not Set')}")
+
             # 鎖定字符（轉換鍵為字串）
             if hasattr(self, 'lockedChars'):
                 locked_chars_str = {str(k): v for k, v in self.lockedChars.items()}
@@ -558,6 +609,7 @@ try:
             if hasattr(self, 'previousLockedChars'):
                 previous_locked_chars_str = {str(k): v for k, v in self.previousLockedChars.items()}
                 Glyphs.defaults[self.PREVIOUS_LOCKED_CHARS_KEY] = previous_locked_chars_str
+            self.debug_log(f"plugin.savePreferences: Finished saving preferences.")
 
         @objc.python_method
         def resetZoom(self, sender):

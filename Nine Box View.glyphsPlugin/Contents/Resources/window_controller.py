@@ -9,7 +9,7 @@ import traceback
 import objc
 from GlyphsApp import Glyphs
 from AppKit import (
-    NSWindowController, NSPanel, NSButton, NSMakeRect, NSMakeSize,
+    NSWindowController, NSPanel, NSButton, NSMakeRect, NSMakeSize, NSMakePoint,
     NSWindow, NSNotificationCenter, NSWindowWillCloseNotification,
     NSWindowDidResizeNotification, NSWindowDidMoveNotification,
     NSTitledWindowMask, NSClosableWindowMask, NSResizableWindowMask,
@@ -45,12 +45,17 @@ class NineBoxWindow(NSWindowController):
             from controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
             self.ControlsPanelView = ControlsPanelView
+            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
             
             # 確保偏好設定已載入
             plugin.loadPreferences()
             
             # 載入視窗大小
             savedSize = Glyphs.defaults.get(WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE)
+            
+            # 載入視窗位置
+            savedPosition = plugin.windowPosition
+            debug_log(f"window_controller.initWithPlugin_: Received savedPosition from plugin: {savedPosition} (type: {type(savedPosition)})")
             
             # 建立主視窗
             windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
@@ -94,13 +99,32 @@ class NineBoxWindow(NSWindowController):
                 # 根據偏好設定顯示控制面板
                 if self.controlsPanelVisible:
                     self.showControlsPanel()
-                
-                debug_log("[階段1.2] 主視窗和控制面板初始化完成")
+                    
+                # 設定視窗位置
+                debug_log(f"window_controller.initWithPlugin_: Checking savedPosition before applying. Value: {savedPosition}")
+                cond1_sp_truthy = bool(savedPosition)
+                cond2_sp_is_valid_type = isinstance(savedPosition, (list, tuple, NSArray))
+                cond3_sp_len_ge_2 = len(savedPosition) >= 2 if savedPosition else False
+                debug_log(f"window_controller.initWithPlugin_: Conditions for applying savedPosition: truthy={cond1_sp_truthy}, is_valid_type={cond2_sp_is_valid_type}, len_ge_2={cond3_sp_len_ge_2}")
+
+                if cond1_sp_truthy and cond2_sp_is_valid_type and cond3_sp_len_ge_2:
+                    try:
+                        x = float(savedPosition[0])
+                        y = float(savedPosition[1])
+                        debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
+                        panel.setFrameOrigin_(NSMakePoint(x, y))
+                        debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
+                    except (ValueError, TypeError) as e:
+                        debug_log(f"window_controller.initWithPlugin_: Error setting panel origin: {e}. savedPosition was: {savedPosition}")
+                else:
+                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition based on detailed checks. Value: {savedPosition}")
+
+                debug_log("window_controller.initWithPlugin_: 主視窗和控制面板初始化完成")
             
             return self
             
         except Exception as e:
-            print(f"[階段1.2] 初始化視窗控制器錯誤: {e}")
+            debug_log(f"window_controller.initWithPlugin_: 初始化視窗控制器錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
             return None
@@ -251,6 +275,10 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelVisible = True
                 self.controlsPanelButton.setState_(1)
                 
+                # 更新插件對象屬性
+                if hasattr(self, 'plugin'):
+                    self.plugin.controlsPanelVisible = True
+                
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
                 
         except Exception as e:
@@ -265,31 +293,53 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelVisible = False
                 self.controlsPanelButton.setState_(0)
                 
+                # 更新插件對象屬性
+                if hasattr(self, 'plugin'):
+                    self.plugin.controlsPanelVisible = False
+                
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
                 
         except Exception as e:
             debug_log(f"隱藏控制面板錯誤: {e}")
     
     def updateControlsPanelPosition(self):
-        """更新控制面板位置"""
+        """更新控制面板位置（階段1.3：優化版）"""
         try:
-            if self.controlsPanelWindow:
+            if self.controlsPanelWindow and self.controlsPanelView:
                 mainFrame = self.window().frame()
                 
+                # 計算控制面板的新框架
                 panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
                 panelX = mainFrame.origin.x + mainFrame.size.width + 10
                 panelY = mainFrame.origin.y
                 
+                oldPanelFrame = self.controlsPanelWindow.frame()
                 newPanelFrame = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
-                self.controlsPanelWindow.setFrame_display_(newPanelFrame, True)
                 
-                if self.controlsPanelView:
-                    contentRect = NSMakeRect(0, 0, CONTROLS_PANEL_WIDTH, panelHeight)
-                    self.controlsPanelView.setFrame_(contentRect)
-                    self.controlsPanelView.setupUI()
+                # 只在框架真的改變時才更新
+                if (oldPanelFrame.origin.x != newPanelFrame.origin.x or
+                    oldPanelFrame.origin.y != newPanelFrame.origin.y or
+                    oldPanelFrame.size.width != newPanelFrame.size.width or
+                    oldPanelFrame.size.height != newPanelFrame.size.height):
+                    
+                    debug_log(f"[階段1.3] 更新控制面板框架：從 {oldPanelFrame.size.width}x{oldPanelFrame.size.height} 到 {newPanelFrame.size.width}x{newPanelFrame.size.height}")
+                    
+                    # 更新視窗框架
+                    self.controlsPanelWindow.setFrame_display_animate_(newPanelFrame, True, False)
+                    
+                    # 更新內容視圖框架
+                    contentBounds = self.controlsPanelWindow.contentView().bounds()
+                    self.controlsPanelView.setFrame_(contentBounds)
+                    
+                    # 觸發 UI 重新佈局（不重建）
+                    if hasattr(self.controlsPanelView, 'setNeedsLayout'):
+                        self.controlsPanelView.setNeedsLayout_(True)
+                    self.controlsPanelView.setNeedsDisplay_(True)
                 
         except Exception as e:
-            debug_log(f"更新控制面板位置錯誤: {e}")
+            debug_log(f"[階段1.3] 更新控制面板位置錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
     
     def controlsPanelAction_(self, sender):
         """控制面板按鈕動作"""
@@ -303,17 +353,20 @@ class NineBoxWindow(NSWindowController):
             debug_log(f"控制面板按鈕動作錯誤: {e}")
     
     def windowDidResize_(self, notification):
-        """視窗大小調整處理（階段1.2）"""
+        """視窗大小調整處理（階段1.3：優化版）"""
         try:
             if notification.object() == self.window():
                 frame = self.window().frame()
-                contentSize = self.window().contentView().frame().size
+                contentView = self.window().contentView()
+                contentSize = contentView.frame().size
                 
-                debug_log(f"[階段1.2] 視窗調整：{frame.size.width}x{frame.size.height}")
+                debug_log(f"[階段1.3] 視窗調整：{frame.size.width}x{frame.size.height}，內容區域：{contentSize.width}x{contentSize.height}")
                 
-                # 調整預覽畫面
+                # 調整預覽畫面 - 確保完全填滿內容區域
                 if hasattr(self, 'previewView') and self.previewView:
-                    self.previewView.setFrame_(NSMakeRect(0, 0, contentSize.width, contentSize.height))
+                    # 使用內容視圖的實際邊界
+                    newFrame = contentView.bounds()
+                    self.previewView.setFrame_(newFrame)
                     
                     # 立即觸發重繪確保畫面即時更新
                     if hasattr(self.previewView, 'force_redraw'):
@@ -321,39 +374,70 @@ class NineBoxWindow(NSWindowController):
                     else:
                         self.previewView.setNeedsDisplay_(True)
                     
-                    debug_log(f"[階段1.2] 已調整預覽視圖尺寸並觸發重繪")
+                    debug_log(f"[階段1.3] 已調整預覽視圖框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
                 
-                # 更新控制面板位置
-                if self.controlsPanelVisible:
+                # 更新控制面板位置和大小
+                if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    debug_log("[階段1.2] 已更新控制面板位置")
+                    debug_log("[階段1.3] 已更新控制面板位置和大小")
                 
                 # 儲存視窗大小
                 if hasattr(self, 'plugin'):
                     newSize = [frame.size.width, frame.size.height]
                     Glyphs.defaults[WINDOW_SIZE_KEY] = newSize
+                    debug_log(f"[階段1.3] 已儲存視窗大小偏好設定：{newSize}")
                 
         except Exception as e:
-            debug_log(f"[階段1.2] 處理視窗調整錯誤: {e}")
+            debug_log(f"[階段1.3] 處理視窗調整錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
     
     def windowDidMove_(self, notification):
-        """視窗移動處理（階段1.2）"""
+        """視窗移動處理（階段1.3：優化版）"""
         try:
             if notification.object() == self.window():
+                mainFrame = self.window().frame()
+                current_origin_x = mainFrame.origin.x
+                current_origin_y = mainFrame.origin.y
+                debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})")
+                
+                # 儲存視窗位置
+                if hasattr(self, 'plugin'):
+                    try:
+                        x = float(current_origin_x)
+                        y = float(current_origin_y)
+                        new_position_to_store = [x, y]
+                        self.plugin.windowPosition = new_position_to_store
+                        
+                        key_to_save_pos = self.plugin.WINDOW_POSITION_KEY
+                        debug_log(f"window_controller.windowDidMove_: Attempting to save to Glyphs.defaults. Key='{key_to_save_pos}', Value={new_position_to_store}")
+                        Glyphs.defaults[key_to_save_pos] = new_position_to_store
+                        debug_log(f"window_controller.windowDidMove_: Successfully saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
+                    except Exception as e:
+                        debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
+                
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    debug_log("[階段1.2] 更新控制面板位置")
+                    
+                    if self.controlsPanelWindow.isVisible():
+                        self.controlsPanelWindow.orderFront_(None)
+                    
+                    debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.")
                     
         except Exception as e:
-            debug_log(f"[階段1.2] 處理視窗移動錯誤: {e}")
+            debug_log(f"window_controller.windowDidMove_: Error in windowDidMove: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
     
     def windowWillClose_(self, notification):
         """視窗關閉處理（階段1.3：完整資源釋放）"""
         try:
             debug_log("[階段1.3] 主視窗即將關閉")
             
-            # 保存狀態
-            Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
+            # 保存狀態到插件對象
+            if hasattr(self, 'plugin'):
+                self.plugin.controlsPanelVisible = self.controlsPanelVisible
+                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
             
             # 完整釋放控制面板資源
             if self.controlsPanelWindow:
@@ -411,7 +495,41 @@ class NineBoxWindow(NSWindowController):
     def makeKeyAndOrderFront(self):
         """顯示並激活視窗（階段1.3：視窗重建機制）"""
         try:
-            debug_log("[階段1.3] 開啟視窗")
+            debug_log("window_controller.makeKeyAndOrderFront: Starting.")
+            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
+            
+            # 如果有記錄的位置，先設定
+            position_to_apply = None
+            plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
+            current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
+            debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition. plugin_has_pos_attr={plugin_has_pos_attr}, current_plugin_pos={current_plugin_pos} (type: {type(current_plugin_pos)})")
+
+            cond1_pp_truthy = False
+            cond2_pp_is_valid_type = False
+            cond3_pp_len_ge_2 = False
+
+            if plugin_has_pos_attr and current_plugin_pos:
+                cond1_pp_truthy = bool(current_plugin_pos)
+                cond2_pp_is_valid_type = isinstance(current_plugin_pos, (list, tuple, NSArray))
+                cond3_pp_len_ge_2 = len(current_plugin_pos) >= 2
+            
+            debug_log(f"window_controller.makeKeyAndOrderFront: Conditions for plugin.windowPosition: truthy={cond1_pp_truthy}, is_valid_type={cond2_pp_is_valid_type}, len_ge_2={cond3_pp_len_ge_2}")
+
+            if cond1_pp_truthy and cond2_pp_is_valid_type and cond3_pp_len_ge_2:
+                position_to_apply = current_plugin_pos
+                debug_log(f"window_controller.makeKeyAndOrderFront: Position to apply from plugin.windowPosition: {position_to_apply}")
+            else:
+                debug_log(f"window_controller.makeKeyAndOrderFront: No valid position in plugin.windowPosition based on detailed checks. Current value: {current_plugin_pos}")
+
+            if position_to_apply:
+                try:
+                    x = float(position_to_apply[0])
+                    y = float(position_to_apply[1])
+                    debug_log(f"window_controller.makeKeyAndOrderFront: Attempting to set window origin to ({x}, {y})")
+                    self.window().setFrameOrigin_(NSMakePoint(x, y))
+                    debug_log(f"window_controller.makeKeyAndOrderFront: Window origin set to {self.window().frame().origin.x}, {self.window().frame().origin.y}")
+                except (ValueError, TypeError) as e:
+                    debug_log(f"window_controller.makeKeyAndOrderFront: Error setting window origin: {e}. position_to_apply was: {position_to_apply}")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)
@@ -419,7 +537,7 @@ class NineBoxWindow(NSWindowController):
             # 檢查並重建控制面板（如果需要）
             if self.controlsPanelVisible:
                 if not self.controlsPanelWindow or not self.controlsPanelWindow.isVisible():
-                    debug_log("[階段1.3] 重建控制面板")
+                    debug_log("window_controller.makeKeyAndOrderFront: Rebuilding controls panel.")
                     self._setup_controls_panel()
                 
                 self.showControlsPanel()
@@ -432,16 +550,14 @@ class NineBoxWindow(NSWindowController):
             
             # 強制重繪確保初次顯示
             if hasattr(self, 'previewView') and self.previewView:
-                # 延遲執行以確保視窗已完全顯示
                 from Foundation import NSObject, NSTimer
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                     0.1, self, "delayedForceRedraw:", None, False
                 )
-                
-                debug_log(f"[階段1.3] 已排程延遲重繪")
+                debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.")
                 
         except Exception as e:
-            debug_log(f"[階段1.3] 顯示視窗錯誤: {e}")
+            debug_log(f"window_controller.makeKeyAndOrderFront: Error: {e}")
     
     def delayedForceRedraw_(self, timer):
         """延遲強制重繪（階段1.3）"""
