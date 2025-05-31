@@ -131,14 +131,14 @@ class LockCharacterField(BaseTextField):
         self.setToolTip_(lockedTooltip)
     
     def textDidChange_(self, notification):
-        """文本變更時的智能回調（階段1.2：僅記錄）"""
+        """文本變更時的智能回調（階段2.2：資料處理）"""
         try:
-            debug_log(f"[階段1.2] 鎖定欄位 {self.position} 文本變更: {self.stringValue()}")
-            # === 階段1.2：功能暫未實現 ===
-            # if hasattr(self, 'plugin') and self.plugin:
-            #     self.plugin.smartLockCharacterCallback(self)
+            debug_log(f"[階段2.2] 鎖定欄位 {self.position} 文本變更: {self.stringValue()}")
+            # === 階段2.2：啟用智能鎖定字符功能 ===
+            if hasattr(self, 'plugin') and self.plugin:
+                self.plugin.smartLockCharacterCallback(self)
         except Exception as e:
-            debug_log(f"[階段1.2] 智能鎖定字符處理錯誤: {e}")
+            debug_log(f"[階段2.2] 智能鎖定字符處理錯誤: {e}")
 
 
 class ControlsPanelView(NSView):
@@ -586,25 +586,32 @@ class ControlsPanelView(NSView):
             debug_log(f"更新搜尋欄位錯誤: {e}")
     
     def update_ui(self, plugin_state):
-        """根據外掛狀態更新UI元素（優化版）"""
+        """根據外掛狀態更新UI元素（階段2.2：增強版）"""
         try:
-            debug_log("更新控制面板 UI")
+            debug_log("[階段2.2] 更新控制面板 UI")
             
             # 批次更新UI元件
             if hasattr(plugin_state, 'lastInput') and hasattr(self, 'searchField'):
                 input_value = plugin_state.lastInput or ""
                 self.searchField.setStringValue_(input_value)
             
+            # === 階段2.2：確保鎖定字符正確顯示 ===
             if hasattr(plugin_state, 'lockedChars') and hasattr(self, 'lockFields'):
-                for position, field in self.lockFields.items():
-                    value = plugin_state.lockedChars.get(position, "")
-                    field.setStringValue_(value)
+                # 先清空所有欄位
+                for field in self.lockFields.values():
+                    field.setStringValue_("")
+                
+                # 再填入已儲存的鎖定字符
+                for position, char_or_name in plugin_state.lockedChars.items():
+                    if position in self.lockFields:
+                        self.lockFields[position].setStringValue_(char_or_name)
+                        debug_log(f"[階段2.2] 填入位置 {position}: '{char_or_name}'")
             
             # 觸發重繪
             self.setNeedsDisplay_(True)
             
         except Exception as e:
-            debug_log(f"更新UI錯誤: {e}")
+            debug_log(f"[階段2.2] 更新UI錯誤: {e}")
     
     def themeChanged_(self, notification):
         """主題變更處理"""

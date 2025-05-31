@@ -232,6 +232,11 @@ class NineBoxWindow(NSWindowController):
             # 設定內容視圖
             self.controlsPanelWindow.setContentView_(self.controlsPanelView)
             
+            # === 階段2.2：初始化時載入已儲存的鎖定字符 ===
+            if self.controlsPanelView and self.plugin:
+                self.controlsPanelView.update_ui(self.plugin)
+                debug_log("[階段2.2] 控制面板初始化後載入已儲存的資料")
+            
         except Exception as e:
             print(f"創建控制面板視窗錯誤: {e}")
             if DEBUG_MODE:

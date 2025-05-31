@@ -316,7 +316,7 @@ try:
 
         @objc.python_method
         def smartLockCharacterCallback(self, sender):
-            """智能鎖定字符回調（優化版）"""
+            """智能鎖定字符回調（階段2.2：資料處理）"""
             try:
                 if not Glyphs.font:
                     return
@@ -331,38 +331,41 @@ try:
                     # 清除鎖定
                     if position in self.lockedChars:
                         del self.lockedChars[position]
-                        self.debug_log(f"清除位置 {position} 的鎖定")
+                        self.debug_log(f"[階段2.2] 清除位置 {position} 的鎖定")
                         self.savePreferences()
+                        # === 階段2.2：舉隔更新介面 ===
+                        self.updateInterface(sender)
                     return
                 
-                # 檢查鎖頭狀態
-                is_in_clear_mode = self._get_lock_state()
-                if is_in_clear_mode:
-                    self.debug_log("解鎖狀態 - 忽略輸入")
-                    return
+                # === 階段2.2：暫時忽略鎖頭狀態檢查 ===
+                # 在此階段，LockCharacterField 始終啟用以供輸入
+                # is_in_clear_mode = self._get_lock_state()
+                # if is_in_clear_mode:
+                #     self.debug_log("解鎖狀態 - 忽略輸入")
+                #     return
                 
                 # 智能辨識
                 recognized_char = self._recognize_character(input_text)
                 
-                if recognized_char:
-                    if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
-                        self.lockedChars[position] = recognized_char
-                        
-                        # 更新排列
-                        if hasattr(self, 'currentArrangement') and self.currentArrangement:
-                            if position < len(self.currentArrangement):
-                                self.currentArrangement[position] = recognized_char
-                                self.debug_log(f"更新位置 {position} 為 '{recognized_char}'")
-                        
-                        self.savePreferences()
-                        self.updateInterface(sender)
-                        
-                        if hasattr(self, 'windowController') and self.windowController:
-                            if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                                self.windowController.request_controls_panel_ui_update()
+                # 現在 _recognize_character 永不返回 None，所以一定有值
+                if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
+                    self.lockedChars[position] = recognized_char
+                    self.debug_log(f"[階段2.2] 位置 {position} 鎖定字符: '{recognized_char}'")
+                    
+                    # === 階段2.2：資料處理完成 ===
+                    # 在此階段，我們只儲存資料，不直接更新 currentArrangement
+                    # 與繪製畫面的交互將在階段 2.3 實現
+                    
+                    self.savePreferences()
+                    # === 階段2.2：保留更新介面與控制面板的調用 ===
+                    self.updateInterface(sender)
+                    
+                    if hasattr(self, 'windowController') and self.windowController:
+                        if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                            self.windowController.request_controls_panel_ui_update()
             
             except Exception as e:
-                self.debug_log(f"智能鎖定字符處理錯誤: {e}")
+                self.debug_log(f"[階段2.2] 智能鎖定字符處理錯誤: {e}")
 
         @objc.python_method
         def _get_lock_state(self):
@@ -376,25 +379,69 @@ try:
 
         @objc.python_method
         def _recognize_character(self, input_text):
-            """辨識字符（優化版）"""
-            # 1. 嘗試完整輸入
+            """辨識字符（階段2.2：永不返回 None）"""
+            # === 階段2.2：考慮大小寫差異 ===
+            # 1. 嘗試完整輸入（區分大小寫）
             glyph = self.get_cached_glyph(Glyphs.font, input_text)
             if glyph:
                 return input_text
             
-            # 2. 嘗試第一個字符
+            # 2. 嘗試第一個字符（區分大小寫）
             if len(input_text) > 0:
                 first_char = input_text[0]
                 first_glyph = self.get_cached_glyph(Glyphs.font, first_char)
                 if first_glyph:
                     return first_char
             
-            # 3. 解析輸入
+            # 3. 解析輸入（parse_input_text 會處理大小寫）
             parsed_chars = self.parse_input_text(input_text)
             if parsed_chars:
                 return parsed_chars[0]
             
-            return None
+            # === 階段2.2：無效字符時使用替代策略 ===
+            # 4. 優先使用搜尋欄位（長文輸入框）中的有效字符
+            if hasattr(self, 'selectedChars') and self.selectedChars:
+                # 選擇第一個有效字符作為替代
+                for char in self.selectedChars:
+                    if self.get_cached_glyph(Glyphs.font, char):
+                        self.debug_log(f"[階段2.2] 輸入 '{input_text}' 無效，使用搜尋欄位的 '{char}' 替代")
+                        return char
+            
+            # 5. 使用當前正在編輯的字符
+            if Glyphs.font and Glyphs.font.selectedLayers:
+                current_layer = Glyphs.font.selectedLayers[0]
+                if current_layer and current_layer.parent:
+                    current_glyph = current_layer.parent
+                    if current_glyph.unicode:
+                        try:
+                            char = chr(int(current_glyph.unicode, 16))
+                            self.debug_log(f"[階段2.2] 使用當前編輯字符 '{char}' 作為替代")
+                            return char
+                        except:
+                            pass
+                    # 如果當前字符沒有 unicode，使用其名稱
+                    if current_glyph.name:
+                        self.debug_log(f"[階段2.2] 使用當前編輯字符名稱 '{current_glyph.name}' 作為替代")
+                        return current_glyph.name
+            
+            # 6. 最後使用字型中的第一個有效字符
+            if Glyphs.font and Glyphs.font.glyphs:
+                for glyph in Glyphs.font.glyphs:
+                    if glyph.unicode:
+                        try:
+                            char = chr(int(glyph.unicode, 16))
+                            self.debug_log(f"[階段2.2] 使用字型中的第一個字符 '{char}' 作為替代")
+                            return char
+                        except:
+                            continue
+                    # 如果沒有 unicode 字符，使用第一個字形名稱
+                    elif glyph.name:
+                        self.debug_log(f"[階段2.2] 使用字型中的第一個字形名稱 '{glyph.name}' 作為替代")
+                        return glyph.name
+            
+            # 7. 絕對保底：返回 "A"
+            self.debug_log(f"[階段2.2] 使用預設字符 'A' 作為替代")
+            return "A"
 
         @objc.python_method
         def pickGlyphCallback(self, sender):

@@ -188,10 +188,10 @@ class NineBoxPreviewView(NSView):
             gridHeight *= scale
             SPACING *= scale
             
-            # 計算繪製起始位置
+            # 計算繪製起始位置（置中）
             startX = rect.size.width / 2 - gridWidth / 2 + self.panOffset[0]
-            offsetY = rect.size.height * 0.05
-            startY = (rect.size.height + gridHeight) / 2 + offsetY + self.panOffset[1]
+            # 垂直置中
+            startY = rect.size.height / 2 + gridHeight / 2 + self.panOffset[1]
             
             # 快取結果
             metrics = {
@@ -354,6 +354,20 @@ class NineBoxPreviewView(NSView):
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
             
+            # 顯示九宮格對應關係
+            debug_log("\n[階段2.2] 九宮格對應關係：")
+            debug_log("網格索引(i) -> 字符索引(char_index)")
+            for test_i in range(GRID_TOTAL):
+                if test_i == CENTER_POSITION:
+                    debug_log(f"  {test_i} -> 中央位置")
+                else:
+                    test_char_index = test_i if test_i < CENTER_POSITION else test_i - 1
+                    debug_log(f"  {test_i} -> {test_char_index}")
+            debug_log("")
+            
+            # 計算單元格高度（更正確地計算）
+            cellHeight = (metrics['gridHeight'] - 2 * metrics['SPACING']) / GRID_SIZE
+            
             # 批次繪製字符
             char_count = 0
             available_char_index = 0  # 用於循環使用已存在的字符
@@ -364,7 +378,7 @@ class NineBoxPreviewView(NSView):
                 
                 # 計算位置
                 centerX = metrics['startX'] + (col + 0.5) * metrics['cellWidth'] + col * metrics['SPACING']
-                centerY = metrics['startY'] - (row + 0.5) * (metrics['gridHeight'] / GRID_SIZE)
+                centerY = metrics['startY'] - (row + 0.5) * cellHeight - row * metrics['SPACING']
                 
                 # 選擇圖層
                 layer = None
@@ -396,9 +410,10 @@ class NineBoxPreviewView(NSView):
                     # 檢查鎖定字符
                     if hasattr(self.plugin, 'lockedChars') and char_index in self.plugin.lockedChars:
                         target_char = self.plugin.lockedChars[char_index]
-                        debug_log(f"位置 {char_index} 使用鎖定字符：{target_char}")
+                        debug_log(f"位置 {char_index} (網格{i}: 行{row}列{col}) 使用鎖定字符：{target_char}")
                     elif char_index < len(display_chars):
                         target_char = display_chars[char_index]
+                        debug_log(f"位置 {char_index} (網格{i}: 行{row}列{col}) 使用顯示字符：{target_char}")
                     
                     # 嘗試取得目標字符的圖層
                     if target_char:
@@ -418,7 +433,6 @@ class NineBoxPreviewView(NSView):
                 # 繪製字符
                 if layer:
                     char_count += 1
-                    cellHeight = metrics['gridHeight'] / GRID_SIZE - metrics['SPACING']
                     self._draw_character_at_position(
                         layer, centerX, centerY, 
                         metrics['cellWidth'], cellHeight, 
