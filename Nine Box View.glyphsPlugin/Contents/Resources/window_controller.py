@@ -38,14 +38,13 @@ class NineBoxWindow(NSWindowController):
     """
     
     def initWithPlugin_(self, plugin):
-        """初始化視窗控制器（階段1.1基礎版）"""
+        """初始化視窗控制器（階段1.2：加入控制面板）"""
         try:
             # 動態導入以避免循環依賴
             from preview_view import NineBoxPreviewView
-            # === 階段1.1：暫時不導入控制面板 ===
-            # from controls_panel_view import ControlsPanelView
+            from controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
-            # self.ControlsPanelView = ControlsPanelView
+            self.ControlsPanelView = ControlsPanelView
             
             # 確保偏好設定已載入
             plugin.loadPreferences()
@@ -76,36 +75,38 @@ class NineBoxWindow(NSWindowController):
                 self.plugin = plugin
                 self.previewView = None
                 
-                # === 階段1.1：暫時停用控制面板相關屬性 ===
+                # 控制面板相關屬性
                 self.controlsPanelButton = None
                 self.controlsPanelWindow = None
                 self.controlsPanelView = None
-                self.controlsPanelVisible = False  # 暫時設為False
+                
+                # 載入控制面板狀態偏好設定
+                self.controlsPanelVisible = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY, True)
                 
                 # 初始化UI（僅設定主視窗）
                 self._setup_main_window_ui(panel)
                 
-                # === 階段1.1：暫時停用控制面板初始化 ===
-                # self._setup_controls_panel()
+                # 初始化控制面板
+                self._setup_controls_panel()
                 
                 self._register_notifications(panel)
                 
-                # === 階段1.1：不顯示控制面板 ===
-                # if self.controlsPanelVisible:
-                #     self.showControlsPanel()
+                # 根據偏好設定顯示控制面板
+                if self.controlsPanelVisible:
+                    self.showControlsPanel()
                 
-                debug_log("[階段1.1] 主視窗初始化完成")
+                debug_log("[階段1.2] 主視窗和控制面板初始化完成")
             
             return self
             
         except Exception as e:
-            print(f"[階段1.1] 初始化視窗控制器錯誤: {e}")
+            print(f"[階段1.2] 初始化視窗控制器錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
             return None
     
     def _setup_main_window_ui(self, panel):
-        """設定主視窗UI（階段1.1基礎版）"""
+        """設定主視窗UI（階段1.2：加入控制面板按鈕）"""
         contentView = panel.contentView()
         
         # 建立預覽畫面
@@ -118,10 +119,10 @@ class NineBoxWindow(NSWindowController):
         self.previewView.setFrame_(NSMakeRect(0, 0, actualContentSize.width, actualContentSize.height))
         self.previewView.setNeedsDisplay_(True)
         
-        # === 階段1.1：暫時不建立控制面板按鈕 ===
-        # self._create_controls_panel_button(panel)
+        # 建立控制面板按鈕
+        self._create_controls_panel_button(panel)
         
-        debug_log(f"[階段1.1] 預覽視圖初始化完成，尺寸：{actualContentSize.width}x{actualContentSize.height}")
+        debug_log(f"[階段1.2] 預覽視圖和控制按鈕初始化完成，尺寸：{actualContentSize.width}x{actualContentSize.height}")
     
     def _create_controls_panel_button(self, panel):
         """創建控制面板按鈕"""
@@ -302,13 +303,13 @@ class NineBoxWindow(NSWindowController):
             debug_log(f"控制面板按鈕動作錯誤: {e}")
     
     def windowDidResize_(self, notification):
-        """視窗大小調整處理（階段1.1基礎版）"""
+        """視窗大小調整處理（階段1.2）"""
         try:
             if notification.object() == self.window():
                 frame = self.window().frame()
                 contentSize = self.window().contentView().frame().size
                 
-                debug_log(f"[階段1.1] 視窗調整：{frame.size.width}x{frame.size.height}")
+                debug_log(f"[階段1.2] 視窗調整：{frame.size.width}x{frame.size.height}")
                 
                 # 調整預覽畫面
                 if hasattr(self, 'previewView') and self.previewView:
@@ -320,11 +321,12 @@ class NineBoxWindow(NSWindowController):
                     else:
                         self.previewView.setNeedsDisplay_(True)
                     
-                    debug_log(f"[階段1.1] 已調整預覽視圖尺寸並觸發重繪")
+                    debug_log(f"[階段1.2] 已調整預覽視圖尺寸並觸發重繪")
                 
-                # === 階段1.1：暫時停用控制面板更新 ===
-                # if self.controlsPanelVisible:
-                #     self.updateControlsPanelPosition()
+                # 更新控制面板位置
+                if self.controlsPanelVisible:
+                    self.updateControlsPanelPosition()
+                    debug_log("[階段1.2] 已更新控制面板位置")
                 
                 # 儲存視窗大小
                 if hasattr(self, 'plugin'):
@@ -332,29 +334,35 @@ class NineBoxWindow(NSWindowController):
                     Glyphs.defaults[WINDOW_SIZE_KEY] = newSize
                 
         except Exception as e:
-            debug_log(f"[階段1.1] 處理視窗調整錯誤: {e}")
+            debug_log(f"[階段1.2] 處理視窗調整錯誤: {e}")
     
     def windowDidMove_(self, notification):
-        """視窗移動處理"""
+        """視窗移動處理（階段1.2）"""
         try:
             if notification.object() == self.window():
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
+                    debug_log("[階段1.2] 更新控制面板位置")
                     
         except Exception as e:
-            debug_log(f"處理視窗移動錯誤: {e}")
+            debug_log(f"[階段1.2] 處理視窗移動錯誤: {e}")
     
     def windowWillClose_(self, notification):
-        """視窗關閉處理"""
+        """視窗關閉處理（階段1.3：完整資源釋放）"""
         try:
-            debug_log("主視窗即將關閉")
+            debug_log("[階段1.3] 主視窗即將關閉")
             
             # 保存狀態
             Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
             
-            # 關閉控制面板
+            # 完整釋放控制面板資源
             if self.controlsPanelWindow:
+                debug_log("[階段1.3] 釋放控制面板資源")
                 self.controlsPanelWindow.orderOut_(None)
+                if self.controlsPanelView:
+                    self.controlsPanelView = None
+                self.controlsPanelWindow.close()
+                self.controlsPanelWindow = None
             
             # 保存偏好設定
             if hasattr(self, 'plugin'):
@@ -363,8 +371,12 @@ class NineBoxWindow(NSWindowController):
             # 移除通知觀察者
             NSNotificationCenter.defaultCenter().removeObserver_(self)
             
+            # 清除窗口控制器引用
+            if hasattr(self, 'plugin') and hasattr(self.plugin, 'windowController'):
+                self.plugin.windowController = None
+            
         except Exception as e:
-            debug_log(f"處理視窗關閉錯誤: {e}")
+            debug_log(f"[階段1.3] 處理視窗關閉錯誤: {e}")
     
     def request_main_redraw(self):
         """請求主預覽視圖重繪"""
@@ -397,18 +409,22 @@ class NineBoxWindow(NSWindowController):
         self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
-        """顯示並激活視窗（階段1.1基礎版）"""
+        """顯示並激活視窗（階段1.3：視窗重建機制）"""
         try:
-            debug_log("[階段1.1] 初次開啟視窗")
+            debug_log("[階段1.3] 開啟視窗")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)
             
-            # === 階段1.1：暫時停用控制面板 ===
-            # if self.controlsPanelVisible:
-            #     self.showControlsPanel()
-            #     if self.controlsPanelView:
-            #         self.controlsPanelView.update_ui(self.plugin)
+            # 檢查並重建控制面板（如果需要）
+            if self.controlsPanelVisible:
+                if not self.controlsPanelWindow or not self.controlsPanelWindow.isVisible():
+                    debug_log("[階段1.3] 重建控制面板")
+                    self._setup_controls_panel()
+                
+                self.showControlsPanel()
+                if self.controlsPanelView:
+                    self.controlsPanelView.update_ui(self.plugin)
             
             # 更新介面
             if hasattr(self, 'plugin'):
@@ -416,15 +432,28 @@ class NineBoxWindow(NSWindowController):
             
             # 強制重繪確保初次顯示
             if hasattr(self, 'previewView') and self.previewView:
+                # 延遲執行以確保視窗已完全顯示
+                from Foundation import NSObject, NSTimer
+                NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                    0.1, self, "delayedForceRedraw:", None, False
+                )
+                
+                debug_log(f"[階段1.3] 已排程延遲重繪")
+                
+        except Exception as e:
+            debug_log(f"[階段1.3] 顯示視窗錯誤: {e}")
+    
+    def delayedForceRedraw_(self, timer):
+        """延遲強制重繪（階段1.3）"""
+        try:
+            if hasattr(self, 'previewView') and self.previewView:
                 if hasattr(self.previewView, 'force_redraw'):
                     self.previewView.force_redraw()
                 else:
                     self.previewView.setNeedsDisplay_(True)
-                
-                debug_log(f"[階段1.1] 已觸發預覽視圖重繪")
-                
+                debug_log("[階段1.3] 完成延遲重繪")
         except Exception as e:
-            debug_log(f"[階段1.1] 顯示視窗錯誤: {e}")
+            debug_log(f"[階段1.3] 延遲重繪錯誤: {e}")
     
     def dealloc(self):
         """析構函數"""

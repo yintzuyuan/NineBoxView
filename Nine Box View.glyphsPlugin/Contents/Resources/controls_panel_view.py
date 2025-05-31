@@ -66,9 +66,11 @@ class BaseTextField(NSTextField):
         )
     
     def pickGlyphAction_(self, sender):
-        """選擇字符功能"""
-        if hasattr(self, 'plugin') and self.plugin:
-            self.plugin.pickGlyphCallback(sender)
+        """選擇字符功能（階段1.2：僅記錄）"""
+        debug_log("[階段1.2] 選擇字符選單被點擊")
+        # === 階段1.2：功能暫未實現 ===
+        # if hasattr(self, 'plugin') and self.plugin:
+        #     self.plugin.pickGlyphCallback(sender)
     
     def dealloc(self):
         """析構函數"""
@@ -87,12 +89,14 @@ class CustomTextField(BaseTextField):
         return self
     
     def textDidChange_(self, notification):
-        """文本變更時的回調"""
+        """文本變更時的回調（階段1.2：僅記錄）"""
         try:
-            if hasattr(self, 'plugin') and self.plugin:
-                self.plugin.searchFieldCallback(self)
+            debug_log(f"[階段1.2] 搜尋欄位文本變更: {self.stringValue()}")
+            # === 階段1.2：功能暫未實現 ===
+            # if hasattr(self, 'plugin') and self.plugin:
+            #     self.plugin.searchFieldCallback(self)
         except Exception as e:
-            debug_log(f"文本變更處理錯誤: {e}")
+            debug_log(f"[階段1.2] 文本變更處理錯誤: {e}")
 
 
 class LockCharacterField(BaseTextField):
@@ -127,12 +131,14 @@ class LockCharacterField(BaseTextField):
         self.setToolTip_(lockedTooltip)
     
     def textDidChange_(self, notification):
-        """文本變更時的智能回調"""
+        """文本變更時的智能回調（階段1.2：僅記錄）"""
         try:
-            if hasattr(self, 'plugin') and self.plugin:
-                self.plugin.smartLockCharacterCallback(self)
+            debug_log(f"[階段1.2] 鎖定欄位 {self.position} 文本變更: {self.stringValue()}")
+            # === 階段1.2：功能暫未實現 ===
+            # if hasattr(self, 'plugin') and self.plugin:
+            #     self.plugin.smartLockCharacterCallback(self)
         except Exception as e:
-            debug_log(f"智能鎖定字符處理錯誤: {e}")
+            debug_log(f"[階段1.2] 智能鎖定字符處理錯誤: {e}")
 
 
 class ControlsPanelView(NSView):
@@ -142,7 +148,7 @@ class ControlsPanelView(NSView):
     """
     
     def initWithFrame_plugin_(self, frame, plugin):
-        """初始化控制面板視圖"""
+        """初始化控制面板視圖（階段1.2：基礎版）"""
         try:
             self = objc.super(ControlsPanelView, self).initWithFrame_(frame)
             if self:
@@ -167,9 +173,11 @@ class ControlsPanelView(NSView):
                     None
                 )
                 
+                debug_log("[階段1.2] 控制面板視圖初始化完成")
+                
             return self
         except Exception as e:
-            print(f"初始化控制面板視圖錯誤: {e}")
+            print(f"[階段1.2] 初始化控制面板視圖錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
             return None
@@ -234,8 +242,8 @@ class ControlsPanelView(NSView):
                 'ja': u'ランダム配置',
                 'ko': u'무작위 배치',
             }),
-            self.plugin,
-            "randomizeCallback:",
+            self,  # 階段1.2：使用self作為target
+            "randomizeStub:",  # 階段1.2：使用存根方法
             Glyphs.localize({
                 'en': u'Generate a new random arrangement',
                 'zh-Hant': u'產生新的隨機排列',
@@ -348,8 +356,8 @@ class ControlsPanelView(NSView):
                 'ja': u'すべてロック',
                 'ko': u'모두 고정',
             }),
-            self.plugin,
-            "clearAllLockFieldsCallback:",
+            self,  # 階段1.2：使用self作為target
+            "lockAllStub:",  # 階段1.2：使用存根方法
             ""
         )
         lockAllButton.setFont_(NSFont.systemFontOfSize_(11.0))
@@ -369,8 +377,8 @@ class ControlsPanelView(NSView):
                 'ja': u'すべてアンロック',
                 'ko': u'모두 해제',
             }),
-            self.plugin,
-            "restoreAllLockFieldsCallback:",
+            self,  # 階段1.2：使用self作為target
+            "unlockAllStub:",  # 階段1.2：使用存根方法
             ""
         )
         unlockAllButton.setFont_(NSFont.systemFontOfSize_(11.0))
@@ -513,6 +521,19 @@ class ControlsPanelView(NSView):
             self.setNeedsDisplay_(True)
         except Exception as e:
             debug_log(f"主題變更處理錯誤: {e}")
+    
+    # === 階段1.2：按鈕動作存根方法 ===
+    def randomizeStub_(self, sender):
+        """隨機排列按鈕存根（階段1.2）"""
+        debug_log("[階段1.2] 隨機排列按鈕被點擊")
+    
+    def lockAllStub_(self, sender):
+        """鎖定全部按鈕存根（階段1.2）"""
+        debug_log("[階段1.2] 鎖定全部按鈕被點擊")
+    
+    def unlockAllStub_(self, sender):
+        """解鎖全部按鈕存根（階段1.2）"""
+        debug_log("[階段1.2] 解鎖全部按鈕被點擊")
     
     def drawRect_(self, rect):
         """繪製背景（優化版）"""
