@@ -1,0 +1,213 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# NineBoxView - 開發與迭代計畫
+
+本文件旨在指導 NineBoxView 外掛的逐步完善和問題修復流程，確保核心功能的穩定性，並為 AI 協同開發提供清晰的指引。
+
+## 基本原則
+* **增量構建**：一次專注於一組相關功能。
+* **優先測試**：依照定義的優先順序列測試功能。
+* **明確的驗收標準**：每個階段都有在進入下一階段前必須達成的明確目標。
+* **隔離變數**：為集中解決問題，非當前階段焦點的功能可能會被暫時停用。
+
+---
+
+## 階段 1：核心視窗建立與基礎互動
+
+### 步驟 1.1：主視窗 (`NineBoxPreviewView`) 基礎功能
+* **階段目標**：確保主預覽視窗能正確初始化、顯示，並響應基本的 GlyphsApp 選擇。
+* **聚焦功能/模組**：
+    * `NineBoxWindow` 的主視窗部分初始化。
+    * `NineBoxPreviewView` 的 `initWithFrame_plugin_` 及基礎 `drawRect_` 邏輯，能正確繪製背景和中央預留位置。
+    * 從 `plugin.py` 獲取最基本的資料以供顯示（例如，僅顯示 Glyphs 當前選擇的字符於中央）。
+* **驗收標準**：
+    * 外掛載入無誤。
+    * 主視窗能透過選單開啟。
+    * 主視窗中央能正確顯示當前在 Glyphs 中編輯的字符（即便周圍8格暫不處理）。
+    * 主視窗背景（明/暗模式）能正確根據 Glyphs 設定顯示。
+    * 無主視窗初始化或基礎繪製相關的控制台錯誤。
+* **暫時停用的功能**：控制面板所有功能、周圍8個字符的顯示邏輯、字符鎖定、搜尋、隨機排列、縮放等。
+* **關鍵程式碼檔案**：`plugin.py` (基礎狀態), `window_controller.py` (主視窗部分), `preview_view.py` (基礎繪製)。
+
+### 步驟 1.2：子視窗 (控制面板 `ControlsPanelView`) 基礎功能
+* **階段目標**：確保控制面板視窗能正確初始化、顯示/隱藏，並與主視窗正確連動其位置和基本可見性。
+* **聚焦功能/模組**：
+    * `NineBoxWindow` 中與 `controlsPanelWindow` 和 `controlsPanelView` 相關的創建、配置 (`createControlsPanelWindow`, `_configure_controls_panel_window`)。
+    * `ControlsPanelView` 的 `initWithFrame_plugin_` 及基礎 `setupUI`，僅確保視圖和按鈕等UI元件被創建，不要求功能完整。
+    * 控制面板顯示/隱藏按鈕 (`controlsPanelButton` 及 `controlsPanelAction_`) 的基礎功能。
+    * 載入 `CONTROLS_PANEL_VISIBLE_KEY` 偏好設定。
+* **驗收標準**：
+    * 控制面板能根據偏好設定在啟動時決定是否顯示。
+    * 控制面板的顯示/隱藏按鈕能正常切換其可見性。
+    * 控制面板的 UI 元件（如搜尋框、按鈕）已創建並可見（即使功能未實現）。
+    * 無控制面板初始化相關的控制台錯誤。
+* **暫時停用的功能**：控制面板內所有元件的實際邏輯功能（搜尋、鎖定、隨機等）。
+* **關鍵程式碼檔案**：`window_controller.py` (控制面板管理), `controls_panel_view.py` (UI建立), `plugin.py` (偏好設定載入)。
+
+### 步驟 1.3：視窗交互狀態
+* **階段目標**：確保主視窗的大小調整、移動能正確影響主預覽畫面和控制面板的位置/大小。
+* **聚焦功能/模組**：
+    * `NineBoxWindow` 中的 `windowDidResize_` 和 `windowDidMove_`。
+    * `NineBoxPreviewView` 的 `setFrame_` 和 `force_redraw`。
+    * `ControlsPanelView` 的 `setFrame_` 及 `updateControlsPanelPosition`。
+* **驗收標準**：
+    * 調整主視窗大小時，`NineBoxPreviewView` 能正確填滿主視窗內容區域並觸發重繪。
+    * 調整主視窗大小或移動主視窗時，`ControlsPanelView` 能保持在主視窗右側，且高度與主視窗同步。
+    * 無上述操作相關的佈局錯誤或控制台錯誤。
+* **暫時停用的功能**：控制面板內元件的詳細功能。
+* **關鍵程式碼檔案**：`window_controller.py`, `preview_view.py`。
+
+---
+
+## 階段 2：核心輸入與繪製交互
+
+### 步驟 2.1：長文本輸入框 (搜尋欄位 `searchField`) 與主預覽交互
+* **階段目標**：實現搜尋欄位輸入，並能將解析出的字符更新到 `plugin.selectedChars` 及 `plugin.currentArrangement`，並觸發主預覽視窗重繪周圍8個字符。
+* **聚焦功能/模組**：
+    * `ControlsPanelView` 中的 `searchField` (實際為 `CustomTextField`) 的 `textDidChange_` 回呼。
+    * `plugin.py` 中的 `searchFieldCallback`, `parse_input_text`, `generateNewArrangement`。
+    * `NineBoxPreviewView` 的 `drawRect_` 繪製周圍8個字符的邏輯。
+    * `LAST_INPUT_KEY` 和 `SELECTED_CHARS_KEY` 的偏好設定儲存與載入。
+* **驗收標準**：
+    * 在搜尋欄輸入有效字符/Nice Names (以空格分隔) 後，`plugin.selectedChars` 和 `plugin.currentArrangement` 被更新。
+    * 主預覽視窗的周圍8格根據新的 `currentArrangement` 正確顯示字符。
+    * 輸入內容被儲存到偏好設定，下次開啟能恢復。
+* **暫時停用的功能**：鎖定輸入框、鎖定按鈕、清除/還原按鈕、字符選擇器。
+* **關鍵程式碼檔案**：`controls_panel_view.py`, `plugin.py`, `preview_view.py`, `utils.py`。
+
+### 步驟 2.2：鎖定輸入框 (`lockFields`) - 資料處理
+* **階段目標**：實現八個鎖定輸入框的基本資料處理，允許使用者輸入字符/Nice Names 並將其儲存到 `plugin.lockedChars`。
+* **聚焦功能/模組**：
+    * `ControlsPanelView`: `LockCharacterField` 實例及其 `textDidChange_` 回呼。
+    * `plugin.py`: `smartLockCharacterCallback` 邏輯，用於識別輸入並更新 `self.lockedChars`。
+    * `plugin.py`: `_recognize_character` 工具函式。
+    * `plugin.py`: 從偏好設定中儲存和載入 `LOCKED_CHARS_KEY`。
+* **驗收標準**：
+    * 使用者可以在八個 `LockCharacterField` 中輸入單個字符或有效的 Nice Name。
+    * 每個 `LockCharacterField` 中的輸入能正確更新 `self.plugin.lockedChars` 中對應的條目（位置 0 到 7）。
+    * `smartLockCharacterCallback` 能正確識別字符/Nice Name。
+    * `self.plugin.lockedChars` 在呼叫 `savePreferences` 時能被正確儲存到偏好設定。
+    * 當外掛啟動或呼叫 `loadPreferences` 時，`self.plugin.lockedChars` 能從偏好設定中正確載入並填充到 `LockCharacterField`。
+    * 如果鎖定欄位被清空（輸入為空），則從 `self.plugin.lockedChars` 中移除對應的條目。
+* **暫時停用的功能**：`lockedChars` 與 `NineBoxPreviewView` 繪製的交互、`lockButton` 功能、清除/還原全部按鈕。在此階段，`LockCharacterField` 始終啟用以供輸入。
+* **關鍵程式碼檔案**：`controls_panel_view.py`, `plugin.py`。
+* **【使用者待補充】**：
+    * 對於模糊輸入（例如，使用者輸入 "A.alt"，而 "A" 和 "A.alt" 同時存在），`_recognize_character` 的確切行為是什麼（哪個優先，或如何解決）？
+    * `smartLockCharacterCallback` 目前會檢查 `_get_lock_state()`。在此步驟中，是假設鎖定狀態始終為「解鎖」（允許輸入），還是暫時繞過此檢查？
+
+### 步驟 2.3：鎖定輸入框與繪製畫面 (`NineBoxPreviewView`) 的交互
+* **階段目標**：確保在 `plugin.lockedChars` 中定義的字符能正確顯示在 `NineBoxPreviewView` 的相應位置，並覆蓋這些位置上由 `currentArrangement` 決定的字符。
+* **聚焦功能/模組**：
+    * `plugin.py`: `generateNewArrangement` 及其如何整合 `lockedChars` （特別是它在鎖定啟用時呼叫的 `apply_locked_chars` 函式）。 **(本步驟中，可能需要假設鎖定始終啟用以應用字符，或臨時修改 `generateNewArrangement` 以便在 `lockedChars` 存在時始終應用鎖定) 。**
+    * `NineBoxPreviewView`: `drawRect_` 邏輯，用於獲取周圍8個儲存格的字符，如果某個位置的字符已被鎖定，則優先使用 `plugin.lockedChars`，否則使用 `plugin.currentArrangement`。（`preview_view.py` 中現有的 `drawRect_` 已包含此邏輯）。此步驟主要確保 `generateNewArrangement` 能正確提供考慮到鎖定的 `display_chars`。
+* **驗收標準**：
+    * 當在 `LockCharacterField` 中設定字符（並因此更新到 `plugin.lockedChars`）時，`NineBoxPreviewView` 會更新以在相應的網格儲存格（0-7，跳過中心）中顯示該字符。
+    * 如果 `LockCharacterField` 被清空，`NineBoxPreviewView` 會恢復在該儲存格顯示來自 `plugin.currentArrangement`（源自搜尋欄位輸入）的字符。
+    * 中央字符（位置4）不受 `lockedChars` 影響。
+    * `LockCharacterField` 中的變更會觸發 `NineBoxPreviewView` 重繪，以顯示更新後的鎖定字符。
+* **暫時停用的功能**：`lockButton` 功能（假設如果 `lockedChars` 有內容，則鎖定始終為「已應用」狀態以供顯示），清除/還原全部按鈕。
+* **關鍵程式碼檔案**：`plugin.py`, `preview_view.py`, `utils.py`。
+* **【使用者待補充】**：
+    * 如果 `lockButton` 功能尚未實現，`generateNewArrangement` 和 `apply_locked_chars` 應如何運作？如果 `lockedChars` 非空，是否應始終呼叫 `apply_locked_chars`？ （`generateNewArrangement` 目前會檢查 `should_apply_locks = not self._get_lock_state()`。在此步驟中，如果希望顯示 `lockedChars`，可能需要確保 `_get_lock_state()` 一致地返回 `False`（即鎖定模式））。
+
+---
+
+## 階段 3：鎖定控制與進階交互
+
+### 步驟 3.1：鎖定狀態按鈕 (`lockButton`)
+* **階段目標**：實現 `ControlsPanelView` 中主要鎖定按鈕（`🔓 解鎖` / `🔒 上鎖`）的功能。
+* **聚焦功能/模組**：
+    * `ControlsPanelView`: `lockButton` (`NSButtonTypeToggle`), `toggleLockMode_` 動作, `updateLockButton` UI 更新。
+    * `ControlsPanelView`: `isInClearMode` 屬性 (True 代表解鎖/清除模式, False 代表上鎖模式)。
+    * `plugin.py`: `_get_lock_state()` 方法，從 `controlsPanelView` 讀取 `isInClearMode`。
+    * `plugin.py`: `smartLockCharacterCallback` 遵守 `_get_lock_state()`（即，如果處於「解鎖」模式，則忽略鎖定欄位的輸入，根據現有程式碼：「若為解鎖狀態 - 忽略輸入」）。
+    * `plugin.py`: `generateNewArrangement` 在決定是否呼叫 `apply_locked_chars` 時遵守 `_get_lock_state()`。
+    * `ControlsPanelView`: `LockCharacterField` 的 `setEnabled_` 狀態根據 `isInClearMode` 設定。
+* **驗收標準**：
+    * 點擊 `lockButton` 能切換其標題在「🔓 解鎖」和「🔒 上鎖」（及相應的本地化字串）之間，並更新其視覺狀態。
+    * 當 `lockButton` 為「🔓 解鎖」 (`isInClearMode == True`) 時：
+        * `LockCharacterField` 變為禁用/不可編輯（或者其輸入被 `smartLockCharacterCallback` 忽略）。
+        * `generateNewArrangement` *不*應用 `lockedChars`；預覽僅根據 `selectedChars` 顯示字符，如同未設定鎖定（即使 `lockedChars` 仍有資料）。
+    * 當 `lockButton` 為「🔒 上鎖」 (`isInClearMode == False`) 時：
+        * `LockCharacterField` 變為啟用/可編輯。
+        * 在 `LockCharacterField` 中的輸入會更新 `plugin.lockedChars`。
+        * `generateNewArrangement` 會將 `lockedChars` 應用到預覽中顯示的 `currentArrangement`。
+    * `lockButton` 的狀態純粹基於 UI/當前會話，不儲存到偏好設定中（這似乎是目前的設計，因為 `ControlsPanelView.__init__` 中 `self.isInClearMode = True`）。
+* **暫時停用的功能**：清除/還原全部按鈕。
+* **關鍵程式碼檔案**：`controls_panel_view.py`, `plugin.py`。
+* **【使用者待補充】**：
+    * 請確認 `isInClearMode`（鎖定按鈕狀態）是否*不*應持久化到偏好設定。（目前程式碼在 `ControlsPanelView.__init__` 中將 `self.isInClearMode` 初始化為 `True`）。
+    * 當從「🔒 上鎖」切換到「🔓 解鎖」時，`NineBoxPreviewView` 是否應立即重繪以反映鎖定不再應用，即使 `lockedChars` 仍持有資料？（目前的 `toggleLockMode_` 不會明確觸發全域重繪，但後續的 `generateNewArrangement` 會遵守新狀態）。
+
+### 步驟 3.2：全部鎖定 (`clearAllLockFieldsCallback`) 與 全部解鎖 (`restoreAllLockFieldsCallback`) 按鈕
+* **階段目標**：實現「全部鎖定」（似乎更像是「應用當前欄位輸入為鎖定」）和「全部解鎖」（清除所有鎖定）按鈕的功能。
+* **聚焦功能/模組**：
+    * `ControlsPanelView`: `lockAllButton` 和 `unlockAllButton`。
+    * `plugin.py`: `clearAllLockFieldsCallback` 和 `restoreAllLockFieldsCallback`。
+    * `plugin.py`: `previousLockedChars` 屬性，用於備份/恢復。
+* **「全部鎖定」 (`clearAllLockFieldsCallback`) 的驗收標準**：
+    * 點擊「全部鎖定」會讀取所有八個 `LockCharacterField` 的當前文本。
+    * 對於每個有有效輸入的欄位，字符被識別（使用 `_recognize_character`）並添加到 `self.plugin.lockedChars`。
+    * `self.plugin.lockedChars` 的任何先前內容被備份到 `self.plugin.previousLockedChars`。
+    * `currentArrangement` 被更新以反映這些新應用的鎖定（如果處於「🔒 上鎖」模式）。
+    * `NineBoxPreviewView` 重繪以顯示效果。
+    * 偏好設定 (`LOCKED_CHARS_KEY`, `PREVIOUS_LOCKED_CHARS_KEY`) 被儲存。
+* **「全部解鎖」 (`restoreAllLockFieldsCallback`) 的驗收標準**：
+    * 點擊「全部解鎖」會將當前的 `self.plugin.lockedChars` 備份到 `self.plugin.previousLockedChars`。
+    * `self.plugin.lockedChars` 被清除（變為空字典）。
+    * `ControlsPanelView` 中的所有八個 `LockCharacterField` 被清空。（如果尚未實現，需要添加到 `restoreAllLockFieldsCallback`，例如透過呼叫 `controlsPanelView.update_ui` 或類似方法）。
+    * 呼叫 `generateNewArrangement`，產生一個純粹基於 `selectedChars` 的排列（無鎖定應用）。
+    * `NineBoxPreviewView` 重繪。
+    * 偏好設定被儲存。
+* **與 `lockButton` 狀態的交互**：
+    * **【使用者待補充】** 如果 `lockButton` 處於「🔓 解鎖」狀態，「全部鎖定」應如何運作？是否應自動切換到「🔒 上鎖」模式？或者「全部鎖定」按鈕應被禁用？
+    * 如果 `lockButton` 處於「🔓 解鎖」狀態，「全部解鎖」仍應清除 `lockedChars` 和欄位，但預覽不會改變（因為鎖定無論如何都不會被應用）。
+* **關鍵程式碼檔案**：`controls_panel_view.py`, `plugin.py`。
+* **【使用者待補充】**：
+    * 「全部鎖定」的命名 (`clearAllLockFieldsCallback`) 容易混淆。程式碼表明它的作用是*應用*當前欄位值作為鎖定。請確認此行為。或許將按鈕重命名為「套用全部鎖定」或「鎖定當前輸入」？
+    * 澄清「全部鎖定」/「全部解鎖」與主要 `lockButton` 狀態之間的交互。這些按鈕是否應根據 `isInClearMode` 來啟用/禁用？
+    * 確保 `restoreAllLockFieldsCallback` 能有效地清除 `LockCharacterField` UI 元素的文本。（`plugin.py` 中的現有程式碼呼叫 `self.updateInterface(None)`，如果 `_should_update_preview` 允許，這應能觸發 `controlsPanelView.update_ui`）。
+
+---
+
+## 階段 4：輔助功能與最終潤飾
+
+### 步驟 4.1：字符選擇器 (`pickGlyphCallback`)
+* **階段目標**：實現並完善字符選擇器功能。
+* **聚焦功能/模組**：
+    * `plugin.py`: `pickGlyphCallback`, `_prepare_glyph_options`, `_parse_glyph_selection`。
+    * `ControlsPanelView`: `searchField` 和 `LockCharacterField`（如果適用）上的右鍵選單項「從字型中選擇字符...」（儘管目前程式碼暗示 `pickGlyphCallback` 主要用於主字符選擇，並饋送到 `searchField`）。 (`pickGlyphAction_` 位於 `BaseTextField` 上，它是 `CustomTextField`（搜尋）和 `LockCharacterField` 的父類別）。
+* **驗收標準**：
+    * 在 `searchField`（以及如果設計如此，`LockCharacterField`）上右鍵點擊（或執行適當操作）會顯示「從字型中選擇字符...」。
+    * 點擊該選項會開啟一個對話框 (`Glyphs.displayDialog`)，列出當前字型中的字符。
+    * 列表格式為 `字符 (glyph.name)` 或 `.notdef (glyph.name)`。
+    * 允許使用 Shift/Cmd 進行多項選擇。
+    * 選定的字符（字元）會更新 `self.plugin.selectedChars`。
+    * `self.plugin.lastInput`（並因此影響 `searchField` 的文本）會更新以反映選定的字符。
+    * 呼叫 `generateNewArrangement`，並且 `NineBoxPreviewView` 重繪。
+    * 偏好設定被儲存。
+* **關鍵程式碼檔案**：`plugin.py`, `controls_panel_view.py`。
+* **【使用者待補充】**：
+    * 對於包含大量字符集的字型（例如 CJK），目前的 `Glyphs.displayDialog` 方法是否具有良好的性能和可用性？（這是我先前提出的問題）。是否有計劃開發更進階的選擇器 UI？在此步驟中，我們假設目前的實現是目標。
+    * 字符選擇器是否也應可用於單獨的 `LockCharacterField`，以便為特定位置選擇單個字符？（目前的 `BaseTextField` 設定表明可以，但 `plugin.py` 中的 `pickGlyphCallback` 似乎主要用於填充驅動 `searchField` 的 `selectedChars`）。如果是這樣，`pickGlyphCallback` 將需要修改以針對特定的鎖定位置。
+
+### 步驟 4.2：介面佈局調整與最終潤飾
+* **階段目標**：審查並完善所有組件的整體 UI 佈局、間距、工具提示和本地化。解決任何微小的視覺不一致問題。
+* **聚焦功能/模組**：
+    * `ControlsPanelView`: 所有 UI 元素的佈局（搜尋欄位、按鈕、鎖定欄位網格）。
+    * `NineBoxWindow`: 主視窗標題列按鈕 ("⚙")。
+    * 所有工具提示和本地化字串 (`Glyphs.localize`)。
+* **驗收標準**：
+    * `ControlsPanelView` 中的 UI 元素對齊良好且間距適當。
+    * 所有互動元素都具有以支援的語言顯示的資訊性工具提示。
+    * 所有使用者可見的字串都已正確本地化。
+    * 外掛在不同的螢幕解析度或不同的系統字體大小下表現優雅（在 Glyphs 外掛框架允許的範圍內）。
+* **關鍵程式碼檔案**：`controls_panel_view.py`, `window_controller.py`, `plugin.py` (用於 `Glyphs.localize` 呼叫)。
+* **【使用者待補充】**：
+    * 如果有任何已知的佈局需要調整的特定區域，請提供。
+    * 需要完整支援和測試本地化的所有語言列表。
+
+---

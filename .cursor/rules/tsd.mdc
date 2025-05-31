@@ -3,11 +3,14 @@ description:
 globs: 
 alwaysApply: true
 ---
-## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.4 (即時更新優化版)
+## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.5 (視窗管理優化版)
 
-**文件版本:** 1.5
-**日期:** 2025-05-31
-**變更摘要:** 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
+**文件版本:** 1.6
+**日期:** 2025-06-02
+**變更摘要:** 
+1. 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
+2. 改進視窗關閉與重新開啟機制，解決主視窗關閉後再次開啟時子視窗無法顯示的問題。
+3. 優化控制面板視窗的資源管理，確保資源正確釋放和重建。
 
 ### 1. 系統架構 (System Architecture)
 
@@ -100,6 +103,16 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
     * 主視窗標題列按鈕 (`sidebarButton`) 觸發主視窗控制器的方法。
     * 該方法呼叫控制面板視窗的 `orderFront:` 或 `orderOut:`。
     * 更新 `plugin.isControlsPanelVisible` 並儲存。
+* **視窗關閉與重新開啟:**
+    * 當主視窗關閉時 (`windowWillClose_` 方法)，完全釋放控制面板子視窗資源：
+        * 先呼叫 `orderOut_` 隱藏控制面板視窗
+        * 釋放控制面板視圖引用 (`self.controlsPanelView = None`)
+        * 呼叫 `close()` 關閉控制面板視窗
+        * 釋放控制面板視窗引用 (`self.controlsPanelWindow = None`)
+    * 當主視窗重新開啟時 (`makeKeyAndOrderFront` 方法)，檢查是否需要重新創建控制面板子視窗：
+        * 檢查 `self.controlsPanelVisible` 狀態和控制面板視窗是否存在
+        * 如果應該顯示但視窗不存在，則呼叫 `_setup_controls_panel()` 重新創建
+    * 所有可能顯示控制面板的方法 (`showControlsPanel`、`controlsPanelAction_`) 都檢查並在需要時重新創建控制面板子視窗
 
 ### 6. 即時更新機制 (Real-time Update Mechanism)
 
