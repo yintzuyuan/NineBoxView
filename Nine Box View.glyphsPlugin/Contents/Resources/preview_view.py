@@ -275,7 +275,7 @@ class NineBoxPreviewView(NSView):
                 print(traceback.format_exc())
 
     def drawRect_(self, rect):
-        """繪製畫面內容（優化版）"""
+        """繪製畫面內容（階段1.1基礎版）"""
         try:
             # 檢查是否需要重繪（節流）
             if not self._should_redraw() and not DEBUG_MODE:
@@ -283,14 +283,14 @@ class NineBoxPreviewView(NSView):
             
             rect_width = rect.size.width
             rect_height = rect.size.height
-            debug_log(f"預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
+            debug_log(f"[階段1.1] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
             
             # 確保繪製區域有效
             if rect_width <= 0 or rect_height <= 0:
                 debug_log("無效的繪製區域尺寸")
                 return
             
-            # 設定背景顏色
+            # 設定背景顏色（根據 Glyphs 主題設定）
             is_black = self._get_theme_is_black()
             backgroundColor = NSColor.blackColor() if is_black else NSColor.whiteColor()
             backgroundColor.set()
@@ -306,6 +306,35 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
+            # === 階段1.1：僅繪製中央字符 ===
+            if Glyphs.font.selectedLayers:
+                layer = Glyphs.font.selectedLayers[0]
+                if layer:
+                    debug_log(f"[階段1.1] 繪製中央字符：{layer.parent.name}")
+                    
+                    # 計算中央位置
+                    centerX = rect_width / 2
+                    centerY = rect_height / 2
+                    
+                    # 計算字符尺寸（使用簡單的縮放）
+                    cellSize = min(rect_width, rect_height) * 0.3  # 佔據視窗30%
+                    
+                    # 繪製中央字符
+                    self._draw_character_at_position(
+                        layer, centerX, centerY,
+                        cellSize, cellSize,
+                        1.0, is_black
+                    )
+                    
+                    debug_log(f"[階段1.1] 完成繪製中央字符")
+                else:
+                    debug_log("[階段1.1] 沒有選擇的圖層")
+            else:
+                debug_log("[階段1.1] 沒有選擇的圖層")
+            
+            # === 階段1.1：暫時停用周圍8個字符的顯示 ===
+            # 以下程式碼暫時註解，待後續階段啟用
+            """
             # 確保字符資料有效
             if (hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and 
                 not getattr(self.plugin, 'currentArrangement', None)):
@@ -361,9 +390,10 @@ class NineBoxPreviewView(NSView):
                     )
             
             debug_log(f"完成繪製，共 {char_count} 個字符")
+            """
                     
         except Exception as e:
-            print(f"繪製預覽畫面時發生錯誤: {e}")
+            print(f"[階段1.1] 繪製預覽畫面時發生錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
     

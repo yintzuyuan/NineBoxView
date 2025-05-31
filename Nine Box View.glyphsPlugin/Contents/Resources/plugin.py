@@ -203,30 +203,31 @@ try:
 
         @objc.python_method
         def updateInterface(self, sender):
-            """更新界面（優化版）"""
+            """更新界面（階段1.1基礎版）"""
             try:
                 # 避免重複更新
                 if self._update_scheduled:
                     return
                 
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    if self._should_update_preview(sender):
-                        self.debug_log(f"更新預覽：來源={type(sender).__name__}")
-                        
-                        # 批次更新
-                        self._update_scheduled = True
-                        
-                        if hasattr(self.windowController, 'redraw'):
-                            self.windowController.redraw()
-                        
-                        if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                            self.windowController.request_controls_panel_ui_update()
-                        
-                        self._update_scheduled = False
+                    # === 階段1.1：簡化更新邏輯，僅更新預覽 ===
+                    self.debug_log(f"[階段1.1] 更新預覽：來源={type(sender).__name__}")
+                    
+                    # 批次更新
+                    self._update_scheduled = True
+                    
+                    if hasattr(self.windowController, 'redraw'):
+                        self.windowController.redraw()
+                    
+                    # === 階段1.1：暫時停用控制面板更新 ===
+                    # if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                    #     self.windowController.request_controls_panel_ui_update()
+                    
+                    self._update_scheduled = False
                         
             except Exception as e:
                 self._update_scheduled = False
-                self.debug_log(f"更新介面時發生錯誤: {e}")
+                self.debug_log(f"[階段1.1] 更新介面時發生錯誤: {e}")
                 if self.DEBUG_MODE:
                     print(traceback.format_exc())
         
