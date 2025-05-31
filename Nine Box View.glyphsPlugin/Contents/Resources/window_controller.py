@@ -101,13 +101,8 @@ class NineBoxWindow(NSWindowController):
                     self.showControlsPanel()
                     
                 # 設定視窗位置
-                debug_log(f"window_controller.initWithPlugin_: Checking savedPosition before applying. Value: {savedPosition}")
-                cond1_sp_truthy = bool(savedPosition)
-                cond2_sp_is_valid_type = isinstance(savedPosition, (list, tuple, NSArray))
-                cond3_sp_len_ge_2 = len(savedPosition) >= 2 if savedPosition else False
-                debug_log(f"window_controller.initWithPlugin_: Conditions for applying savedPosition: truthy={cond1_sp_truthy}, is_valid_type={cond2_sp_is_valid_type}, len_ge_2={cond3_sp_len_ge_2}")
-
-                if cond1_sp_truthy and cond2_sp_is_valid_type and cond3_sp_len_ge_2:
+                debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
+                if savedPosition and isinstance(savedPosition, (list, tuple, NSArray)) and len(savedPosition) >= 2:
                     try:
                         x = float(savedPosition[0])
                         y = float(savedPosition[1])
@@ -117,7 +112,7 @@ class NineBoxWindow(NSWindowController):
                     except (ValueError, TypeError) as e:
                         debug_log(f"window_controller.initWithPlugin_: Error setting panel origin: {e}. savedPosition was: {savedPosition}")
                 else:
-                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition based on detailed checks. Value: {savedPosition}")
+                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition (value or type/length invalid). Value: {savedPosition}")
 
                 debug_log("window_controller.initWithPlugin_: 主視窗和控制面板初始化完成")
             
@@ -399,7 +394,7 @@ class NineBoxWindow(NSWindowController):
                 mainFrame = self.window().frame()
                 current_origin_x = mainFrame.origin.x
                 current_origin_y = mainFrame.origin.y
-                debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})")
+                # debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})") # 可選的更詳細日誌
                 
                 # 儲存視窗位置
                 if hasattr(self, 'plugin'):
@@ -410,9 +405,8 @@ class NineBoxWindow(NSWindowController):
                         self.plugin.windowPosition = new_position_to_store
                         
                         key_to_save_pos = self.plugin.WINDOW_POSITION_KEY
-                        debug_log(f"window_controller.windowDidMove_: Attempting to save to Glyphs.defaults. Key='{key_to_save_pos}', Value={new_position_to_store}")
                         Glyphs.defaults[key_to_save_pos] = new_position_to_store
-                        debug_log(f"window_controller.windowDidMove_: Successfully saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
+                        debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
                     except Exception as e:
                         debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
                 
@@ -422,7 +416,7 @@ class NineBoxWindow(NSWindowController):
                     if self.controlsPanelWindow.isVisible():
                         self.controlsPanelWindow.orderFront_(None)
                     
-                    debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.")
+                    # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細日誌
                     
         except Exception as e:
             debug_log(f"window_controller.windowDidMove_: Error in windowDidMove: {e}")
@@ -502,24 +496,13 @@ class NineBoxWindow(NSWindowController):
             position_to_apply = None
             plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
             current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
-            debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition. plugin_has_pos_attr={plugin_has_pos_attr}, current_plugin_pos={current_plugin_pos} (type: {type(current_plugin_pos)})")
+            debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition: {current_plugin_pos} (type: {type(current_plugin_pos)})")
 
-            cond1_pp_truthy = False
-            cond2_pp_is_valid_type = False
-            cond3_pp_len_ge_2 = False
-
-            if plugin_has_pos_attr and current_plugin_pos:
-                cond1_pp_truthy = bool(current_plugin_pos)
-                cond2_pp_is_valid_type = isinstance(current_plugin_pos, (list, tuple, NSArray))
-                cond3_pp_len_ge_2 = len(current_plugin_pos) >= 2
-            
-            debug_log(f"window_controller.makeKeyAndOrderFront: Conditions for plugin.windowPosition: truthy={cond1_pp_truthy}, is_valid_type={cond2_pp_is_valid_type}, len_ge_2={cond3_pp_len_ge_2}")
-
-            if cond1_pp_truthy and cond2_pp_is_valid_type and cond3_pp_len_ge_2:
+            if plugin_has_pos_attr and current_plugin_pos and isinstance(current_plugin_pos, (list, tuple, NSArray)) and len(current_plugin_pos) >= 2:
                 position_to_apply = current_plugin_pos
-                debug_log(f"window_controller.makeKeyAndOrderFront: Position to apply from plugin.windowPosition: {position_to_apply}")
+                debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
             else:
-                debug_log(f"window_controller.makeKeyAndOrderFront: No valid position in plugin.windowPosition based on detailed checks. Current value: {current_plugin_pos}")
+                debug_log(f"window_controller.makeKeyAndOrderFront: No valid position in plugin.windowPosition to apply. Value: {current_plugin_pos}")
 
             if position_to_apply:
                 try:
@@ -554,7 +537,7 @@ class NineBoxWindow(NSWindowController):
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                     0.1, self, "delayedForceRedraw:", None, False
                 )
-                debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.")
+                # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細日誌
                 
         except Exception as e:
             debug_log(f"window_controller.makeKeyAndOrderFront: Error: {e}")

@@ -533,8 +533,8 @@ try:
             # 視窗位置
             key_to_load_pos = self.WINDOW_POSITION_KEY
             loaded_pos = Glyphs.defaults.get(key_to_load_pos, None)
-            self.debug_log(f"plugin.loadPreferences: Attempting to load windowPosition with key='{key_to_load_pos}'. Value from defaults: {loaded_pos}")
             self.windowPosition = loaded_pos
+            self.debug_log(f"plugin.loadPreferences: Loaded windowPosition={loaded_pos} from key='{key_to_load_pos}'")
             
             # 控制面板可見性
             controls_panel_visible_value = Glyphs.defaults.get(self.CONTROLS_PANEL_VISIBLE_KEY)
@@ -548,11 +548,11 @@ try:
                 if sidebar_visible_value is not None:
                     self.controlsPanelVisible = bool(sidebar_visible_value)
                     self.sidebarVisible = bool(sidebar_visible_value)
-                    self.debug_log(f"plugin.loadPreferences: Loaded controlsPanelVisible={self.controlsPanelVisible} from SIDEBAR_VISIBLE_KEY")
+                    self.debug_log(f"plugin.loadPreferences: Loaded controlsPanelVisible={self.controlsPanelVisible} from SIDEBAR_VISIBLE_KEY (fallback)")
                 else:
                     self.controlsPanelVisible = True
                     self.sidebarVisible = True
-                    self.debug_log(f"plugin.loadPreferences: Set controlsPanelVisible to default True")
+                    self.debug_log(f"plugin.loadPreferences: Set controlsPanelVisible to default True as no key was found")
             
             # 鎖定字符
             self._load_locked_chars()
@@ -575,7 +575,6 @@ try:
         @objc.python_method
         def savePreferences(self):
             """儲存偏好設定（優化版）"""
-            self.debug_log(f"plugin.savePreferences: Starting to save preferences.")
             # 基本設定
             Glyphs.defaults[self.LAST_INPUT_KEY] = self.lastInput
             Glyphs.defaults[self.SELECTED_CHARS_KEY] = self.selectedChars
@@ -583,23 +582,19 @@ try:
             Glyphs.defaults[self.ZOOM_FACTOR_KEY] = self.zoomFactor
             
             # 控制面板可見性 - 同時更新新舊兩個 key
-            if hasattr(self, 'controlsPanelVisible'):
-                Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
-                Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = self.controlsPanelVisible
-                self.debug_log(f"plugin.savePreferences: Saved controlsPanelVisible={self.controlsPanelVisible}")
-            else:
-                Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = True
-                Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = True
-                self.debug_log(f"plugin.savePreferences: Saved default controlsPanelVisible=True")
+            current_controls_panel_visible = getattr(self, 'controlsPanelVisible', True) # 預設為 True
+            Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = current_controls_panel_visible
+            Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = current_controls_panel_visible # 保持同步
+            self.debug_log(f"plugin.savePreferences: Saved controlsPanelVisible={current_controls_panel_visible}")
             
             # 視窗位置
             if hasattr(self, 'windowPosition') and self.windowPosition:
                 key_to_save_pos = self.WINDOW_POSITION_KEY
                 val_to_save_pos = self.windowPosition
-                self.debug_log(f"plugin.savePreferences: Saving windowPosition. Key='{key_to_save_pos}', Value={val_to_save_pos}")
                 Glyphs.defaults[key_to_save_pos] = val_to_save_pos
+                self.debug_log(f"plugin.savePreferences: Saved windowPosition={val_to_save_pos} to key='{key_to_save_pos}'")
             else:
-                self.debug_log(f"plugin.savePreferences: windowPosition not saved (either not present or None/empty). Current value: {getattr(self, 'windowPosition', 'Not Set')}")
+                self.debug_log(f"plugin.savePreferences: windowPosition not saved (value: {getattr(self, 'windowPosition', 'Not Set')})")
 
             # 鎖定字符（轉換鍵為字串）
             if hasattr(self, 'lockedChars'):
@@ -609,7 +604,7 @@ try:
             if hasattr(self, 'previousLockedChars'):
                 previous_locked_chars_str = {str(k): v for k, v in self.previousLockedChars.items()}
                 Glyphs.defaults[self.PREVIOUS_LOCKED_CHARS_KEY] = previous_locked_chars_str
-            self.debug_log(f"plugin.savePreferences: Finished saving preferences.")
+            # self.debug_log(f"plugin.savePreferences: Finished saving preferences.") # 可選的完成日誌
 
         @objc.python_method
         def resetZoom(self, sender):
