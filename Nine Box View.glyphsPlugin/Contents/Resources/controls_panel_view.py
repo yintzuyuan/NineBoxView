@@ -89,14 +89,14 @@ class CustomTextField(BaseTextField):
         return self
     
     def textDidChange_(self, notification):
-        """文本變更時的回調（階段1.2：僅記錄）"""
+        """文本變更時的回調（階段2.1：啟用搜尋功能）"""
         try:
-            debug_log(f"[階段1.2] 搜尋欄位文本變更: {self.stringValue()}")
-            # === 階段1.2：功能暫未實現 ===
-            # if hasattr(self, 'plugin') and self.plugin:
-            #     self.plugin.searchFieldCallback(self)
+            debug_log(f"[階段2.1] 搜尋欄位文本變更: {self.stringValue()}")
+            # === 階段2.1：啟用搜尋欄位功能 ===
+            if hasattr(self, 'plugin') and self.plugin:
+                self.plugin.searchFieldCallback(self)
         except Exception as e:
-            debug_log(f"[階段1.2] 文本變更處理錯誤: {e}")
+            debug_log(f"[階段2.1] 文本變更處理錯誤: {e}")
 
 
 class LockCharacterField(BaseTextField):

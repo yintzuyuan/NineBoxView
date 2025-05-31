@@ -218,15 +218,15 @@ try:
 
         @objc.python_method
         def updateInterface(self, sender):
-            """更新界面（階段1.1基礎版）"""
+            """更新界面（階段2.1：完整版）"""
             try:
                 # 避免重複更新
                 if self._update_scheduled:
                     return
                 
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    # === 階段1.1：簡化更新邏輯，僅更新預覽 ===
-                    self.debug_log(f"[階段1.1] 更新預覽：來源={type(sender).__name__}")
+                    # === 階段2.1：完整更新邏輯 ===
+                    self.debug_log(f"[階段2.1] 更新預覽：來源={type(sender).__name__}")
                     
                     # 批次更新
                     self._update_scheduled = True
@@ -234,15 +234,15 @@ try:
                     if hasattr(self.windowController, 'redraw'):
                         self.windowController.redraw()
                     
-                    # === 階段1.1：暫時停用控制面板更新 ===
-                    # if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                    #     self.windowController.request_controls_panel_ui_update()
+                    # === 階段2.1：啟用控制面板更新 ===
+                    if hasattr(self.windowController, 'request_controls_panel_ui_update'):
+                        self.windowController.request_controls_panel_ui_update()
                     
                     self._update_scheduled = False
                         
             except Exception as e:
                 self._update_scheduled = False
-                self.debug_log(f"[階段1.1] 更新介面時發生錯誤: {e}")
+                self.debug_log(f"[階段2.1] 更新介面時發生錯誤: {e}")
                 if self.DEBUG_MODE:
                     print(traceback.format_exc())
         
@@ -296,7 +296,6 @@ try:
                 self.selectedChars = []
                 self.currentArrangement = []
 
-            self.savePreferences()
             self.updateInterfaceForSearchField(None)
             
             if hasattr(self, 'windowController') and self.windowController:
@@ -556,6 +555,11 @@ try:
             
             # 鎖定字符
             self._load_locked_chars()
+            
+            # === 階段2.1：如果有選定字符但沒有排列，則生成初始排列 ===
+            if self.selectedChars and not self.currentArrangement:
+                self.debug_log("[階段2.1] 載入偏好設定後生成初始排列")
+                self.generateNewArrangement()
 
         @objc.python_method
         def _load_locked_chars(self):

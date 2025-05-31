@@ -8,6 +8,7 @@ from __future__ import division, print_function, unicode_literals
 import traceback
 import objc
 import time
+import random
 from GlyphsApp import Glyphs
 from AppKit import (
     NSView, NSColor, NSBezierPath, NSAffineTransform, NSRectFill,
@@ -295,7 +296,7 @@ class NineBoxPreviewView(NSView):
                 print(traceback.format_exc())
 
     def drawRect_(self, rect):
-        """繪製畫面內容（階段1.1基礎版）"""
+        """繪製畫面內容（階段2.1：修正版）"""
         try:
             # 檢查是否需要重繪（節流）
             if not self._should_redraw() and not DEBUG_MODE:
@@ -303,7 +304,7 @@ class NineBoxPreviewView(NSView):
             
             rect_width = rect.size.width
             rect_height = rect.size.height
-            debug_log(f"[階段1.3] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
+            debug_log(f"[階段2.1] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
             
             # 確保繪製區域有效
             if rect_width <= 0 or rect_height <= 0:
@@ -326,35 +327,7 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
-            # === 階段1.1：僅繪製中央字符 ===
-            if Glyphs.font.selectedLayers:
-                layer = Glyphs.font.selectedLayers[0]
-                if layer:
-                    debug_log(f"[階段1.3] 繪製中央字符：{layer.parent.name}")
-                    
-                    # 計算中央位置
-                    centerX = rect_width / 2
-                    centerY = rect_height / 2
-                    
-                    # 計算字符尺寸（使用簡單的縮放）
-                    cellSize = min(rect_width, rect_height) * 0.3  # 佔據視窗30%
-                    
-                    # 繪製中央字符
-                    self._draw_character_at_position(
-                        layer, centerX, centerY,
-                        cellSize, cellSize,
-                        1.0, is_black
-                    )
-                    
-                    debug_log(f"[階段1.3] 完成繪製中央字符")
-                else:
-                    debug_log("[階段1.3] 沒有選擇的圖層")
-            else:
-                debug_log("[階段1.3] 沒有選擇的圖層")
-            
-            # === 階段1.1：暫時停用周圍8個字符的顯示 ===
-            # 以下程式碼暫時註解，待後續階段啟用
-            """
+            # === 階段2.1：統一的九宮格繪製邏輯 ===
             # 確保字符資料有效
             if (hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and 
                 not getattr(self.plugin, 'currentArrangement', None)):
@@ -366,11 +339,25 @@ class NineBoxPreviewView(NSView):
             if not display_chars and hasattr(self.plugin, 'selectedChars'):
                 display_chars = self.plugin.selectedChars[:8]
             
+            # 建立已存在字符的清單（用於替代不存在的字符）
+            available_chars = []
+            if display_chars:
+                for char in display_chars:
+                    glyph = get_cached_glyph(Glyphs.font, char)
+                    if glyph and glyph.layers[currentMaster.id]:
+                        available_chars.append(char)
+            
+            # 如果沒有可用字符，使用當前選中的字符作為備用
+            if not available_chars and Glyphs.font.selectedLayers:
+                available_chars = [Glyphs.font.selectedLayers[0].parent.name]
+            
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
             
             # 批次繪製字符
             char_count = 0
+            available_char_index = 0  # 用於循環使用已存在的字符
+            
             for i in range(GRID_TOTAL):
                 row = i // GRID_SIZE
                 col = i % GRID_SIZE
@@ -381,23 +368,52 @@ class NineBoxPreviewView(NSView):
                 
                 # 選擇圖層
                 layer = None
-                if i == CENTER_POSITION and Glyphs.font.selectedLayers:
-                    layer = Glyphs.font.selectedLayers[0]
-                else:
-                    if not display_chars and Glyphs.font.selectedLayers:
+                
+                if i == CENTER_POSITION:
+                    # 中央位置：優先使用當前選中的字符，如果沒有則隨機選擇周圍字符
+                    if Glyphs.font.selectedLayers:
                         layer = Glyphs.font.selectedLayers[0]
-                    else:
-                        char_index = i if i < CENTER_POSITION else i - 1
-                        if char_index < len(display_chars):
-                            # 檢查鎖定字符
-                            if hasattr(self.plugin, 'lockedChars') and char_index in self.plugin.lockedChars:
-                                char = self.plugin.lockedChars[char_index]
-                            else:
-                                char = display_chars[char_index]
-                            
-                            glyph = get_cached_glyph(Glyphs.font, char)
-                            if glyph:
-                                layer = glyph.layers[currentMaster.id]
+                        debug_log(f"[階段2.1] 中央位置使用選中字符：{layer.parent.name}")
+                    elif available_chars:
+                        # 沒有選中字符時，從可用字符中隨機選一個
+                        random_char = random.choice(available_chars)
+                        glyph = get_cached_glyph(Glyphs.font, random_char)
+                        if glyph and glyph.layers[currentMaster.id]:
+                            layer = glyph.layers[currentMaster.id]
+                            debug_log(f"[階段2.1] 中央位置使用隨機字符：{random_char}")
+                    elif display_chars:
+                        # 如果沒有可用字符，但有顯示字符，嘗試使用第一個存在的
+                        random_char = random.choice(display_chars)
+                        glyph = get_cached_glyph(Glyphs.font, random_char)
+                        if glyph and glyph.layers[currentMaster.id]:
+                            layer = glyph.layers[currentMaster.id]
+                            debug_log(f"[階段2.1] 中央位置使用顯示字符：{random_char}")
+                else:
+                    # 周圍位置
+                    char_index = i if i < CENTER_POSITION else i - 1
+                    target_char = None
+                    
+                    # 檢查鎖定字符
+                    if hasattr(self.plugin, 'lockedChars') and char_index in self.plugin.lockedChars:
+                        target_char = self.plugin.lockedChars[char_index]
+                        debug_log(f"位置 {char_index} 使用鎖定字符：{target_char}")
+                    elif char_index < len(display_chars):
+                        target_char = display_chars[char_index]
+                    
+                    # 嘗試取得目標字符的圖層
+                    if target_char:
+                        glyph = get_cached_glyph(Glyphs.font, target_char)
+                        if glyph and glyph.layers[currentMaster.id]:
+                            layer = glyph.layers[currentMaster.id]
+                    
+                    # 如果目標字符不存在，使用已存在的字符替代
+                    if not layer and available_chars:
+                        replacement_char = available_chars[available_char_index % len(available_chars)]
+                        available_char_index += 1
+                        glyph = get_cached_glyph(Glyphs.font, replacement_char)
+                        if glyph and glyph.layers[currentMaster.id]:
+                            layer = glyph.layers[currentMaster.id]
+                            debug_log(f"位置 {char_index} 使用替代字符：{replacement_char}")
                 
                 # 繪製字符
                 if layer:
@@ -409,11 +425,10 @@ class NineBoxPreviewView(NSView):
                         metrics['scale'], is_black
                     )
             
-            debug_log(f"完成繪製，共 {char_count} 個字符")
-            """
+            debug_log(f"[階段2.1] 完成繪製，共 {char_count} 個字符")
                     
         except Exception as e:
-            print(f"[階段1.3] 繪製預覽畫面時發生錯誤: {e}")
+            print(f"[階段2.1] 繪製預覽畫面時發生錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
     
