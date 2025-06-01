@@ -303,38 +303,39 @@ class NineBoxWindow(NSWindowController):
             debug_log(f"隱藏控制面板錯誤: {e}")
     
     def updateControlsPanelPosition(self):
-        """更新控制面板位置（階段1.3：優化版）"""
+        """更新控制面板位置（階段1.3：考慮最小高度）"""
         try:
             if self.controlsPanelWindow and self.controlsPanelView:
+                # 取得主視窗框架
                 mainFrame = self.window().frame()
                 
-                # 計算控制面板的新框架
+                # 計算控制面板高度（保持與主視窗相同高度，但不低於最小高度）
                 panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
-                panelX = mainFrame.origin.x + mainFrame.size.width + 10
+                
+                # 計算控制面板位置（靠右對齊主視窗）
+                panelX = mainFrame.origin.x + mainFrame.size.width + 0  # 貼近主視窗
                 panelY = mainFrame.origin.y
                 
-                oldPanelFrame = self.controlsPanelWindow.frame()
-                newPanelFrame = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
+                # 設定控制面板位置和大小
+                panelFrame = self.controlsPanelWindow.frame()
+                newFrame = NSMakeRect(
+                    panelX, panelY, 
+                    CONTROLS_PANEL_WIDTH, panelHeight
+                )
                 
-                # 只在框架真的改變時才更新
-                if (oldPanelFrame.origin.x != newPanelFrame.origin.x or
-                    oldPanelFrame.origin.y != newPanelFrame.origin.y or
-                    oldPanelFrame.size.width != newPanelFrame.size.width or
-                    oldPanelFrame.size.height != newPanelFrame.size.height):
+                # 僅在需要時更新
+                if (panelFrame.size.width != newFrame.size.width or
+                    panelFrame.size.height != newFrame.size.height or
+                    panelFrame.origin.x != newFrame.origin.x or
+                    panelFrame.origin.y != newFrame.origin.y):
+                    self.controlsPanelWindow.setFrame_display_animate_(newFrame, True, True)
                     
-                    debug_log(f"[階段1.3] 更新控制面板框架：從 {oldPanelFrame.size.width}x{oldPanelFrame.size.height} 到 {newPanelFrame.size.width}x{newPanelFrame.size.height}")
+                    # 同時更新內容視圖大小
+                    self.controlsPanelView.setFrame_(NSMakeRect(
+                        0, 0, CONTROLS_PANEL_WIDTH, panelHeight
+                    ))
                     
-                    # 更新視窗框架
-                    self.controlsPanelWindow.setFrame_display_animate_(newPanelFrame, True, False)
-                    
-                    # 更新內容視圖框架
-                    contentBounds = self.controlsPanelWindow.contentView().bounds()
-                    self.controlsPanelView.setFrame_(contentBounds)
-                    
-                    # 觸發 UI 重新佈局（不重建）
-                    if hasattr(self.controlsPanelView, 'setNeedsLayout'):
-                        self.controlsPanelView.setNeedsLayout_(True)
-                    self.controlsPanelView.setNeedsDisplay_(True)
+                    debug_log(f"[階段1.3] 更新控制面板位置：({panelX}, {panelY}) 大小：{CONTROLS_PANEL_WIDTH}x{panelHeight}")
                 
         except Exception as e:
             debug_log(f"[階段1.3] 更新控制面板位置錯誤: {e}")
