@@ -57,7 +57,7 @@ DEFAULT_ZOOM = 1.0
 DEFAULT_UPM = 1000
 
 # 效能優化設定
-DEBUG_MODE = False  # 設為 True 時才會輸出除錯訊息 (階段1開發中啟用)
+DEBUG_MODE = True  # 設為 True 時才會輸出除錯訊息 (階段1開發中啟用)
 CACHE_ENABLED = True  # 啟用快取機制
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數

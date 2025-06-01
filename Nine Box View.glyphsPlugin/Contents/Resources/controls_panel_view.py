@@ -16,7 +16,10 @@ from AppKit import (
     NSNotificationCenter, NSMenu, NSMenuItem,
     NSApp, NSViewWidthSizable, NSViewHeightSizable,
     NSViewMinYMargin, NSViewMaxYMargin, NSMakeRect,
-    NSUserDefaultsDidChangeNotification
+    NSUserDefaultsDidChangeNotification, NSImage,
+    NSFontAttributeName, NSForegroundColorAttributeName,
+    NSString, NSMakePoint, NSCompositingOperationSourceOver,
+    NSBezelStyleRegularSquare
 )
 from Foundation import NSObject
 
@@ -113,12 +116,30 @@ class LockCharacterField(BaseTextField):
     
     def _setup_appearance(self):
         """設定外觀"""
+        # 使用較大的字體，提高可讀性
         self.setFont_(NSFont.systemFontOfSize_(14.0))
         self.setFocusRingType_(NSFocusRingTypeNone)
         self.setBezeled_(True)
         self.setEditable_(True)
         self.setUsesSingleLineMode_(True)
         self.setAlignment_(NSCenterTextAlignment)
+        
+        # 視覺優化：根據位置設定不同的背景色調
+        # 這裡使用了極其微妙的色調差異，以保持一致性但增加視覺層次
+        isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
+        
+        if isDarkMode:
+            # 在深色模式下使用不同深淺的深色調
+            if self.position in [0, 2, 6, 8]:  # 四個角落
+                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.18, 1.0))
+            else:  # 上下左右四個位置
+                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.20, 1.0))
+        else:
+            # 在淺色模式下使用不同深淺的淺色調
+            if self.position in [0, 2, 6, 8]:  # 四個角落
+                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.97, 1.0))
+            else:  # 上下左右四個位置
+                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.95, 1.0))
         
         # 設定提示
         lockedTooltip = Glyphs.localize({
@@ -184,10 +205,11 @@ class ControlsPanelView(NSView):
     
     def _create_search_field(self, bounds):
         """創建搜尋欄位"""
-        margin = 10
-        spacing = 8
+        margin = 12  # 增加邊距，提供更多留白
+        spacing = 16  # 增加間距，使布局更加通透
         search_height = 60
         
+        # 距離頂部留出更多空間
         current_y = bounds.size.height - margin - search_height
         searchRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, search_height)
         
@@ -230,35 +252,37 @@ class ControlsPanelView(NSView):
         spacing = 8
         button_height = 30
         
-        # 隨機排列按鈕
-        current_y -= button_height
-        randomizeRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        randomizeButton = self._create_button(
-            randomizeRect,
-            Glyphs.localize({
-                'en': u'Randomize',
-                'zh-Hant': u'隨機排列',
-                'zh-Hans': u'随机排列',
-                'ja': u'ランダム配置',
-                'ko': u'무작위 배치',
-            }),
-            self,  # 階段1.2：使用self作為target
-            "randomizeStub:",  # 階段1.2：使用存根方法
-            Glyphs.localize({
-                'en': u'Generate a new random arrangement',
-                'zh-Hant': u'產生新的隨機排列',
-                'zh-Hans': u'生成新的随机排列',
-                'ja': u'新しいランダム配置を生成',
-                'ko': u'새로운 무작위 배치 생성',
-            })
-        )
-        self.randomizeButton = randomizeButton
-        self._ui_components['randomizeButton'] = randomizeButton
-        self.addSubview_(randomizeButton)
+        # === UI調整：隱藏隨機排列按鈕 ===
+        # 隨機排列按鈕（隱藏）
+        # current_y -= button_height
+        # randomizeRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
+        # randomizeButton = self._create_button(
+        #     randomizeRect,
+        #     Glyphs.localize({
+        #         'en': u'Randomize',
+        #         'zh-Hant': u'隨機排列',
+        #         'zh-Hans': u'随机排列',
+        #         'ja': u'ランダム配置',
+        #         'ko': u'무작위 배치',
+        #     }),
+        #     self,  # 階段1.2：使用self作為target
+        #     "randomizeStub:",  # 階段1.2：使用存根方法
+        #     Glyphs.localize({
+        #         'en': u'Generate a new random arrangement',
+        #         'zh-Hant': u'產生新的隨機排列',
+        #         'zh-Hans': u'生成新的随机排列',
+        #         'ja': u'新しいランダム配置を生成',
+        #         'ko': u'새로운 무작위 배치 생성',
+        #     })
+        # )
+        # self.randomizeButton = randomizeButton
+        # self._ui_components['randomizeButton'] = randomizeButton
+        # self.addSubview_(randomizeButton)
         
         # 鎖頭按鈕將在 _create_lock_fields 中創建（在九宮格中央）
         
-        return current_y - spacing
+        # === UI調整：由於隱藏了隨機排列按鈕，不需要額外間距 ===
+        return current_y
     
     def _create_button(self, rect, title, target, action, tooltip):
         """創建單個按鈕的輔助方法"""
@@ -274,36 +298,69 @@ class ControlsPanelView(NSView):
     
     def _create_lock_fields(self, bounds, current_y):
         """創建鎖定輸入框和鎖頭按鈕"""
-        margin = 10
-        spacing = 8
+        margin = 12  # 與搜尋欄位保持一致的邊距
+        spacing = 10  # 適當的間距
         
-        # 移除標題（根據開發計畫步驟 4.2）
+        # === UI美化：精心設計的九宮格佈局 ===
+        # 計算每個輸入框的寬度（與搜尋欄位保持一致）
+        available_width = bounds.size.width - 2 * margin  # 與搜尋欄位相同的可用寬度
         
-        # 鎖定輸入框網格
-        current_y -= 10
-        field_size = 30
-        field_spacing = 5
-        grid_width = 3 * field_size + 2 * field_spacing
-        start_x = (bounds.size.width - grid_width) / 2
+        # 設定九宮格單元格之間的間距
+        grid_spacing = 6
+        
+        # 計算單元格尺寸（考慮間距）
+        cell_width = (available_width - 2 * grid_spacing) / 3
+        cell_height = cell_width  # 正方形單元格，更美觀
+        
+        # 為九宮格佈局創建一個容器視圖（可選，增加視覺分組感）
+        # 計算容器大小
+        grid_container_width = available_width
+        grid_container_height = 3 * cell_height + 2 * grid_spacing
         
         # 創建3x3網格
         position = 0
         for row in range(3):
             for col in range(3):
-                x = start_x + col * (field_size + field_spacing)
-                y = current_y - row * (field_size + field_spacing)
+                # 計算每個單元格的位置
+                x = margin + col * (cell_width + grid_spacing)
+                y = current_y - (row + 1) * (cell_height + grid_spacing) + grid_spacing
                 
                 if row == 1 and col == 1:  # 中央位置：放置鎖頭按鈕
-                    # 創建鎖頭按鈕
-                    lockRect = NSMakeRect(x, y, field_size, field_size)
+                    # === 極簡設計：符合Glyphs風格的鎖頭按鈕 ===
+                    # 稍微縮小按鈕，增加簡潔感
+                    button_padding = 2
+                    lockRect = NSMakeRect(
+                        x + button_padding, 
+                        y + button_padding, 
+                        cell_width - 2 * button_padding, 
+                        cell_height - 2 * button_padding
+                    )
+                    
                     lockButton = NSButton.alloc().initWithFrame_(lockRect)
-                    lockButton.setAutoresizingMask_(NSViewMaxYMargin)
+                    lockButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
                     lockButton.setTarget_(self)
                     lockButton.setAction_("toggleLockMode:")
-                    lockButton.setBezelStyle_(NSBezelStyleRounded)
+                    
+                    # === 極簡設計：簡化按鈕樣式，符合Glyphs風格 ===
+                    # 使用極簡按鈕樣式
+                    lockButton.setBezelStyle_(NSBezelStyleRegularSquare)
                     lockButton.setButtonType_(NSButtonTypeToggle)
-                    lockButton.setFont_(NSFont.systemFontOfSize_(16.0))  # 更大的字體
+                    lockButton.setBordered_(False)  # 無邊框更簡潔
+                    
+                    # 設定字體與對齊
+                    lockButton.setFont_(NSFont.systemFontOfSize_(14.0))  # 適當的圖示大小
                     lockButton.setAlignment_(NSCenterTextAlignment)
+                    
+                    # === 極簡設計：適度使用Layer屬性 ===
+                    if hasattr(lockButton, 'setWantsLayer_'):
+                        lockButton.setWantsLayer_(True)
+                        if hasattr(lockButton, 'layer'):
+                            layer = lockButton.layer()
+                            if layer:
+                                # 輕微的圓角
+                                layer.setCornerRadius_(4.0)
+                                # 移除陰影效果
+                                layer.setShadowOpacity_(0)
                     
                     self.lockButton = lockButton
                     self._ui_components['lockButton'] = lockButton
@@ -311,36 +368,53 @@ class ControlsPanelView(NSView):
                     self.addSubview_(lockButton)
                 else:
                     # 其他位置：鎖定輸入框
-                    fieldRect = NSMakeRect(x, y, field_size, field_size)
+                    fieldRect = NSMakeRect(x, y, cell_width, cell_height)
                     lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(
                         fieldRect, position, self.plugin
                     )
-                    lockField.setAutoresizingMask_(NSViewMaxYMargin)
+                    lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
+                    lockField.setFont_(NSFont.systemFontOfSize_(14.0))  # 調整字體大小
                     
                     self.lockFields[position] = lockField
                     self.addSubview_(lockField)
                     position += 1
         
-        return current_y - 3 * (field_size + field_spacing) - spacing
+        # 計算新的垂直位置
+        current_y = current_y - grid_container_height - spacing
+        
+        return current_y
     
     def _create_control_buttons(self, bounds, current_y):
-        """創建控制按鈕"""
-        margin = 10
-        spacing = 8
-        button_height = 25
+        """創建控制按鈕（極簡版）"""
+        margin = 12
+        spacing = 12
+        button_height = 24  # 調整按鈕高度，更符合Glyphs風格
         
-        # === 階段 3-2：清空所有欄位按鈕 ===
+        # === 極簡設計：清空欄位按鈕 ===
         current_y -= button_height
         clearAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
         clearAllButton = NSButton.alloc().initWithFrame_(clearAllRect)
         clearAllButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-        clearAllButton.setTitle_("🧹")  # 使用掃把圖示
+        
+        # 極簡標題
+        clearButtonTitle = Glyphs.localize({
+            'en': u'Clear All',
+            'zh-Hant': u'清空全部',
+            'zh-Hans': u'清空全部',
+            'ja': u'すべてクリア',
+            'ko': u'모두 지우기',
+        })
+        
+        clearAllButton.setTitle_(clearButtonTitle)
         clearAllButton.setTarget_(self)
         clearAllButton.setAction_("clearAllFields:")
         clearAllButton.setBezelStyle_(NSBezelStyleRounded)
         clearAllButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-        clearAllButton.setFont_(NSFont.systemFontOfSize_(16.0))  # 較大的圖示
-        clearAllButton.setAlignment_(NSCenterTextAlignment)
+        clearAllButton.setFont_(NSFont.systemFontOfSize_(12.0))  # 調整文字大小
+        
+        # 使用系統控制顏色，避免自定義顏色
+        if hasattr(clearAllButton, 'setContentTintColor_'):
+            clearAllButton.setContentTintColor_(NSColor.controlTextColor())
         
         # 設定提示文字
         clearTooltip = Glyphs.localize({
@@ -356,15 +430,10 @@ class ControlsPanelView(NSView):
         self._ui_components['clearAllButton'] = clearAllButton
         self.addSubview_(clearAllButton)
         
-        # 鎖定所有按鈕（暫時隱藏，未來階段實作）
-        # current_y -= spacing + button_height
-        # lockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        # ...
+        # 底部留白，提高整體平衡感
+        current_y -= spacing
         
-        # 解鎖所有按鈕（暫時隱藏，未來階段實作）
-        # current_y -= spacing + button_height
-        # unlockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        # ...
+        return current_y
     
     def setFrame_(self, frame):
         """覆寫 setFrame_ 方法（階段1.3：新增）"""
@@ -418,8 +487,8 @@ class ControlsPanelView(NSView):
         """不重建 UI，只調整現有元件位置"""
         try:
             bounds = self.bounds()
-            margin = 10
-            spacing = 8
+            margin = 12  # 保持一致的邊距
+            spacing = 16  # 更寬敞的間距
             current_y = bounds.size.height - margin
             
             # 調整搜尋欄位位置
@@ -430,46 +499,60 @@ class ControlsPanelView(NSView):
                 self.searchField.setFrame_(searchRect)
                 current_y -= spacing
             
-            # 調整按鈕位置
-            button_height = 30
-            if hasattr(self, 'randomizeButton'):
-                current_y -= button_height
-                self.randomizeButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
-                current_y -= spacing
+            # === UI調整：隱藏隨機排列按鈕的佈局調整 ===
+            # 調整按鈕位置（隨機排列按鈕已隱藏）
+            # button_height = 30
+            # if hasattr(self, 'randomizeButton'):
+            #     current_y -= button_height
+            #     self.randomizeButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+            #     current_y -= spacing
             
-            # 鎖頭按鈕現在在九宮格中央，所以不需要在這裡調整
-            
-            # 重新佈局鎖定輸入框和鎖頭按鈕（保持中心對齊）
+            # === UI美化：重新佈局九宮格 ===
             if hasattr(self, 'lockFields') and self.lockFields:
-                current_y -= 10  # 移除標題後的間距
+                # 計算每個輸入框的寬度（與搜尋欄位保持一致）
+                available_width = bounds.size.width - 2 * margin
                 
-                field_size = 30
-                field_spacing = 5
-                grid_width = 3 * field_size + 2 * field_spacing
-                start_x = (bounds.size.width - grid_width) / 2
+                # 設定九宮格單元格之間的間距
+                grid_spacing = 6
                 
+                # 計算單元格尺寸（考慮間距）
+                cell_width = (available_width - 2 * grid_spacing) / 3
+                cell_height = cell_width  # 正方形單元格
+                
+                # 計算容器大小
+                grid_container_height = 3 * cell_height + 2 * grid_spacing
+                
+                # 創建3x3網格
                 position = 0
                 for row in range(3):
                     for col in range(3):
-                        x = start_x + col * (field_size + field_spacing)
-                        y = current_y - row * (field_size + field_spacing)
+                        # 計算每個單元格的位置
+                        x = margin + col * (cell_width + grid_spacing)
+                        y = current_y - (row + 1) * (cell_height + grid_spacing) + grid_spacing
                         
                         if row == 1 and col == 1:  # 中央位置：鎖頭按鈕
                             if hasattr(self, 'lockButton'):
-                                lockRect = NSMakeRect(x, y, field_size, field_size)
+                                # === 精美設計：配合新的按鈕尺寸 ===
+                                button_padding = 4
+                                lockRect = NSMakeRect(
+                                    x + button_padding, 
+                                    y + button_padding, 
+                                    cell_width - 2 * button_padding, 
+                                    cell_height - 2 * button_padding
+                                )
                                 self.lockButton.setFrame_(lockRect)
                         else:
                             # 其他位置：鎖定輸入框
                             if position in self.lockFields:
-                                fieldRect = NSMakeRect(x, y, field_size, field_size)
+                                fieldRect = NSMakeRect(x, y, cell_width, cell_height)
                                 self.lockFields[position].setFrame_(fieldRect)
                             position += 1
                 
-                current_y -= 3 * (field_size + field_spacing) + spacing
+                # 更新垂直位置
+                current_y = current_y - grid_container_height - spacing
             
             # 調整底部按鈕位置
-            button_height = 25
-            # === 階段 3-2：調整清空按鈕位置 ===
+            button_height = 32  # 增加按鈕高度
             if hasattr(self, 'clearAllButton'):
                 current_y -= button_height
                 self.clearAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
@@ -495,24 +578,23 @@ class ControlsPanelView(NSView):
                     self.lockFields[position].setStringValue_(char_or_name)
     
     def toggleLockMode_(self, sender):
-        """切換鎖頭模式"""
+        """切換鎖頭模式（極簡版）"""
         try:
             # 記錄之前的狀態
             was_in_clear_mode = self.isInClearMode
             
+            # 切換狀態
             self.isInClearMode = not self.isInClearMode
+            
+            # 立即更新按鈕外觀
             self.updateLockButton()
             
-            # 輸入框始終保持可編輯狀態（根據開發計畫）
-            # for field in self.lockFields.values():
-            #     field.setEnabled_(not self.isInClearMode)
-            
-            debug_log(f"[3.1] 鎖頭模式切換：{'解鎖' if self.isInClearMode else '上鎖'}")
+            debug_log(f"[3.1] 鎖頭模式切換：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
             
             # === 修正：從解鎖切換到鎖定時，同步所有輸入欄內容到 plugin.lockedChars ===
             if was_in_clear_mode and not self.isInClearMode:
                 # 從解鎖狀態切換到鎖定狀態：讀取並同步所有輸入欄內容
-                debug_log("[3.1] 從解鎖切換到鎖定：同步輸入欄內容到 lockedChars")
+                debug_log("[3.1] 從🔓解鎖切換到🔒鎖定：同步輸入欄內容到 lockedChars")
                 self._sync_input_fields_to_locked_chars()
             
             # === 階段 3.1：立即重繪預覽 ===
@@ -524,6 +606,9 @@ class ControlsPanelView(NSView):
             
         except Exception as e:
             debug_log(f"[3.1] 切換鎖頭模式錯誤: {e}")
+            # 確保狀態一致性
+            if hasattr(self, 'lockButton'):
+                self.updateLockButton()
     
     def _sync_input_fields_to_locked_chars(self):
         """同步輸入欄內容到 plugin.lockedChars"""
@@ -561,43 +646,194 @@ class ControlsPanelView(NSView):
             import traceback
             debug_log(traceback.format_exc())
     
-    def updateLockButton(self):
-        """更新鎖頭按鈕顯示"""
-        try:
-            # 使用純 Unicode 字元，不加任何文字
-            if self.isInClearMode:
-                # 解鎖狀態
-                title = "🔓"  # 開鎖圖示
-                state = 0
-                tooltip = Glyphs.localize({
-                    'en': u'Unlock mode: Lock fields have no effect on preview. Click to enable locking.',
-                    'zh-Hant': u'解鎖模式：鎖定欄位與預覽完全無關聯。點擊以啟用鎖定功能。',
-                    'zh-Hans': u'解锁模式：锁定栏位与预览完全无关联。点击以启用锁定功能。',
-                    'ja': u'アンロックモード：ロックフィールドはプレビューに影響しません。クリックしてロックを有効にします。',
-                    'ko': u'잠금 해제 모드: 잠금 필드가 미리보기에 영향을 주지 않습니다. 클릭하여 잠금을 활성화합니다.',
-                })
-                # 設定按鈕文字顏色（解鎖狀態用灰色）
-                self.lockButton.setContentTintColor_(NSColor.systemGrayColor())
-            else:
-                # 上鎖狀態
-                title = "🔒"  # 關鎖圖示
-                state = 1
-                tooltip = Glyphs.localize({
-                    'en': u'Lock mode: Lock fields control specific positions in preview. Click to disable locking.',
-                    'zh-Hant': u'鎖定模式：鎖定欄位控制預覽中的特定位置。點擊以停用鎖定功能。',
-                    'zh-Hans': u'锁定模式：锁定栏位控制预览中的特定位置。点击以停用锁定功能。',
-                    'ja': u'ロックモード：ロックフィールドがプレビューの特定位置を制御します。クリックしてロックを無効にします。',
-                    'ko': u'잠금 모드: 잠금 필드가 미리보기의 특정 위치를 제어합니다. 클릭하여 잠금을 비활성화합니다.',
-                })
-                # 設定按鈕文字顏色（上鎖狀態用黑色或主題色）
-                self.lockButton.setContentTintColor_(NSColor.labelColor())
+    def createLockImage(self, locked=True):
+        """
+        創建極簡鎖頭圖示，符合Glyphs設計風格
+        
+        Args:
+            locked: 是否為鎖定狀態
             
-            self.lockButton.setTitle_(title)
-            self.lockButton.setState_(state)
-            self.lockButton.setToolTip_(tooltip)
+        Returns:
+            NSImage: 極簡風格的鎖頭圖示
+        """
+        # 設定圖像大小
+        imageSize = 18  # 稍小一點更符合Glyphs的風格
+        
+        # 創建空白圖像
+        lockImage = NSImage.alloc().initWithSize_((imageSize, imageSize))
+        
+        # 開始編輯圖像
+        lockImage.lockFocus()
+        
+        try:
+            # 清除背景 (透明)
+            NSColor.clearColor().set()
+            NSBezierPath.fillRect_(((0, 0), (imageSize, imageSize)))
+            
+            # 設定文字屬性 - 使用系統字體
+            fontSize = 13.0  # 稍小一點的字體更符合Glyphs風格
+            font = NSFont.systemFontOfSize_(fontSize)
+            
+            # 使用系統控制文字顏色 - 完全符合Glyphs的顏色方案
+            attrs = {
+                NSFontAttributeName: font, 
+                NSForegroundColorAttributeName: NSColor.controlTextColor()
+            }
+            
+            # 使用標準Unicode符號 - 保持簡潔
+            symbol = "🔒" if locked else "🔓"
+            
+            # 創建文字並計算尺寸
+            string = NSString.stringWithString_(symbol)
+            stringSize = string.sizeWithAttributes_(attrs)
+            
+            # 計算居中位置
+            x = (imageSize - stringSize.width) / 2
+            y = (imageSize - stringSize.height) / 2
+            
+            # 繪製符號
+            string.drawAtPoint_withAttributes_(NSMakePoint(x, y), attrs)
+            
+            debug_log(f"已創建極簡{'鎖定' if locked else '解鎖'}圖示")
+            
+        except Exception as e:
+            debug_log(f"創建極簡鎖頭圖示時發生錯誤: {e}")
+            
+            # 嘗試使用系統提供的圖示
+            try:
+                # 在macOS上嘗試使用系統提供的圖示
+                systemIcon = None
+                
+                if locked:
+                    systemIcon = NSImage.imageNamed_("NSLockLockedTemplate")
+                else:
+                    systemIcon = NSImage.imageNamed_("NSLockUnlockedTemplate")
+                
+                # 如果找到系統圖示，使用它
+                if systemIcon:
+                    lockImage.unlockFocus()
+                    return systemIcon
+            except:
+                pass
+            
+        finally:
+            # 結束編輯
+            lockImage.unlockFocus()
+        
+        # 設置為模板圖像以支援暗色模式
+        lockImage.setTemplate_(True)
+        
+        return lockImage
+    
+    def updateLockButton(self):
+        """更新鎖頭按鈕顯示（極簡設計版）"""
+        try:
+            if not hasattr(self, 'lockButton'):
+                return
+            
+            # 創建自定義鎖頭圖示
+            is_locked = not self.isInClearMode  # False=解鎖，True=上鎖
+            lockImage = self.createLockImage(is_locked)
+            
+            # 檢測系統主題
+            isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
+            
+            if lockImage:
+                # 設置圖示
+                self.lockButton.setImage_(lockImage)
+                self.lockButton.setTitle_("")  # 清除文字標題
+                
+                # 設置按鈕狀態
+                self.lockButton.setState_(1 if is_locked else 0)
+                
+                # === 極簡設計：簡潔的背景色 ===
+                if hasattr(self.lockButton, 'layer') and self.lockButton.layer():
+                    layer = self.lockButton.layer()
+                    
+                    # 設定極簡的背景色 - 僅使用微妙的視覺差異
+                    if is_locked:
+                        # 上鎖狀態：微妙的強調色
+                        if isDarkMode:
+                            # 暗色模式：稍微亮一點的背景
+                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.25, 0.5).CGColor())
+                        else:
+                            # 淺色模式：稍微暗一點的背景
+                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.92, 1.0).CGColor())
+                    else:
+                        # 解鎖狀態：接近背景色
+                        if isDarkMode:
+                            # 暗色模式：幾乎隱形的背景
+                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.2, 0.2).CGColor())
+                        else:
+                            # 淺色模式：幾乎隱形的背景
+                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.98, 0.5).CGColor())
+                    
+                    # 極簡設計：移除邊框
+                    layer.setBorderWidth_(0.0)
+                
+                # === 極簡設計：簡潔的圖示顏色 ===
+                if hasattr(self.lockButton, 'setContentTintColor_'):
+                    # 使用系統控制顏色，保持一致性
+                    if is_locked:
+                        # 上鎖狀態：使用系統強調色或輕微變化
+                        if isDarkMode:
+                            self.lockButton.setContentTintColor_(NSColor.controlTextColor())
+                        else:
+                            self.lockButton.setContentTintColor_(NSColor.controlTextColor())
+                    else:
+                        # 解鎖狀態：使用較淡的控制顏色
+                        if isDarkMode:
+                            self.lockButton.setContentTintColor_(NSColor.secondaryLabelColor())
+                        else:
+                            self.lockButton.setContentTintColor_(NSColor.secondaryLabelColor())
+                
+                # 設置工具提示 - 保持簡潔
+                if self.isInClearMode:
+                    tooltip = Glyphs.localize({
+                        'en': u'Unlock Mode (click to lock)',
+                        'zh-Hant': u'解鎖模式（點擊上鎖）',
+                        'zh-Hans': u'解锁模式（点击上锁）',
+                        'ja': u'アンロックモード（クリックしてロック）',
+                        'ko': u'잠금 해제 모드 (클릭하여 잠금)',
+                    })
+                else:
+                    tooltip = Glyphs.localize({
+                        'en': u'Lock Mode (click to unlock)',
+                        'zh-Hant': u'鎖定模式（點擊解鎖）',
+                        'zh-Hans': u'锁定模式（点击解锁）',
+                        'ja': u'ロックモード（クリックして解除）',
+                        'ko': u'잠금 모드 (클릭하여 해제)',
+                    })
+                
+                self.lockButton.setToolTip_(tooltip)
+                
+                # 強制重繪按鈕
+                self.lockButton.setNeedsDisplay_(True)
+                
+                debug_log(f"已更新鎖頭按鈕外觀：{'🔒 鎖定' if is_locked else '🔓 解鎖'}")
+            else:
+                # 後備方案：極簡文字按鈕
+                debug_log("圖示創建失敗，使用極簡文字後備方案")
+                
+                # 設定文字
+                title = "🔒" if not self.isInClearMode else "🔓"
+                self.lockButton.setTitle_(title)
+                self.lockButton.setImage_(None)
+                
+                # 設定系統字體
+                self.lockButton.setFont_(NSFont.systemFontOfSize_(14.0))
+                
+                # 設定顏色 - 使用系統顏色
+                if hasattr(self.lockButton, 'setContentTintColor_'):
+                    self.lockButton.setContentTintColor_(NSColor.controlTextColor())
             
         except Exception as e:
             debug_log(f"更新鎖頭按鈕錯誤: {e}")
+            # 最基本的後備方案
+            if hasattr(self, 'lockButton'):
+                title = "🔒" if not self.isInClearMode else "🔓"
+                self.lockButton.setTitle_(title)
+                self.lockButton.setImage_(None)
     
     def updateSearchField(self):
         """更新搜尋欄位內容"""
@@ -712,12 +948,49 @@ class ControlsPanelView(NSView):
         try:
             # 根據系統主題設定背景顏色
             isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
-            backgroundColor = (NSColor.colorWithRed_green_blue_alpha_(0.2, 0.2, 0.2, 1.0) 
-                             if isDarkMode 
-                             else NSColor.colorWithRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0))
             
+            # 使用更柔和的背景色調
+            if isDarkMode:
+                backgroundColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.18, 0.18, 0.20, 1.0)
+            else:
+                backgroundColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.96, 0.96, 0.97, 1.0)
+            
+            # 繪製主背景
             backgroundColor.set()
             NSRectFill(rect)
+            
+            # 繪製上部細微分隔線
+            bounds = self.bounds()
+            margin = 12
+            
+            if hasattr(self, 'searchField'):
+                searchBottom = self.searchField.frame().origin.y
+                lineY = searchBottom - 8  # 在搜尋欄位下方稍微偏下的位置
+                
+                # 繪製微妙的分隔線
+                lineRect = NSMakeRect(margin, lineY, bounds.size.width - 2 * margin, 1)
+                if isDarkMode:
+                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.3, 0.4)
+                else:
+                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.8, 0.4)
+                
+                lineColor.set()
+                NSRectFill(lineRect)
+            
+            # 繪製底部細微分隔線
+            if hasattr(self, 'clearAllButton'):
+                buttonTop = self.clearAllButton.frame().origin.y + self.clearAllButton.frame().size.height
+                lineY = buttonTop + 8  # 在按鈕上方稍微偏上的位置
+                
+                # 繪製微妙的分隔線
+                lineRect = NSMakeRect(margin, lineY, bounds.size.width - 2 * margin, 1)
+                if isDarkMode:
+                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.3, 0.4)
+                else:
+                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.8, 0.4)
+                
+                lineColor.set()
+                NSRectFill(lineRect)
             
         except Exception as e:
             debug_log(f"繪製背景錯誤: {e}")
