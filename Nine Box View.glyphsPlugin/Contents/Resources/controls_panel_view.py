@@ -124,22 +124,14 @@ class LockCharacterField(BaseTextField):
         self.setUsesSingleLineMode_(True)
         self.setAlignment_(NSCenterTextAlignment)
         
-        # 視覺優化：根據位置設定不同的背景色調
-        # 這裡使用了極其微妙的色調差異，以保持一致性但增加視覺層次
+        # 使用更符合 macOS 標準的輸入框顏色
         isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
-        
         if isDarkMode:
-            # 在深色模式下使用不同深淺的深色調
-            if self.position in [0, 2, 6, 8]:  # 四個角落
-                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.18, 1.0))
-            else:  # 上下左右四個位置
-                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.20, 1.0))
+            # 深色模式使用系統文字輸入框背景色
+            self.setBackgroundColor_(NSColor.textBackgroundColor())
         else:
-            # 在淺色模式下使用不同深淺的淺色調
-            if self.position in [0, 2, 6, 8]:  # 四個角落
-                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.97, 1.0))
-            else:  # 上下左右四個位置
-                self.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.95, 1.0))
+            # 亮色模式使用純白色，符合 macOS 標準輸入框外觀
+            self.setBackgroundColor_(NSColor.whiteColor())
         
         # 設定提示
         lockedTooltip = Glyphs.localize({
@@ -219,6 +211,15 @@ class ControlsPanelView(NSView):
         searchField.setFocusRingType_(NSFocusRingTypeNone)
         searchField.setBezeled_(True)
         searchField.setEditable_(True)
+        
+        # 設定符合 macOS 標準的背景顏色
+        isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
+        if isDarkMode:
+            # 深色模式使用系統文字輸入框背景色
+            searchField.setBackgroundColor_(NSColor.textBackgroundColor())
+        else:
+            # 亮色模式使用純白色，符合 macOS 標準輸入框外觀
+            searchField.setBackgroundColor_(NSColor.whiteColor())
         
         # 設定提示文字
         searchPlaceholder = Glyphs.localize({
@@ -385,7 +386,7 @@ class ControlsPanelView(NSView):
         return current_y
     
     def _create_control_buttons(self, bounds, current_y):
-        """創建控制按鈕（極簡版）"""
+        """創建控制按鈕（符合 macOS 標準）"""
         margin = 12
         spacing = 12
         button_height = 24  # 調整按鈕高度，更符合Glyphs風格
@@ -412,9 +413,13 @@ class ControlsPanelView(NSView):
         clearAllButton.setButtonType_(NSButtonTypeMomentaryPushIn)
         clearAllButton.setFont_(NSFont.systemFontOfSize_(12.0))  # 調整文字大小
         
-        # 使用系統控制顏色，避免自定義顏色
+        # 確保按鈕在亮色模式下有正確的顏色
+        isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
         if hasattr(clearAllButton, 'setContentTintColor_'):
-            clearAllButton.setContentTintColor_(NSColor.controlTextColor())
+            if isDarkMode:
+                clearAllButton.setContentTintColor_(NSColor.controlTextColor())
+            else:
+                clearAllButton.setContentTintColor_(NSColor.controlTextColor())
         
         # 設定提示文字
         clearTooltip = Glyphs.localize({
@@ -750,23 +755,18 @@ class ControlsPanelView(NSView):
                 if hasattr(self.lockButton, 'layer') and self.lockButton.layer():
                     layer = self.lockButton.layer()
                     
-                    # 設定極簡的背景色 - 僅使用微妙的視覺差異
+                    # 使用系統預設顏色
                     if is_locked:
-                        # 上鎖狀態：微妙的強調色
+                        # 上鎖狀態：使用控制強調色
+                        layer.setBackgroundColor_(NSColor.controlAccentColor().colorWithAlphaComponent_(0.3).CGColor())
+                    else:
+                        # 解鎖狀態：使用淺灰色（淺色模式）或深灰色（深色模式）
                         if isDarkMode:
-                            # 暗色模式：稍微亮一點的背景
+                            # 深色模式下使用稍亮的灰色
                             layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.25, 0.5).CGColor())
                         else:
-                            # 淺色模式：稍微暗一點的背景
-                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.92, 1.0).CGColor())
-                    else:
-                        # 解鎖狀態：接近背景色
-                        if isDarkMode:
-                            # 暗色模式：幾乎隱形的背景
-                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.2, 0.2).CGColor())
-                        else:
-                            # 淺色模式：幾乎隱形的背景
-                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.98, 0.5).CGColor())
+                            # 淺色模式下使用稍暗的灰色，確保可見性
+                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.85, 0.5).CGColor())
                     
                     # 極簡設計：移除邊框
                     layer.setBorderWidth_(0.0)
@@ -775,17 +775,16 @@ class ControlsPanelView(NSView):
                 if hasattr(self.lockButton, 'setContentTintColor_'):
                     # 使用系統控制顏色，保持一致性
                     if is_locked:
-                        # 上鎖狀態：使用系統強調色或輕微變化
-                        if isDarkMode:
-                            self.lockButton.setContentTintColor_(NSColor.controlTextColor())
-                        else:
-                            self.lockButton.setContentTintColor_(NSColor.controlTextColor())
+                        # 上鎖狀態：使用系統強調色
+                        self.lockButton.setContentTintColor_(NSColor.controlAccentColor())
                     else:
-                        # 解鎖狀態：使用較淡的控制顏色
+                        # 解鎖狀態：使用更明顯的顏色
                         if isDarkMode:
+                            # 深色模式使用較亮的顏色
                             self.lockButton.setContentTintColor_(NSColor.secondaryLabelColor())
                         else:
-                            self.lockButton.setContentTintColor_(NSColor.secondaryLabelColor())
+                            # 淺色模式使用較深的顏色，確保可見性
+                            self.lockButton.setContentTintColor_(NSColor.labelColor())
                 
                 # 設置工具提示 - 保持簡潔
                 if self.isInClearMode:
@@ -944,18 +943,16 @@ class ControlsPanelView(NSView):
         debug_log("[階段1.3] 解鎖全部按鈕被點擊")
     
     def drawRect_(self, rect):
-        """繪製背景（優化版）"""
+        """繪製背景（使用更符合 macOS 標準的顏色）"""
         try:
-            # 根據系統主題設定背景顏色
+            # 使用更符合 macOS 標準的背景顏色
             isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
-            
-            # 使用更柔和的背景色調
             if isDarkMode:
-                backgroundColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.18, 0.18, 0.20, 1.0)
+                backgroundColor = NSColor.windowBackgroundColor()
             else:
-                backgroundColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.96, 0.96, 0.97, 1.0)
+                # 在亮色模式下使用淺灰色，更符合 macOS 標準
+                backgroundColor = NSColor.colorWithCalibratedWhite_alpha_(0.93, 1.0)
             
-            # 繪製主背景
             backgroundColor.set()
             NSRectFill(rect)
             
@@ -967,14 +964,9 @@ class ControlsPanelView(NSView):
                 searchBottom = self.searchField.frame().origin.y
                 lineY = searchBottom - 8  # 在搜尋欄位下方稍微偏下的位置
                 
-                # 繪製微妙的分隔線
+                # 繪製微妙的分隔線，使用系統分隔線顏色
                 lineRect = NSMakeRect(margin, lineY, bounds.size.width - 2 * margin, 1)
-                if isDarkMode:
-                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.3, 0.4)
-                else:
-                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.8, 0.4)
-                
-                lineColor.set()
+                NSColor.separatorColor().set()
                 NSRectFill(lineRect)
             
             # 繪製底部細微分隔線
@@ -982,14 +974,9 @@ class ControlsPanelView(NSView):
                 buttonTop = self.clearAllButton.frame().origin.y + self.clearAllButton.frame().size.height
                 lineY = buttonTop + 8  # 在按鈕上方稍微偏上的位置
                 
-                # 繪製微妙的分隔線
+                # 繪製微妙的分隔線，使用系統分隔線顏色
                 lineRect = NSMakeRect(margin, lineY, bounds.size.width - 2 * margin, 1)
-                if isDarkMode:
-                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.3, 0.4)
-                else:
-                    lineColor = NSColor.colorWithCalibratedWhite_alpha_(0.8, 0.4)
-                
-                lineColor.set()
+                NSColor.separatorColor().set()
                 NSRectFill(lineRect)
             
         except Exception as e:
