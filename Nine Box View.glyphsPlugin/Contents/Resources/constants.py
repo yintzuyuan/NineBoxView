@@ -25,6 +25,20 @@ CONTROLS_PANEL_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.controlsPanelVisible"
 LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastInput"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.currentArrangement"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.showNumbers"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowPosition"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.sidebarVisible"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.controlsPanelVisible"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockedChars"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.previousLockedChars"]
+
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
 MIN_WINDOW_SIZE = (200, 240)
@@ -43,7 +57,7 @@ DEFAULT_ZOOM = 1.0
 DEFAULT_UPM = 1000
 
 # 效能優化設定
-DEBUG_MODE = True  # 設為 True 時才會輸出除錯訊息 (階段1開發中啟用)
+DEBUG_MODE = False  # 設為 True 時才會輸出除錯訊息 (階段1開發中啟用)
 CACHE_ENABLED = True  # 啟用快取機制
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數

@@ -117,10 +117,18 @@ class NineBoxPreviewView(NSView):
             self.force_redraw()
 
     def _get_theme_is_black(self):
-        """取得並快取主題設定"""
-        if self._cached_theme_is_black is None:
-            self._cached_theme_is_black = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
-        return self._cached_theme_is_black
+        """檢查當前主題是否為深色模式"""
+        return NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+    
+    def _get_lock_state(self):
+        """取得鎖頭狀態"""
+        if (hasattr(self, 'plugin') and self.plugin and
+            hasattr(self.plugin, 'windowController') and self.plugin.windowController and 
+            hasattr(self.plugin.windowController, 'controlsPanelView') and 
+            self.plugin.windowController.controlsPanelView and 
+            hasattr(self.plugin.windowController.controlsPanelView, 'isInClearMode')):
+            return self.plugin.windowController.controlsPanelView.isInClearMode
+        return False  # 預設為上鎖（與控制面板預設值一致）
 
     def _calculate_grid_metrics(self, rect, display_chars, currentMaster):
         """計算並快取網格度量"""
@@ -407,13 +415,17 @@ class NineBoxPreviewView(NSView):
                     char_index = i if i < CENTER_POSITION else i - 1
                     target_char = None
                     
-                    # 檢查鎖定字符
-                    if hasattr(self.plugin, 'lockedChars') and char_index in self.plugin.lockedChars:
+                    # === 修正：檢查鎖頭狀態，只在上鎖狀態時使用鎖定字符 ===
+                    lock_state = self._get_lock_state()
+                    if not lock_state and hasattr(self.plugin, 'lockedChars') and char_index in self.plugin.lockedChars:
+                        # 🔒 上鎖狀態：使用鎖定字符
                         target_char = self.plugin.lockedChars[char_index]
-                        debug_log(f"位置 {char_index} (網格{i}: 行{row}列{col}) 使用鎖定字符：{target_char}")
+                        debug_log(f"🔒 位置 {char_index} (網格{i}: 行{row}列{col}) 使用鎖定字符：{target_char}")
                     elif char_index < len(display_chars):
+                        # 🔓 解鎖狀態或無鎖定：使用顯示字符
                         target_char = display_chars[char_index]
-                        debug_log(f"位置 {char_index} (網格{i}: 行{row}列{col}) 使用顯示字符：{target_char}")
+                        lock_mode_str = "🔓 解鎖" if lock_state else "🔒 無鎖定"
+                        debug_log(f"{lock_mode_str} 位置 {char_index} (網格{i}: 行{row}列{col}) 使用顯示字符：{target_char}")
                     
                     # 嘗試取得目標字符的圖層
                     if target_char:

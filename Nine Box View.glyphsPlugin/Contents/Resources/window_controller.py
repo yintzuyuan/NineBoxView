@@ -473,12 +473,16 @@ class NineBoxWindow(NSWindowController):
         except Exception as e:
             debug_log(f"請求主預覽重繪錯誤: {e}")
     
-    def request_controls_panel_ui_update(self):
-        """請求控制面板UI更新"""
+    def request_controls_panel_ui_update(self, update_lock_fields=True):
+        """請求控制面板UI更新
+        
+        Args:
+            update_lock_fields: 是否更新鎖定輸入框（預設True）
+        """
         try:
             if self.controlsPanelView and self.controlsPanelVisible:
-                self.controlsPanelView.update_ui(self.plugin)
-                debug_log("已更新控制面板 UI")
+                self.controlsPanelView.update_ui(self.plugin, update_lock_fields)
+                debug_log(f"已更新控制面板 UI，update_lock_fields={update_lock_fields}")
                     
         except Exception as e:
             debug_log(f"請求控制面板UI更新錯誤: {e}")

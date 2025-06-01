@@ -122,11 +122,11 @@ class LockCharacterField(BaseTextField):
         
         # 設定提示
         lockedTooltip = Glyphs.localize({
-            'en': u'Enter a character or Nice Name to lock in this position',
-            'zh-Hant': u'輸入要鎖定在此位置的字符或 Nice Name',
-            'zh-Hans': u'输入要锁定在此位置的字符或 Nice Name',
-            'ja': u'この位置にロックする文字または Nice Name を入力してください',
-            'ko': u'이 위치에 고정할 문자 또는 Nice Name을 입력하세요',
+            'en': u'Enter a character or Nice Name (only affects preview when lock mode is enabled)',
+            'zh-Hant': u'輸入字符或 Nice Name（僅在鎖定模式啟用時影響預覽）',
+            'zh-Hans': u'输入字符或 Nice Name（仅在锁定模式启用时影响预览）',
+            'ja': u'文字または Nice Name を入力（ロックモードが有効な場合のみプレビューに影響）',
+            'ko': u'문자 또는 Nice Name 입력 (잠금 모드가 활성화된 경우에만 미리보기에 영향)',
         })
         self.setToolTip_(lockedTooltip)
     
@@ -533,11 +533,11 @@ class ControlsPanelView(NSView):
                 title = "🔓"  # 開鎖圖示
                 state = 0
                 tooltip = Glyphs.localize({
-                    'en': u'Click to lock positions (enable position locking)',
-                    'zh-Hant': u'點擊以鎖定位置（啟用位置鎖定）',
-                    'zh-Hans': u'点击以锁定位置（启用位置锁定）',
-                    'ja': u'クリックして位置をロック（位置ロックを有効にする）',
-                    'ko': u'클릭하여 위치 고정 (위치 고정 활성화)',
+                    'en': u'Unlock mode: Lock fields have no effect on preview. Click to enable locking.',
+                    'zh-Hant': u'解鎖模式：鎖定欄位與預覽完全無關聯。點擊以啟用鎖定功能。',
+                    'zh-Hans': u'解锁模式：锁定栏位与预览完全无关联。点击以启用锁定功能。',
+                    'ja': u'アンロックモード：ロックフィールドはプレビューに影響しません。クリックしてロックを有効にします。',
+                    'ko': u'잠금 해제 모드: 잠금 필드가 미리보기에 영향을 주지 않습니다. 클릭하여 잠금을 활성화합니다.',
                 })
                 # 設定按鈕文字顏色（解鎖狀態用灰色）
                 self.lockButton.setContentTintColor_(NSColor.systemGrayColor())
@@ -546,11 +546,11 @@ class ControlsPanelView(NSView):
                 title = "🔒"  # 關鎖圖示
                 state = 1
                 tooltip = Glyphs.localize({
-                    'en': u'Click to unlock positions (disable position locking)',
-                    'zh-Hant': u'點擊以解鎖位置（停用位置鎖定）',
-                    'zh-Hans': u'点击以解锁位置（停用位置锁定）',
-                    'ja': u'クリックして位置をアンロック（位置ロックを無効にする）',
-                    'ko': u'클릭하여 위치 해제 (위치 고정 비활성화)',
+                    'en': u'Lock mode: Lock fields control specific positions in preview. Click to disable locking.',
+                    'zh-Hant': u'鎖定模式：鎖定欄位控制預覽中的特定位置。點擊以停用鎖定功能。',
+                    'zh-Hans': u'锁定模式：锁定栏位控制预览中的特定位置。点击以停用锁定功能。',
+                    'ja': u'ロックモード：ロックフィールドがプレビューの特定位置を制御します。クリックしてロックを無効にします。',
+                    'ko': u'잠금 모드: 잠금 필드가 미리보기의 특정 위치를 제어합니다. 클릭하여 잠금을 비활성화합니다.',
                 })
                 # 設定按鈕文字顏色（上鎖狀態用黑色或主題色）
                 self.lockButton.setContentTintColor_(NSColor.labelColor())
@@ -570,18 +570,23 @@ class ControlsPanelView(NSView):
         except Exception as e:
             debug_log(f"更新搜尋欄位錯誤: {e}")
     
-    def update_ui(self, plugin_state):
-        """根據外掛狀態更新UI元素（階段2.2：增強版）"""
+    def update_ui(self, plugin_state, update_lock_fields=True):
+        """根據外掛狀態更新UI元素（階段2.2：增強版）
+        
+        Args:
+            plugin_state: 外掛狀態物件
+            update_lock_fields: 是否更新鎖定輸入框（預設True）
+        """
         try:
-            debug_log("[階段2.2] 更新控制面板 UI")
+            debug_log(f"[階段2.2] 更新控制面板 UI，update_lock_fields={update_lock_fields}")
             
             # 批次更新UI元件
             if hasattr(plugin_state, 'lastInput') and hasattr(self, 'searchField'):
                 input_value = plugin_state.lastInput or ""
                 self.searchField.setStringValue_(input_value)
             
-            # === 階段2.2：確保鎖定字符正確顯示 ===
-            if hasattr(plugin_state, 'lockedChars') and hasattr(self, 'lockFields'):
+            # === 修正：僅在需要時更新鎖定字符 ===
+            if update_lock_fields and hasattr(plugin_state, 'lockedChars') and hasattr(self, 'lockFields'):
                 # 先清空所有欄位
                 for field in self.lockFields.values():
                     field.setStringValue_("")
@@ -591,6 +596,8 @@ class ControlsPanelView(NSView):
                     if position in self.lockFields:
                         self.lockFields[position].setStringValue_(char_or_name)
                         debug_log(f"[階段2.2] 填入位置 {position}: '{char_or_name}'")
+            elif not update_lock_fields:
+                debug_log("[階段2.2] 跳過鎖定輸入框更新，保持用戶輸入")
             
             # 觸發重繪
             self.setNeedsDisplay_(True)

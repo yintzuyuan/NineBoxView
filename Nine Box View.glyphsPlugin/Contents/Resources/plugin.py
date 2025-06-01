@@ -205,13 +205,15 @@ try:
                 # 搜尋欄位始終更新
                 return True
             elif is_from_lock_field:
+                # === 修正：解鎖狀態時，鎖定欄位完全不影響主視窗 ===
                 # 鎖定欄位需要檢查鎖頭狀態
-                if (hasattr(self.windowController, 'controlsPanelView') and 
-                    self.windowController.controlsPanelView):
-                    is_in_clear_mode = getattr(self.windowController.controlsPanelView, 
-                                              'isInClearMode', True)
-                    return not is_in_clear_mode  # 上鎖狀態才更新
-                return False
+                is_in_clear_mode = self._get_lock_state()
+                if is_in_clear_mode:
+                    self.debug_log("🔓 解鎖狀態 - 鎖定欄位變更不更新預覽")
+                    return False
+                else:
+                    self.debug_log("🔒 上鎖狀態 - 鎖定欄位變更會更新預覽")
+                    return True
             else:
                 # 其他來源始終更新
                 return True
@@ -235,8 +237,9 @@ try:
                         self.windowController.redraw()
                     
                     # === 階段2.1：啟用控制面板更新 ===
+                    # 一般情況下不更新鎖定輸入框，避免覆蓋用戶輸入
                     if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                        self.windowController.request_controls_panel_ui_update()
+                        self.windowController.request_controls_panel_ui_update(update_lock_fields=False)
                     
                     self._update_scheduled = False
                         
@@ -256,7 +259,8 @@ try:
                 # 更新介面
                 self.updateInterface(None)
                 
-                # 更新控制面板
+                # === 修正：選擇變更時不更新鎖定輸入框，避免覆蓋用戶輸入 ===
+                # 更新控制面板（僅更新搜尋欄位，不更新鎖定輸入框）
                 if (hasattr(self, 'windowController') and 
                     self.windowController is not None and
                     hasattr(self.windowController, 'controlsPanelView') and 
@@ -264,7 +268,7 @@ try:
                     hasattr(self.windowController, 'controlsPanelVisible') and
                     self.windowController.controlsPanelVisible):
                     
-                    self.windowController.controlsPanelView.update_ui(self)
+                    self.windowController.controlsPanelView.update_ui(self, update_lock_fields=False)
                     
             except Exception as e:
                 self.debug_log(f"選擇變更處理錯誤: {e}")
@@ -298,19 +302,19 @@ try:
 
             self.updateInterfaceForSearchField(None)
             
+            # === 修正：搜尋欄位變更不應該更新鎖定輸入框 ===
             if hasattr(self, 'windowController') and self.windowController:
                 if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                    self.windowController.request_controls_panel_ui_update()
+                    # 僅更新搜尋欄位，不更新鎖定輸入框（避免覆蓋用戶輸入）
+                    self.windowController.request_controls_panel_ui_update(update_lock_fields=False)
 
         @objc.python_method
         def updateInterfaceForSearchField(self, sender):
             """專為搜尋欄位的更新"""
             try:
                 if hasattr(self, 'windowController') and self.windowController is not None:
-                    if hasattr(self.windowController, 'redrawIgnoreLockState'):
-                        self.windowController.redrawIgnoreLockState()
-                    else:
-                        self.windowController.redraw()
+                    # 搜尋欄位的變更應該正常重繪，不需要忽略鎖定狀態
+                    self.windowController.redraw()
             except Exception as e:
                 self.debug_log(f"更新搜尋欄位介面錯誤: {e}")
 
@@ -319,6 +323,12 @@ try:
             """智能鎖定字符回調（階段2.2：資料處理）"""
             try:
                 if not Glyphs.font:
+                    return
+                
+                # === 修正：解鎖狀態時，鎖定輸入欄完全不影響主視窗 ===
+                is_in_clear_mode = self._get_lock_state()
+                if is_in_clear_mode:
+                    self.debug_log("🔓 解鎖狀態 - 鎖定輸入欄與主視窗完全無關聯，忽略輸入")
                     return
                 
                 if not hasattr(self, 'lockedChars'):
@@ -337,20 +347,13 @@ try:
                         self.updateInterface(sender)
                     return
                 
-                # === 階段2.2：暫時忽略鎖頭狀態檢查 ===
-                # 在此階段，LockCharacterField 始終啟用以供輸入
-                # is_in_clear_mode = self._get_lock_state()
-                # if is_in_clear_mode:
-                #     self.debug_log("解鎖狀態 - 忽略輸入")
-                #     return
-                
                 # 智能辨識
                 recognized_char = self._recognize_character(input_text)
                 
                 # 現在 _recognize_character 永不返回 None，所以一定有值
                 if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
                     self.lockedChars[position] = recognized_char
-                    self.debug_log(f"[階段2.2] 位置 {position} 鎖定字符: '{recognized_char}'")
+                    self.debug_log(f"[階段2.2] 🔒 上鎖狀態 - 位置 {position} 鎖定字符: '{recognized_char}'")
                     
                     # === 階段2.2：資料處理完成 ===
                     # 在此階段，我們只儲存資料，不直接更新 currentArrangement
@@ -525,12 +528,12 @@ try:
             self.force_randomize = True
             self.generateNewArrangement()
             
-            # 強制更新
+            # === 修正：隨機排列只更新預覽，不更新控制面板UI ===
+            # 直接調用重繪，避免觸發控制面板UI更新，防止覆蓋用戶輸入
             if hasattr(self, 'windowController') and self.windowController:
-                if hasattr(self.windowController, 'redrawIgnoreLockState'):
-                    self.windowController.redrawIgnoreLockState()
-                else:
-                    self.updateInterface(None)
+                if hasattr(self.windowController, 'redraw'):
+                    self.windowController.redraw()
+                self.debug_log("隨機排列：僅更新預覽，不觸發控制面板UI更新")
             else:
                 self.updateInterface(None)
             
@@ -614,6 +617,13 @@ try:
             if self.selectedChars and not self.currentArrangement:
                 self.debug_log("[階段2.1] 載入偏好設定後生成初始排列")
                 self.generateNewArrangement()
+            
+            # === 修正：載入偏好設定後需要完整更新控制面板UI ===
+            if (hasattr(self, 'windowController') and self.windowController and 
+                hasattr(self.windowController, 'controlsPanelView') and 
+                self.windowController.controlsPanelView):
+                self.windowController.controlsPanelView.update_ui(self, update_lock_fields=True)
+                self.debug_log("載入偏好設定後完整更新控制面板UI")
 
         @objc.python_method
         def _load_locked_chars(self):
