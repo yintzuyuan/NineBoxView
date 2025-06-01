@@ -249,8 +249,7 @@ class NineBoxWindow(NSWindowController):
         panel.setTitle_("Controls")
         panel.setLevel_(NSFloatingWindowLevel)
         panel.setReleasedWhenClosed_(False)
-        panel.setHidesOnDeactivate_(False)
-        panel.setFloatingPanel_(True)
+        
         panel.setBackgroundColor_(NSColor.controlBackgroundColor())
         
         # 隱藏標題列按鈕

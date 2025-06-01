@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 ## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.6 (鎖頭功能實現版)
 
-**文件版本:** 1.8
+**文件版本:** 1.9
 **日期:** 2025-06-04
 **變更摘要:** 
 1. 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
@@ -14,6 +14,7 @@ alwaysApply: true
 4. 實現鎖定輸入框的資料處理功能，允許使用者輸入字符或 Nice Names 並儲存到 lockedChars。
 5. 實現全局鎖頭按鈕功能，使用 Unicode 字符（🔓/🔒）並置於九宮格中央，預設為上鎖狀態。
 6. 確保鎖頭狀態切換時預覽立即重繪，提供即時的視覺反饋。
+7. **修正子視窗層級行為**：移除 `setFloatingPanel_(True)` 和 `setHidesOnDeactivate_(False)` 設定，使子視窗層級行為與主視窗一致（在 Glyphs 中始終在最上層，但如果 Glyphs 不是活動應用程式則不會置頂）。
 
 ### 1. 系統架構 (System Architecture)
 
@@ -104,8 +105,9 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
 * **控制面板創建:**
     * 使用 `NSPanel` 或 `NSWindow` 實例。
     * `styleMask`: 設定為不包含 `NSTitledWindowMask`，例如 `NSWindowStyleMaskUtilityWindow | NSWindowStyleMaskBorderless` 或 `NSWindowStyleMaskHUDWindow` (若適用其外觀)。
-    * `floatingPanel`: 可能設為 `True`。
-    * `hidesOnDeactivate`: 根據需求設定。
+    * **視窗層級行為：** 設定 `level` 為 `NSFloatingWindowLevel`，但不使用 `setFloatingPanel_(True)` 和 `setHidesOnDeactivate_(False)`，確保子視窗層級行為與主視窗一致：
+        * 在 Glyphs 應用程式內始終保持在最上層
+        * 當 Glyphs 不是活動應用程式時，子視窗不會置頂於其他應用程式
     * **重要：** 必須設定 `canBecomeKeyWindow` 為 `True`，並覆寫 `canBecomeKeyWindow` 方法返回 `True`，以確保控制面板可以接受鍵盤輸入。
 * **高度同步:**
     * 主視窗控制器監聽自身 `NSWindowDidResizeNotification`。
