@@ -329,47 +329,42 @@ class ControlsPanelView(NSView):
         spacing = 8
         button_height = 25
         
-        # 鎖定所有按鈕
+        # === 階段 3-2：清空所有欄位按鈕 ===
         current_y -= button_height
-        lockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        lockAllButton = self._create_button(
-            lockAllRect,
-            Glyphs.localize({
-                'en': u'Lock All',
-                'zh-Hant': u'鎖定全部',
-                'zh-Hans': u'锁定全部',
-                'ja': u'すべてロック',
-                'ko': u'모두 고정',
-            }),
-            self,  # 階段1.2：使用self作為target
-            "lockAllStub:",  # 階段1.2：使用存根方法
-            ""
-        )
-        lockAllButton.setFont_(NSFont.systemFontOfSize_(11.0))
-        self.lockAllButton = lockAllButton
-        self._ui_components['lockAllButton'] = lockAllButton
-        self.addSubview_(lockAllButton)
+        clearAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
+        clearAllButton = NSButton.alloc().initWithFrame_(clearAllRect)
+        clearAllButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
+        clearAllButton.setTitle_("🧹")  # 使用掃把圖示
+        clearAllButton.setTarget_(self)
+        clearAllButton.setAction_("clearAllFields:")
+        clearAllButton.setBezelStyle_(NSBezelStyleRounded)
+        clearAllButton.setButtonType_(NSButtonTypeMomentaryPushIn)
+        clearAllButton.setFont_(NSFont.systemFontOfSize_(16.0))  # 較大的圖示
+        clearAllButton.setAlignment_(NSCenterTextAlignment)
         
-        # 解鎖所有按鈕
-        current_y -= spacing + button_height
-        unlockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        unlockAllButton = self._create_button(
-            unlockAllRect,
-            Glyphs.localize({
-                'en': u'Unlock All',
-                'zh-Hant': u'解鎖全部',
-                'zh-Hans': u'解锁全部',
-                'ja': u'すべてアンロック',
-                'ko': u'모두 해제',
-            }),
-            self,  # 階段1.2：使用self作為target
-            "unlockAllStub:",  # 階段1.2：使用存根方法
-            ""
-        )
-        unlockAllButton.setFont_(NSFont.systemFontOfSize_(11.0))
-        self.unlockAllButton = unlockAllButton
-        self._ui_components['unlockAllButton'] = unlockAllButton
-        self.addSubview_(unlockAllButton)
+        # 設定提示文字
+        clearTooltip = Glyphs.localize({
+            'en': u'Clear all lock fields',
+            'zh-Hant': u'清空所有鎖定欄位',
+            'zh-Hans': u'清空所有锁定栏位',
+            'ja': u'すべてのロックフィールドをクリア',
+            'ko': u'모든 잠금 필드 지우기',
+        })
+        clearAllButton.setToolTip_(clearTooltip)
+        
+        self.clearAllButton = clearAllButton
+        self._ui_components['clearAllButton'] = clearAllButton
+        self.addSubview_(clearAllButton)
+        
+        # 鎖定所有按鈕（暫時隱藏，未來階段實作）
+        # current_y -= spacing + button_height
+        # lockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
+        # ...
+        
+        # 解鎖所有按鈕（暫時隱藏，未來階段實作）
+        # current_y -= spacing + button_height
+        # unlockAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
+        # ...
     
     def setFrame_(self, frame):
         """覆寫 setFrame_ 方法（階段1.3：新增）"""
@@ -474,14 +469,11 @@ class ControlsPanelView(NSView):
             
             # 調整底部按鈕位置
             button_height = 25
-            if hasattr(self, 'lockAllButton'):
+            # === 階段 3-2：調整清空按鈕位置 ===
+            if hasattr(self, 'clearAllButton'):
                 current_y -= button_height
-                self.lockAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
+                self.clearAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
                 current_y -= spacing
-            
-            if hasattr(self, 'unlockAllButton'):
-                current_y -= button_height
-                self.unlockAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
             
             debug_log(f"[階段1.3] 完成 UI 佈局調整")
             
@@ -664,6 +656,48 @@ class ControlsPanelView(NSView):
         # 呼叫 plugin 的隨機排列功能
         if hasattr(self, 'plugin') and self.plugin:
             self.plugin.randomizeCallback(sender)
+    
+    # === 階段 3-2：清空所有欄位 ===
+    def clearAllFields_(self, sender):
+        """清空所有鎖定輸入框（階段 3-2）"""
+        try:
+            debug_log("[3.2] 清空所有欄位按鈕被點擊")
+            
+            # 清空所有鎖定輸入框
+            if hasattr(self, 'lockFields') and self.lockFields:
+                for position, field in self.lockFields.items():
+                    field.setStringValue_("")
+                    debug_log(f"[3.2] 清空位置 {position} 的輸入框")
+            
+            # 更新 plugin 的 lockedChars
+            if hasattr(self, 'plugin') and self.plugin:
+                if hasattr(self.plugin, 'lockedChars'):
+                    # 備份當前狀態（如果需要）
+                    if hasattr(self.plugin, 'previousLockedChars'):
+                        self.plugin.previousLockedChars = self.plugin.lockedChars.copy()
+                    
+                    # 清空鎖定字符
+                    self.plugin.lockedChars.clear()
+                    debug_log("[3.2] 已清空 plugin.lockedChars")
+                    
+                    # 儲存偏好設定
+                    self.plugin.savePreferences()
+                    
+                    # 重新生成排列（如果在上鎖狀態）
+                    if not self.isInClearMode:  # 上鎖狀態
+                        debug_log("[3.2] 🔒 上鎖狀態 - 重新生成排列")
+                        self.plugin.generateNewArrangement()
+                        # 觸發預覽更新
+                        self.plugin.updateInterface(None)
+                    else:
+                        debug_log("[3.2] 🔓 解鎖狀態 - 不需要更新預覽")
+            
+            debug_log("[3.2] 完成清空所有輸入框")
+            
+        except Exception as e:
+            debug_log(f"[3.2] 清空所有欄位錯誤: {e}")
+            import traceback
+            debug_log(traceback.format_exc())
     
     def lockAllStub_(self, sender):
         """鎖定全部按鈕存根（階段1.3）"""
