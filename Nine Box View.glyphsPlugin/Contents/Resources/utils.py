@@ -243,13 +243,13 @@ def validate_locked_positions(locked_chars, font):
 
 def apply_locked_chars(arrangement, locked_chars, selected_chars):
     """
-    應用鎖定字符到排列中
-    Apply locked characters to arrangement
+    應用鎖定字符到排列中（修正版）
+    Apply locked characters to arrangement (Fixed)
     
     Args:
-        arrangement: 基礎排列
+        arrangement: 基礎隨機排列
         locked_chars: 鎖定字符字典
-        selected_chars: 選擇的字符列表
+        selected_chars: 選擇的字符列表（此參數已不需要，保留以維持向後兼容）
         
     Returns:
         list: 應用鎖定後的排列
@@ -257,25 +257,19 @@ def apply_locked_chars(arrangement, locked_chars, selected_chars):
     if not locked_chars:
         return arrangement
     
+    # 創建新排列的副本
     new_arrangement = list(arrangement)
-    locked_positions = set()
     
-    # 應用鎖定字符
+    # === 修正：只應用鎖定字符，不重新分配未鎖定位置 ===
+    # 將鎖定字符應用到指定位置
     for position, char_or_name in locked_chars.items():
         if position < len(new_arrangement):
             new_arrangement[position] = char_or_name
-            locked_positions.add(position)
+            debug_log(f"[Lock] 位置 {position} 鎖定為字符：{char_or_name}")
     
-    # 確保未鎖定的字符至少出現一次
-    if selected_chars and locked_positions:
-        locked_chars_used = set(new_arrangement[pos] for pos in locked_positions)
-        remaining_chars = [char for char in set(selected_chars) if char not in locked_chars_used]
-        available_positions = [i for i in range(len(new_arrangement)) if i not in locked_positions]
-        
-        if remaining_chars and available_positions:
-            # 優化：使用更有效率的方式分配剩餘字符
-            for i, char in enumerate(remaining_chars):
-                if i < len(available_positions):
-                    new_arrangement[available_positions[i]] = char
+    # === 移除有問題的邏輯 ===
+    # 不再重新分配未鎖定位置的字符，保持原始隨機排列
+    # 這確保了隨機排列只會影響未鎖定的位置
     
+    debug_log(f"[Lock] 應用鎖定後的排列：{new_arrangement}")
     return new_arrangement

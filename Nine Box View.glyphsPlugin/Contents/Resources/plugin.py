@@ -320,7 +320,7 @@ try:
 
         @objc.python_method
         def smartLockCharacterCallback(self, sender):
-            """智能鎖定字符回調（階段2.2：資料處理）"""
+            """智能鎖定字符回調（階段2.2：資料處理 + 即時更新）"""
             try:
                 if not Glyphs.font:
                     return
@@ -336,39 +336,48 @@ try:
                 
                 position = sender.position
                 input_text = sender.stringValue()
+                arrangement_changed = False
                 
                 if not input_text:
                     # 清除鎖定
                     if position in self.lockedChars:
                         del self.lockedChars[position]
-                        self.debug_log(f"[階段2.2] 清除位置 {position} 的鎖定")
-                        self.savePreferences()
-                        # === 階段2.2：舉隔更新介面 ===
-                        self.updateInterface(sender)
-                    return
-                
-                # 智能辨識
-                recognized_char = self._recognize_character(input_text)
-                
-                # 現在 _recognize_character 永不返回 None，所以一定有值
-                if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
-                    self.lockedChars[position] = recognized_char
-                    self.debug_log(f"[階段2.2] 🔒 上鎖狀態 - 位置 {position} 鎖定字符: '{recognized_char}'")
+                        self.debug_log(f"[LockUpdate] 清除位置 {position} 的鎖定")
+                        arrangement_changed = True
+                    else:
+                        return  # 沒有變更，直接返回
+                else:
+                    # 智能辨識
+                    recognized_char = self._recognize_character(input_text)
                     
-                    # === 階段2.2：資料處理完成 ===
-                    # 在此階段，我們只儲存資料，不直接更新 currentArrangement
-                    # 與繪製畫面的交互將在階段 2.3 實現
-                    
+                    # 檢查是否有變更
+                    if position not in self.lockedChars or self.lockedChars[position] != recognized_char:
+                        self.lockedChars[position] = recognized_char
+                        self.debug_log(f"[LockUpdate] 🔒 上鎖狀態 - 位置 {position} 鎖定字符: '{recognized_char}'")
+                        arrangement_changed = True
+                    else:
+                        return  # 沒有變更，直接返回
+                
+                # === 修正：鎖定字符變更時，重新生成排列並即時更新主畫面 ===
+                if arrangement_changed:
                     self.savePreferences()
-                    # === 階段2.2：保留更新介面與控制面板的調用 ===
-                    self.updateInterface(sender)
                     
-                    if hasattr(self, 'windowController') and self.windowController:
-                        if hasattr(self.windowController, 'request_controls_panel_ui_update'):
-                            self.windowController.request_controls_panel_ui_update()
+                    # 重新生成排列以反映鎖定字符的變更
+                    if hasattr(self, 'selectedChars') and self.selectedChars:
+                        self.debug_log("[LockUpdate] 鎖定字符變更，重新生成排列")
+                        self.generateNewArrangement()
+                        
+                        # 直接重繪主畫面，不更新控制面板UI以免覆蓋用戶輸入
+                        if hasattr(self, 'windowController') and self.windowController:
+                            if hasattr(self.windowController, 'redraw'):
+                                self.windowController.redraw()
+                                self.debug_log("[LockUpdate] 已即時更新主畫面")
+                    else:
+                        # 如果沒有選擇字符，僅更新介面
+                        self.updateInterface(sender)
             
             except Exception as e:
-                self.debug_log(f"[階段2.2] 智能鎖定字符處理錯誤: {e}")
+                self.debug_log(f"[LockUpdate] 智能鎖定字符處理錯誤: {e}")
 
         @objc.python_method
         def _get_lock_state(self):
@@ -524,6 +533,13 @@ try:
                     self.updateInterface(None)
                 return
             
+            # === 修正：加強隨機排列除錯日誌 ===
+            lock_state = self._get_lock_state()
+            lock_mode_str = "🔓 解鎖" if lock_state else "🔒 上鎖"
+            self.debug_log(f"[Random] {lock_mode_str} 狀態下觸發隨機排列")
+            if not lock_state and hasattr(self, 'lockedChars') and self.lockedChars:
+                self.debug_log(f"[Random] 當前鎖定字符：{self.lockedChars}")
+            
             # 設定強制重排標記
             self.force_randomize = True
             self.generateNewArrangement()
@@ -556,24 +572,33 @@ try:
             should_apply_locks = not self._get_lock_state()
             force_randomize = getattr(self, 'force_randomize', False)
             
+            # === 修正：區分不同的觸發來源，提供清晰的除錯資訊 ===
+            if force_randomize:
+                self.debug_log(f"[Random] 隨機排列觸發，開始生成排列")
+            else:
+                self.debug_log(f"[Arrangement] 重新生成排列")
+            
+            self.debug_log(f"[Arrangement] 可選字符：{self.selectedChars}")
+            
             # 生成基礎排列
             base_arrangement = self.generate_arrangement(self.selectedChars, 8)
+            self.debug_log(f"[Arrangement] 基礎隨機排列：{base_arrangement}")
             
             # 獲取當前鎖頭狀態以便除錯
             lock_state = self._get_lock_state()
-            self.debug_log(f"[3.1] 鎖頭狀態: isInClearMode={lock_state}, should_apply_locks={should_apply_locks}")
+            self.debug_log(f"[Lock] 鎖頭狀態: isInClearMode={lock_state}, should_apply_locks={should_apply_locks}")
             
             if should_apply_locks and hasattr(self, 'lockedChars') and self.lockedChars:
                 # 應用鎖定字符（🔒 上鎖狀態）
+                self.debug_log(f"[Lock] 🔒 上鎖狀態 - 將應用鎖定字符：{self.lockedChars}")
                 self.currentArrangement = self.apply_locked_chars(
                     base_arrangement, self.lockedChars, self.selectedChars
                 )
-                self.debug_log(f"[3.1] 🔒 上鎖狀態 - 應用鎖定後的排列: {self.currentArrangement}")
-                self.debug_log(f"[3.1] 鎖定字符: {self.lockedChars}")
+                self.debug_log(f"[Lock] 🔒 上鎖狀態 - 應用鎖定後的排列: {self.currentArrangement}")
             else:
                 # 直接使用基礎排列（🔓 解鎖狀態）
                 self.currentArrangement = base_arrangement
-                self.debug_log(f"[3.1] 🔓 解鎖狀態 - 基礎排列: {self.currentArrangement}")
+                self.debug_log(f"[Lock] 🔓 解鎖狀態 - 基礎排列: {self.currentArrangement}")
             
             self.savePreferences()
 
