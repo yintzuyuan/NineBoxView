@@ -196,17 +196,25 @@ class ControlsPanelView(NSView):
             return None
     
     def _create_search_field(self, bounds):
-        """創建搜尋欄位"""
-        margin = 10  # 減少邊距以節省空間
-        spacing = 12  # 減少間距以節省空間
-        search_height = 50  # 減少搜尋框高度，節省更多空間
+        """創建搜尋欄位（動態高度）"""
+        margin = 10  # 邊距
+        spacing = 12  # 間距
+        min_search_height = 50  # 最小高度
         
-        # 距離頂部留出空間
-        current_y = bounds.size.height - margin - search_height
-        searchRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, search_height)
+        # 預留給底部元素的固定高度
+        # 九宮格高度 + 清除按鈕高度 + 間距
+        bottom_reserved_height = (3 * 40 + 2 * 4) + 22 + spacing * 3
+        
+        # 計算搜尋欄可用的高度（動態適應）
+        available_height = bounds.size.height - margin * 2 - bottom_reserved_height
+        search_height = max(available_height, min_search_height)  # 確保最小高度
+        
+        # 固定在頂部位置
+        searchRect = NSMakeRect(margin, bounds.size.height - margin - search_height, 
+                                bounds.size.width - 2 * margin, search_height)
         
         searchField = CustomTextField.alloc().initWithFrame_plugin_(searchRect, self.plugin)
-        searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
+        searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # 允許高度調整
         searchField.setFont_(NSFont.systemFontOfSize_(14.0))
         searchField.setFocusRingType_(NSFocusRingTypeNone)
         searchField.setBezeled_(True)
@@ -245,7 +253,8 @@ class ControlsPanelView(NSView):
         self._ui_components['searchField'] = searchField
         self.addSubview_(searchField)
         
-        return current_y - spacing
+        # 不返回下一個元素的垂直位置，因為布局已改變
+        return search_height + margin
     
     def _create_buttons(self, bounds, current_y):
         """創建按鈕區域"""
@@ -298,37 +307,24 @@ class ControlsPanelView(NSView):
         return button
     
     def _create_lock_fields(self, bounds, current_y):
-        """創建鎖定輸入框和鎖頭按鈕"""
-        margin = 10  # 減少邊距以節省空間
-        spacing = 8   # 減少間距以節省空間
+        """創建鎖定輸入框和鎖頭按鈕（固定在底部）"""
+        margin = 10
+        grid_spacing = 4
         
-        # === UI美化：精心設計的九宮格佈局（優化最小高度適應性）===
-        # 計算每個輸入框的寬度（與搜尋欄位保持一致）
+        # 計算每個輸入框的寬度
         available_width = bounds.size.width - 2 * margin
-        
-        # 設定九宮格單元格之間的間距
-        grid_spacing = 4  # 減少間距以節省空間
-        
-        # 計算單元格尺寸（考慮間距）
         cell_width = (available_width - 2 * grid_spacing) / 3
-        cell_height = min(cell_width, 40)  # 進一步減小高度上限，從46減為40
-        
-        # 為九宮格佈局創建一個容器視圖（可選，增加視覺分組感）
-        # 計算容器大小
-        grid_container_width = available_width
-        grid_container_height = 3 * cell_height + 2 * grid_spacing
+        cell_height = min(cell_width, 40)
         
         # 創建3x3網格
         position = 0
         for row in range(3):
             for col in range(3):
-                # 計算每個單元格的位置
+                # 計算每個單元格的位置（從底部向上）
                 x = margin + col * (cell_width + grid_spacing)
-                y = current_y - (row + 1) * (cell_height + grid_spacing) + grid_spacing
+                y = current_y + (2 - row) * (cell_height + grid_spacing)
                 
                 if row == 1 and col == 1:  # 中央位置：放置鎖頭按鈕
-                    # === 極簡設計：符合Glyphs風格的鎖頭按鈕 ===
-                    # 稍微縮小按鈕，增加簡潔感
                     button_padding = 1
                     lockRect = NSMakeRect(
                         x + button_padding, 
@@ -342,17 +338,16 @@ class ControlsPanelView(NSView):
                     lockButton.setTarget_(self)
                     lockButton.setAction_("toggleLockMode:")
                     
-                    # === 極簡設計：簡化按鈕樣式，符合Glyphs風格 ===
                     # 使用極簡按鈕樣式
                     lockButton.setBezelStyle_(NSBezelStyleRegularSquare)
                     lockButton.setButtonType_(NSButtonTypeToggle)
                     lockButton.setBordered_(False)  # 無邊框更簡潔
                     
                     # 設定字體與對齊
-                    lockButton.setFont_(NSFont.systemFontOfSize_(14.0))  # 適當的圖示大小
+                    lockButton.setFont_(NSFont.systemFontOfSize_(14.0))
                     lockButton.setAlignment_(NSCenterTextAlignment)
                     
-                    # === 極簡設計：適度使用Layer屬性 ===
+                    # 設定Layer屬性
                     if hasattr(lockButton, 'setWantsLayer_'):
                         lockButton.setWantsLayer_(True)
                         if hasattr(lockButton, 'layer'):
@@ -374,26 +369,23 @@ class ControlsPanelView(NSView):
                         fieldRect, position, self.plugin
                     )
                     lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-                    lockField.setFont_(NSFont.systemFontOfSize_(14.0))  # 調整字體大小
+                    lockField.setFont_(NSFont.systemFontOfSize_(14.0))
                     
                     self.lockFields[position] = lockField
                     self.addSubview_(lockField)
                     position += 1
         
-        # 計算新的垂直位置
-        current_y = current_y - grid_container_height - spacing
-        
-        return current_y
+        # 返回鎖定輸入框區域高度，用於後續布局
+        grid_container_height = 3 * cell_height + 2 * grid_spacing
+        return current_y + grid_container_height + spacing
     
-    def _create_control_buttons(self, bounds, current_y):
-        """創建控制按鈕（符合 macOS 標準）"""
-        margin = 10  # 減少邊距以節省空間
-        spacing = 10  # 增加底部間距，讓按鈕不會太貼底
-        button_height = 22  # 減少按鈕高度，確保在小視窗下不會佔用太多空間
+    def _create_control_buttons(self, bounds, bottom_margin):
+        """創建控制按鈕（固定在底部）"""
+        margin = 10
+        button_height = 22
         
-        # === 極簡設計：清空欄位按鈕 ===
-        current_y -= button_height
-        clearAllRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
+        # 清空欄位按鈕，固定在底部
+        clearAllRect = NSMakeRect(margin, bottom_margin, bounds.size.width - 2 * margin, button_height)
         clearAllButton = NSButton.alloc().initWithFrame_(clearAllRect)
         clearAllButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
         
@@ -411,7 +403,7 @@ class ControlsPanelView(NSView):
         clearAllButton.setAction_("clearAllFields:")
         clearAllButton.setBezelStyle_(NSBezelStyleRounded)
         clearAllButton.setButtonType_(NSButtonTypeMomentaryPushIn)
-        clearAllButton.setFont_(NSFont.systemFontOfSize_(12.0))  # 調整文字大小
+        clearAllButton.setFont_(NSFont.systemFontOfSize_(12.0))
         
         # 確保按鈕在亮色模式下有正確的顏色
         isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
@@ -435,10 +427,7 @@ class ControlsPanelView(NSView):
         self._ui_components['clearAllButton'] = clearAllButton
         self.addSubview_(clearAllButton)
         
-        # 底部留白，提高整體平衡感
-        current_y -= spacing * 1.5  # 增加底部間距，讓按鈕不會太貼底
-        
-        return current_y
+        return button_height + bottom_margin
     
     def setFrame_(self, frame):
         """覆寫 setFrame_ 方法（階段1.3：新增）"""
@@ -460,7 +449,7 @@ class ControlsPanelView(NSView):
             self.setNeedsDisplay_(True)
     
     def setupUI(self):
-        """設定使用者介面元件（優化版）"""
+        """設定使用者介面元件（固定底部元素）"""
         try:
             # 清除現有子視圖
             for subview in self.subviews():
@@ -473,11 +462,20 @@ class ControlsPanelView(NSView):
             # 獲取視圖尺寸
             bounds = self.bounds()
             
-            # 依序創建UI元件
-            current_y = self._create_search_field(bounds)
-            current_y = self._create_buttons(bounds, current_y)
-            current_y = self._create_lock_fields(bounds, current_y)
-            self._create_control_buttons(bounds, current_y)
+            # 先創建頂部的搜尋欄位
+            search_height = self._create_search_field(bounds)
+            
+            # 從底部開始計算底部元素的位置
+            margin = 10
+            spacing = 8
+            button_height = 22
+            
+            # 先創建底部的清除按鈕（固定在最底部）
+            self._create_control_buttons(bounds, margin)
+            
+            # 然後創建鎖定輸入框（在清除按鈕上方）
+            lock_fields_start_y = margin + button_height + spacing
+            self._create_lock_fields(bounds, lock_fields_start_y)
             
             # 更新內容
             self._update_content()
@@ -488,56 +486,54 @@ class ControlsPanelView(NSView):
                 print(traceback.format_exc())
     
     def layoutUI(self):
-        """重新佈局 UI 元件（階段1.3：新增）"""
-        """不重建 UI，只調整現有元件位置"""
+        """重新佈局 UI 元件（固定底部元素）"""
         try:
             bounds = self.bounds()
-            margin = 10  # 減少邊距以節省空間
-            spacing = 8   # 減少間距以節省空間
-            current_y = bounds.size.height - margin
+            margin = 10
+            spacing = 8
+            button_height = 22
             
-            # 調整搜尋欄位位置
+            # 預留給底部元素的固定高度
+            # 九宮格高度 + 清除按鈕高度 + 間距
+            bottom_reserved_height = (3 * 40 + 2 * 4) + button_height + spacing * 3
+            
+            # 1. 調整搜尋欄位位置（頂部，動態高度）
             if hasattr(self, 'searchField'):
-                search_height = 50  # 減少搜尋框高度
-                current_y -= search_height
-                searchRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, search_height)
+                # 計算搜尋欄可用的高度（動態適應）
+                min_search_height = 50
+                available_height = bounds.size.height - margin * 2 - bottom_reserved_height
+                search_height = max(available_height, min_search_height)  # 確保最小高度
+                
+                searchRect = NSMakeRect(margin, bounds.size.height - margin - search_height, 
+                                       bounds.size.width - 2 * margin, search_height)
                 self.searchField.setFrame_(searchRect)
-                current_y -= spacing
             
-            # === UI調整：隱藏隨機排列按鈕的佈局調整 ===
-            # 調整按鈕位置（隨機排列按鈕已隱藏）
-            # button_height = 30
-            # if hasattr(self, 'randomizeButton'):
-            #     current_y -= button_height
-            #     self.randomizeButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
-            #     current_y -= spacing
+            # 2. 調整底部清除按鈕位置（固定在最底部）
+            if hasattr(self, 'clearAllButton'):
+                buttonRect = NSMakeRect(margin, margin, bounds.size.width - 2 * margin, button_height)
+                self.clearAllButton.setFrame_(buttonRect)
             
-            # === UI美化：重新佈局九宮格 ===
+            # 3. 調整鎖定輸入框位置（固定在底部，清除按鈕上方）
             if hasattr(self, 'lockFields') and self.lockFields:
-                # 計算每個輸入框的寬度（與搜尋欄位保持一致）
+                # 起始垂直位置（清除按鈕上方）
+                current_y = margin + button_height + spacing
+                
+                # 計算每個輸入框的寬度
                 available_width = bounds.size.width - 2 * margin
-                
-                # 設定九宮格單元格之間的間距
-                grid_spacing = 4  # 減少間距以節省空間
-                
-                # 計算單元格尺寸（考慮間距）
+                grid_spacing = 4
                 cell_width = (available_width - 2 * grid_spacing) / 3
-                cell_height = min(cell_width, 40)  # 進一步減小高度上限，從46減為40
-                
-                # 計算容器大小
-                grid_container_height = 3 * cell_height + 2 * grid_spacing
+                cell_height = min(cell_width, 40)
                 
                 # 創建3x3網格
                 position = 0
                 for row in range(3):
                     for col in range(3):
-                        # 計算每個單元格的位置
+                        # 計算每個單元格的位置（從底部向上）
                         x = margin + col * (cell_width + grid_spacing)
-                        y = current_y - (row + 1) * (cell_height + grid_spacing) + grid_spacing
+                        y = current_y + (2 - row) * (cell_height + grid_spacing)
                         
                         if row == 1 and col == 1:  # 中央位置：鎖頭按鈕
                             if hasattr(self, 'lockButton'):
-                                # === 精美設計：配合新的按鈕尺寸 ===
                                 button_padding = 1
                                 lockRect = NSMakeRect(
                                     x + button_padding, 
@@ -552,16 +548,6 @@ class ControlsPanelView(NSView):
                                 fieldRect = NSMakeRect(x, y, cell_width, cell_height)
                                 self.lockFields[position].setFrame_(fieldRect)
                             position += 1
-                
-                # 更新垂直位置
-                current_y = current_y - grid_container_height - spacing
-            
-            # 調整底部按鈕位置
-            button_height = 22  # 減少按鈕高度
-            if hasattr(self, 'clearAllButton'):
-                current_y -= button_height
-                self.clearAllButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
-                current_y -= spacing * 1.5  # 增加底部間距，讓按鈕不會太貼底
             
             debug_log(f"[階段1.3] 完成 UI 佈局調整")
             
