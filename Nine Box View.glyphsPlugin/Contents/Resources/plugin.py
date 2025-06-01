@@ -375,7 +375,7 @@ try:
                 self.windowController.controlsPanelView and 
                 hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                 return self.windowController.controlsPanelView.isInClearMode
-            return True  # 預設為解鎖
+            return False  # 預設為上鎖（與控制面板預設值一致）
 
         @objc.python_method
         def _recognize_character(self, input_text):
@@ -548,22 +548,29 @@ try:
                 self.lockedChars = self.validate_locked_positions(self.lockedChars, Glyphs.font)
             
             # 檢查是否應用鎖定
+            # isInClearMode = False (🔒 上鎖) -> should_apply_locks = True (應用鎖定)
+            # isInClearMode = True  (🔓 解鎖) -> should_apply_locks = False (不應用鎖定)
             should_apply_locks = not self._get_lock_state()
             force_randomize = getattr(self, 'force_randomize', False)
             
             # 生成基礎排列
             base_arrangement = self.generate_arrangement(self.selectedChars, 8)
             
+            # 獲取當前鎖頭狀態以便除錯
+            lock_state = self._get_lock_state()
+            self.debug_log(f"[3.1] 鎖頭狀態: isInClearMode={lock_state}, should_apply_locks={should_apply_locks}")
+            
             if should_apply_locks and hasattr(self, 'lockedChars') and self.lockedChars:
-                # 應用鎖定字符
+                # 應用鎖定字符（🔒 上鎖狀態）
                 self.currentArrangement = self.apply_locked_chars(
                     base_arrangement, self.lockedChars, self.selectedChars
                 )
-                self.debug_log(f"應用鎖定後的排列: {self.currentArrangement}")
+                self.debug_log(f"[3.1] 🔒 上鎖狀態 - 應用鎖定後的排列: {self.currentArrangement}")
+                self.debug_log(f"[3.1] 鎖定字符: {self.lockedChars}")
             else:
-                # 直接使用基礎排列
+                # 直接使用基礎排列（🔓 解鎖狀態）
                 self.currentArrangement = base_arrangement
-                self.debug_log(f"基礎排列: {self.currentArrangement}")
+                self.debug_log(f"[3.1] 🔓 解鎖狀態 - 基礎排列: {self.currentArrangement}")
             
             self.savePreferences()
 

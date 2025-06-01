@@ -154,7 +154,7 @@ class ControlsPanelView(NSView):
             if self:
                 self.plugin = plugin
                 self.lockFields = {}
-                self.isInClearMode = True  # True=解鎖，False=上鎖
+                self.isInClearMode = False  # True=解鎖，False=上鎖（預設為上鎖）
                 
                 # UI 元件快取
                 self._ui_components = {}
@@ -256,20 +256,7 @@ class ControlsPanelView(NSView):
         self._ui_components['randomizeButton'] = randomizeButton
         self.addSubview_(randomizeButton)
         
-        # 鎖頭按鈕
-        current_y -= spacing + button_height
-        lockRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height)
-        lockButton = NSButton.alloc().initWithFrame_(lockRect)
-        lockButton.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-        lockButton.setTarget_(self)
-        lockButton.setAction_("toggleLockMode:")
-        lockButton.setBezelStyle_(NSBezelStyleRounded)
-        lockButton.setButtonType_(NSButtonTypeToggle)
-        
-        self.lockButton = lockButton
-        self._ui_components['lockButton'] = lockButton
-        self.updateLockButton()
-        self.addSubview_(lockButton)
+        # 鎖頭按鈕將在 _create_lock_fields 中創建（在九宮格中央）
         
         return current_y - spacing
     
@@ -286,55 +273,53 @@ class ControlsPanelView(NSView):
         return button
     
     def _create_lock_fields(self, bounds, current_y):
-        """創建鎖定輸入框"""
+        """創建鎖定輸入框和鎖頭按鈕"""
         margin = 10
         spacing = 8
         
-        # 標題
-        current_y -= 20
-        titleRect = NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, 20)
-        titleLabel = NSTextField.alloc().initWithFrame_(titleRect)
-        titleLabel.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-        titleLabel.setStringValue_(Glyphs.localize({
-            'en': u'Lock Positions:',
-            'zh-Hant': u'鎖定位置：',
-            'zh-Hans': u'锁定位置：',
-            'ja': u'位置をロック：',
-            'ko': u'위치 고정：',
-        }))
-        titleLabel.setBezeled_(False)
-        titleLabel.setDrawsBackground_(False)
-        titleLabel.setEditable_(False)
-        titleLabel.setSelectable_(False)
-        titleLabel.setFont_(NSFont.boldSystemFontOfSize_(12.0))
-        self.addSubview_(titleLabel)
+        # 移除標題（根據開發計畫步驟 4.2）
         
         # 鎖定輸入框網格
-        current_y -= spacing + 10
+        current_y -= 10
         field_size = 30
         field_spacing = 5
         grid_width = 3 * field_size + 2 * field_spacing
         start_x = (bounds.size.width - grid_width) / 2
         
-        # 創建3x3網格（跳過中央）
+        # 創建3x3網格
         position = 0
         for row in range(3):
             for col in range(3):
-                if row == 1 and col == 1:  # 跳過中央
-                    continue
-                
                 x = start_x + col * (field_size + field_spacing)
                 y = current_y - row * (field_size + field_spacing)
                 
-                fieldRect = NSMakeRect(x, y, field_size, field_size)
-                lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(
-                    fieldRect, position, self.plugin
-                )
-                lockField.setAutoresizingMask_(NSViewMaxYMargin)
-                
-                self.lockFields[position] = lockField
-                self.addSubview_(lockField)
-                position += 1
+                if row == 1 and col == 1:  # 中央位置：放置鎖頭按鈕
+                    # 創建鎖頭按鈕
+                    lockRect = NSMakeRect(x, y, field_size, field_size)
+                    lockButton = NSButton.alloc().initWithFrame_(lockRect)
+                    lockButton.setAutoresizingMask_(NSViewMaxYMargin)
+                    lockButton.setTarget_(self)
+                    lockButton.setAction_("toggleLockMode:")
+                    lockButton.setBezelStyle_(NSBezelStyleRounded)
+                    lockButton.setButtonType_(NSButtonTypeToggle)
+                    lockButton.setFont_(NSFont.systemFontOfSize_(16.0))  # 更大的字體
+                    lockButton.setAlignment_(NSCenterTextAlignment)
+                    
+                    self.lockButton = lockButton
+                    self._ui_components['lockButton'] = lockButton
+                    self.updateLockButton()
+                    self.addSubview_(lockButton)
+                else:
+                    # 其他位置：鎖定輸入框
+                    fieldRect = NSMakeRect(x, y, field_size, field_size)
+                    lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(
+                        fieldRect, position, self.plugin
+                    )
+                    lockField.setAutoresizingMask_(NSViewMaxYMargin)
+                    
+                    self.lockFields[position] = lockField
+                    self.addSubview_(lockField)
+                    position += 1
         
         return current_y - 3 * (field_size + field_spacing) - spacing
     
@@ -457,15 +442,11 @@ class ControlsPanelView(NSView):
                 self.randomizeButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
                 current_y -= spacing
             
-            if hasattr(self, 'lockButton'):
-                current_y -= button_height
-                self.lockButton.setFrame_(NSMakeRect(margin, current_y, bounds.size.width - 2 * margin, button_height))
-                current_y -= spacing
+            # 鎖頭按鈕現在在九宮格中央，所以不需要在這裡調整
             
-            # 重新佈局鎖定輸入框（保持中心對齊）
+            # 重新佈局鎖定輸入框和鎖頭按鈕（保持中心對齊）
             if hasattr(self, 'lockFields') and self.lockFields:
-                current_y -= 20  # 標題高度
-                current_y -= spacing + 10
+                current_y -= 10  # 移除標題後的間距
                 
                 field_size = 30
                 field_spacing = 5
@@ -475,15 +456,19 @@ class ControlsPanelView(NSView):
                 position = 0
                 for row in range(3):
                     for col in range(3):
-                        if row == 1 and col == 1:  # 跳過中央
-                            continue
+                        x = start_x + col * (field_size + field_spacing)
+                        y = current_y - row * (field_size + field_spacing)
                         
-                        if position in self.lockFields:
-                            x = start_x + col * (field_size + field_spacing)
-                            y = current_y - row * (field_size + field_spacing)
-                            fieldRect = NSMakeRect(x, y, field_size, field_size)
-                            self.lockFields[position].setFrame_(fieldRect)
-                        position += 1
+                        if row == 1 and col == 1:  # 中央位置：鎖頭按鈕
+                            if hasattr(self, 'lockButton'):
+                                lockRect = NSMakeRect(x, y, field_size, field_size)
+                                self.lockButton.setFrame_(lockRect)
+                        else:
+                            # 其他位置：鎖定輸入框
+                            if position in self.lockFields:
+                                fieldRect = NSMakeRect(x, y, field_size, field_size)
+                                self.lockFields[position].setFrame_(fieldRect)
+                            position += 1
                 
                 current_y -= 3 * (field_size + field_spacing) + spacing
             
@@ -523,27 +508,29 @@ class ControlsPanelView(NSView):
             self.isInClearMode = not self.isInClearMode
             self.updateLockButton()
             
-            # 更新輸入框狀態
-            for field in self.lockFields.values():
-                field.setEnabled_(not self.isInClearMode)
+            # 輸入框始終保持可編輯狀態（根據開發計畫）
+            # for field in self.lockFields.values():
+            #     field.setEnabled_(not self.isInClearMode)
             
-            debug_log(f"鎖頭模式：{'解鎖' if self.isInClearMode else '上鎖'}")
+            debug_log(f"[3.1] 鎖頭模式切換：{'解鎖' if self.isInClearMode else '上鎖'}")
+            
+            # === 階段 3.1：立即重繪預覽 ===
+            if hasattr(self, 'plugin') and self.plugin:
+                # 重新生成排列（會根據鎖定狀態決定是否應用 lockedChars）
+                self.plugin.generateNewArrangement()
+                # 觸發預覽更新
+                self.plugin.updateInterface(None)
             
         except Exception as e:
-            debug_log(f"切換鎖頭模式錯誤: {e}")
+            debug_log(f"[3.1] 切換鎖頭模式錯誤: {e}")
     
     def updateLockButton(self):
         """更新鎖頭按鈕顯示"""
         try:
+            # 使用純 Unicode 字元，不加任何文字
             if self.isInClearMode:
                 # 解鎖狀態
-                title = "🔓 " + Glyphs.localize({
-                    'en': u'Unlocked',
-                    'zh-Hant': u'解鎖',
-                    'zh-Hans': u'解锁',
-                    'ja': u'アンロック',
-                    'ko': u'잠금 해제',
-                })
+                title = "🔓"  # 開鎖圖示
                 state = 0
                 tooltip = Glyphs.localize({
                     'en': u'Click to lock positions (enable position locking)',
@@ -552,15 +539,11 @@ class ControlsPanelView(NSView):
                     'ja': u'クリックして位置をロック（位置ロックを有効にする）',
                     'ko': u'클릭하여 위치 고정 (위치 고정 활성화)',
                 })
+                # 設定按鈕文字顏色（解鎖狀態用灰色）
+                self.lockButton.setContentTintColor_(NSColor.systemGrayColor())
             else:
                 # 上鎖狀態
-                title = "🔒 " + Glyphs.localize({
-                    'en': u'Locked',
-                    'zh-Hant': u'上鎖',
-                    'zh-Hans': u'上锁',
-                    'ja': u'ロック',
-                    'ko': u'잠금',
-                })
+                title = "🔒"  # 關鎖圖示
                 state = 1
                 tooltip = Glyphs.localize({
                     'en': u'Click to unlock positions (disable position locking)',
@@ -569,6 +552,8 @@ class ControlsPanelView(NSView):
                     'ja': u'クリックして位置をアンロック（位置ロックを無効にする）',
                     'ko': u'클릭하여 위치 해제 (위치 고정 비활성화)',
                 })
+                # 設定按鈕文字顏色（上鎖狀態用黑色或主題色）
+                self.lockButton.setContentTintColor_(NSColor.labelColor())
             
             self.lockButton.setTitle_(title)
             self.lockButton.setState_(state)
@@ -620,10 +605,13 @@ class ControlsPanelView(NSView):
         except Exception as e:
             debug_log(f"主題變更處理錯誤: {e}")
     
-    # === 階段1.3：按鈕動作存根方法 ===
+    # === 階段 3.1：按鈕動作 ===
     def randomizeStub_(self, sender):
-        """隨機排列按鈕存根（階段1.3）"""
-        debug_log("[階段1.3] 隨機排列按鈕被點擊")
+        """隨機排列按鈕（階段 3.1：啟用）"""
+        debug_log("[3.1] 隨機排列按鈕被點擊")
+        # 呼叫 plugin 的隨機排列功能
+        if hasattr(self, 'plugin') and self.plugin:
+            self.plugin.randomizeCallback(sender)
     
     def lockAllStub_(self, sender):
         """鎖定全部按鈕存根（階段1.3）"""
