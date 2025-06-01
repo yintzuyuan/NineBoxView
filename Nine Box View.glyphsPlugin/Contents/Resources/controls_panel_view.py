@@ -505,6 +505,9 @@ class ControlsPanelView(NSView):
     def toggleLockMode_(self, sender):
         """切換鎖頭模式"""
         try:
+            # 記錄之前的狀態
+            was_in_clear_mode = self.isInClearMode
+            
             self.isInClearMode = not self.isInClearMode
             self.updateLockButton()
             
@@ -513,6 +516,12 @@ class ControlsPanelView(NSView):
             #     field.setEnabled_(not self.isInClearMode)
             
             debug_log(f"[3.1] 鎖頭模式切換：{'解鎖' if self.isInClearMode else '上鎖'}")
+            
+            # === 修正：從解鎖切換到鎖定時，同步所有輸入欄內容到 plugin.lockedChars ===
+            if was_in_clear_mode and not self.isInClearMode:
+                # 從解鎖狀態切換到鎖定狀態：讀取並同步所有輸入欄內容
+                debug_log("[3.1] 從解鎖切換到鎖定：同步輸入欄內容到 lockedChars")
+                self._sync_input_fields_to_locked_chars()
             
             # === 階段 3.1：立即重繪預覽 ===
             if hasattr(self, 'plugin') and self.plugin:
@@ -523,6 +532,42 @@ class ControlsPanelView(NSView):
             
         except Exception as e:
             debug_log(f"[3.1] 切換鎖頭模式錯誤: {e}")
+    
+    def _sync_input_fields_to_locked_chars(self):
+        """同步輸入欄內容到 plugin.lockedChars"""
+        try:
+            if not hasattr(self, 'plugin') or not self.plugin:
+                debug_log("警告：無法取得 plugin 實例")
+                return
+            
+            if not hasattr(self.plugin, 'lockedChars'):
+                self.plugin.lockedChars = {}
+            
+            # 清除現有的 lockedChars（確保完全同步）
+            self.plugin.lockedChars.clear()
+            
+            # 遍歷所有鎖定輸入欄
+            for position, field in self.lockFields.items():
+                input_text = field.stringValue().strip()
+                if input_text:
+                    # 使用與 smartLockCharacterCallback 相同的辨識邏輯
+                    recognized_char = self.plugin._recognize_character(input_text)
+                    if recognized_char:
+                        self.plugin.lockedChars[position] = recognized_char
+                        debug_log(f"[同步] 位置 {position}: '{input_text}' → '{recognized_char}'")
+                else:
+                    # 空輸入則不設定鎖定
+                    debug_log(f"[同步] 位置 {position}: 空輸入，不設定鎖定")
+            
+            # 儲存偏好設定
+            if hasattr(self.plugin, 'savePreferences'):
+                self.plugin.savePreferences()
+                debug_log(f"[同步] 已儲存 {len(self.plugin.lockedChars)} 個鎖定字符到偏好設定")
+            
+        except Exception as e:
+            debug_log(f"同步輸入欄內容錯誤: {e}")
+            import traceback
+            debug_log(traceback.format_exc())
     
     def updateLockButton(self):
         """更新鎖頭按鈕顯示"""
