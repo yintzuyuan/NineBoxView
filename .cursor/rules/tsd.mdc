@@ -5,8 +5,8 @@ alwaysApply: true
 ---
 ## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.6 (鎖頭功能實現版)
 
-**文件版本:** 1.9
-**日期:** 2025-06-04
+**文件版本:** 1.10
+**日期:** 2025-01-20
 **變更摘要:** 
 1. 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
 2. 改進視窗關閉與重新開啟機制，解決主視窗關閉後再次開啟時子視窗無法顯示的問題。
@@ -15,6 +15,7 @@ alwaysApply: true
 5. 實現全局鎖頭按鈕功能，使用 Unicode 字符（🔓/🔒）並置於九宮格中央，預設為上鎖狀態。
 6. 確保鎖頭狀態切換時預覽立即重繪，提供即時的視覺反饋。
 7. **修正子視窗層級行為**：移除 `setFloatingPanel_(True)` 和 `setHidesOnDeactivate_(False)` 設定，使子視窗層級行為與主視窗一致（在 Glyphs 中始終在最上層，但如果 Glyphs 不是活動應用程式則不會置頂）。
+8. **修正視窗陰影干擾問題**：通過 `orderBack_()` 方法確保控制面板顯示在主視窗之下，並增加 `CONTROLS_PANEL_SPACING` 間距以避免陰影互相影響。
 
 ### 1. 系統架構 (System Architecture)
 
@@ -105,9 +106,11 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
 * **控制面板創建:**
     * 使用 `NSPanel` 或 `NSWindow` 實例。
     * `styleMask`: 設定為不包含 `NSTitledWindowMask`，例如 `NSWindowStyleMaskUtilityWindow | NSWindowStyleMaskBorderless` 或 `NSWindowStyleMaskHUDWindow` (若適用其外觀)。
-    * **視窗層級行為：** 設定 `level` 為 `NSFloatingWindowLevel`，但不使用 `setFloatingPanel_(True)` 和 `setHidesOnDeactivate_(False)`，確保子視窗層級行為與主視窗一致：
+    * **視窗層級行為：** 設定 `level` 為 `NSFloatingWindowLevel`，與主視窗相同層級。但使用 `orderBack_()` 方法確保控制面板始終顯示在主視窗之下，避免陰影干擾：
         * 在 Glyphs 應用程式內始終保持在最上層
         * 當 Glyphs 不是活動應用程式時，子視窗不會置頂於其他應用程式
+        * 控制面板始終在主視窗背景顯示，不會產生陰影覆蓋主視窗的問題
+    * **位置間距：** 使用 `CONTROLS_PANEL_SPACING` 常數（預設 15 像素）設定控制面板與主視窗之間的間距，進一步避免視覺干擾。
     * **重要：** 必須設定 `canBecomeKeyWindow` 為 `True`，並覆寫 `canBecomeKeyWindow` 方法返回 `True`，以確保控制面板可以接受鍵盤輸入。
 * **高度同步:**
     * 主視窗控制器監聽自身 `NSWindowDidResizeNotification`。
@@ -115,7 +118,7 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
     * 計算控制面板的 `frame`，設定其 `origin` (例如，緊貼主視窗右側) 和 `size` (固定寬度，同步高度)。
 * **顯示/隱藏:**
     * 主視窗標題列按鈕 (`sidebarButton`) 觸發主視窗控制器的方法。
-    * 該方法呼叫控制面板視窗的 `orderFront:` 或 `orderOut:`。
+    * 該方法呼叫控制面板視窗的 `orderBack_` 或 `orderOut_`，確保控制面板始終在主視窗之下顯示。
     * 更新 `plugin.isControlsPanelVisible` 並儲存。
 * **視窗關閉與重新開啟:**
     * 當主視窗關閉時 (`windowWillClose_` 方法)，完全釋放控制面板子視窗資源：

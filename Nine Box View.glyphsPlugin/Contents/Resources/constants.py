@@ -45,6 +45,7 @@ MIN_WINDOW_SIZE = (200, 240)
 SIDEBAR_WIDTH = 180  # 保留向後相容性
 CONTROLS_PANEL_WIDTH = 180
 CONTROLS_PANEL_MIN_HEIGHT = 220  # 減少最小高度，確保主視窗最小尺寸時也能完整顯示控制面板
+CONTROLS_PANEL_SPACING = 15  # 控制面板與主視窗之間的間距，用於避免陰影干擾
 
 # 繪圖相關參數
 MARGIN_RATIO = 0.07

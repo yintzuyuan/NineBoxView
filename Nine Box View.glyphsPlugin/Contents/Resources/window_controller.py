@@ -25,7 +25,7 @@ from Foundation import NSObject
 
 from constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
-    CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT,
+    CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT, CONTROLS_PANEL_SPACING,
     CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
 )
 from utils import debug_log
@@ -207,7 +207,7 @@ class NineBoxWindow(NSWindowController):
             # 計算位置和大小
             mainFrame = self.window().frame()
             panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
-            panelX = mainFrame.origin.x + mainFrame.size.width + 10
+            panelX = mainFrame.origin.x + mainFrame.size.width + CONTROLS_PANEL_SPACING
             panelY = mainFrame.origin.y
             
             panelRect = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
@@ -266,7 +266,9 @@ class NineBoxWindow(NSWindowController):
         try:
             if self.controlsPanelWindow:
                 self.updateControlsPanelPosition()
-                self.controlsPanelWindow.orderFront_(None)
+                
+                # === 修正：使用 orderBack_ 確保控制面板顯示在主視窗之下 ===
+                self.controlsPanelWindow.orderBack_(None)  # 在背景顯示，避免陰影干擾主視窗
                 
                 if self.controlsPanelView:
                     self.controlsPanelView.update_ui(self.plugin)
@@ -312,7 +314,7 @@ class NineBoxWindow(NSWindowController):
                 panelHeight = max(mainFrame.size.height, CONTROLS_PANEL_MIN_HEIGHT)
                 
                 # 計算控制面板位置（靠右對齊主視窗）
-                panelX = mainFrame.origin.x + mainFrame.size.width + 0  # 貼近主視窗
+                panelX = mainFrame.origin.x + mainFrame.size.width + CONTROLS_PANEL_SPACING
                 panelY = mainFrame.origin.y
                 
                 # 設定控制面板位置和大小
@@ -419,7 +421,8 @@ class NineBoxWindow(NSWindowController):
                     self.updateControlsPanelPosition()
                     
                     if self.controlsPanelWindow.isVisible():
-                        self.controlsPanelWindow.orderFront_(None)
+                        # === 修正：確保控制面板始終在主視窗之下 ===
+                        self.controlsPanelWindow.orderBack_(None)  # 確保在背景顯示
                     
                     # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細日誌
                     
