@@ -22,6 +22,11 @@ from AppKit import (
     NSBezelStyleRegularSquare
 )
 from Foundation import NSObject
+try:
+    # 導入 Quartz 以正確處理 CGColor
+    from Quartz import CGColorCreateGenericRGB
+except ImportError:
+    CGColorCreateGenericRGB = None
 
 from constants import DEBUG_MODE, MAX_LOCKED_POSITIONS
 from utils import debug_log, get_cached_glyph
@@ -310,6 +315,7 @@ class ControlsPanelView(NSView):
         """創建鎖定輸入框和鎖頭按鈕（固定在底部）"""
         margin = 10
         grid_spacing = 4
+        spacing = 8  # 定義 spacing 變數
         
         # 計算每個輸入框的寬度
         available_width = bounds.size.width - 2 * margin
@@ -737,22 +743,39 @@ class ControlsPanelView(NSView):
                 # 設置按鈕狀態
                 self.lockButton.setState_(1 if is_locked else 0)
                 
-                # === 極簡設計：簡潔的背景色 ===
+                # === 極簡設計：簡潔的背景色（修復 PyObjC 警告）===
                 if hasattr(self.lockButton, 'layer') and self.lockButton.layer():
                     layer = self.lockButton.layer()
                     
-                    # 使用系統預設顏色
-                    if is_locked:
-                        # 上鎖狀態：使用控制強調色
-                        layer.setBackgroundColor_(NSColor.controlAccentColor().colorWithAlphaComponent_(0.3).CGColor())
-                    else:
-                        # 解鎖狀態：使用淺灰色（淺色模式）或深灰色（深色模式）
-                        if isDarkMode:
-                            # 深色模式下使用稍亮的灰色
-                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.25, 0.5).CGColor())
+                    # 使用更安全的方式處理 CGColor
+                    try:
+                        if is_locked:
+                            # 上鎖狀態：使用控制強調色
+                            if CGColorCreateGenericRGB:
+                                # 使用 Quartz 創建 CGColor
+                                color = NSColor.controlAccentColor().colorWithAlphaComponent_(0.3)
+                                r, g, b, a = color.redComponent(), color.greenComponent(), color.blueComponent(), color.alphaComponent()
+                                cgColor = CGColorCreateGenericRGB(r, g, b, a)
+                                layer.setBackgroundColor_(cgColor)
+                            else:
+                                # 備用方案：不設定背景色
+                                pass
                         else:
-                            # 淺色模式下使用稍暗的灰色，確保可見性
-                            layer.setBackgroundColor_(NSColor.colorWithCalibratedWhite_alpha_(0.85, 0.5).CGColor())
+                            # 解鎖狀態：使用灰色
+                            if CGColorCreateGenericRGB:
+                                if isDarkMode:
+                                    # 深色模式下使用稍亮的灰色
+                                    cgColor = CGColorCreateGenericRGB(0.25, 0.25, 0.25, 0.5)
+                                else:
+                                    # 淺色模式下使用稍暗的灰色
+                                    cgColor = CGColorCreateGenericRGB(0.85, 0.85, 0.85, 0.5)
+                                layer.setBackgroundColor_(cgColor)
+                            else:
+                                # 備用方案：不設定背景色
+                                pass
+                    except Exception as e:
+                        # 如果仍然出錯，忽略背景色設定
+                        debug_log(f"設定鎖頭按鈕背景色時發生錯誤（可忽略）: {e}")
                     
                     # 極簡設計：移除邊框
                     layer.setBorderWidth_(0.0)
