@@ -58,7 +58,7 @@ try:
                 ZOOM_FACTOR_KEY, SHOW_NUMBERS_KEY, WINDOW_SIZE_KEY, WINDOW_POSITION_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, DEFAULT_ZOOM,
                 SIDEBAR_VISIBLE_KEY, CONTROLS_PANEL_VISIBLE_KEY, CONTROLS_PANEL_WIDTH, 
-                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, DEBUG_MODE
+                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, DEBUG_MODE
             )
             
             from utils import (
@@ -94,6 +94,7 @@ try:
             self.CONTROLS_PANEL_VISIBLE_KEY = CONTROLS_PANEL_VISIBLE_KEY
             self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
+            self.LOCK_MODE_KEY = LOCK_MODE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             self.DEBUG_MODE = DEBUG_MODE
         
@@ -387,7 +388,8 @@ try:
                 self.windowController.controlsPanelView and 
                 hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
                 return self.windowController.controlsPanelView.isInClearMode
-            return False  # 預設為上鎖（與控制面板預設值一致）
+            # 從 plugin 對象讀取鎖頭狀態（如果控制面板未初始化）
+            return getattr(self, 'isInClearMode', False)  # 預設為上鎖
 
         @objc.python_method
         def _recognize_character(self, input_text):
@@ -635,6 +637,15 @@ try:
                     self.sidebarVisible = True
                     self.debug_log(f"plugin.loadPreferences: Set controlsPanelVisible to default True as no key was found")
             
+            # 載入鎖頭狀態
+            lock_mode_value = Glyphs.defaults.get(self.LOCK_MODE_KEY)
+            if lock_mode_value is not None:
+                self.isInClearMode = bool(lock_mode_value)
+                self.debug_log(f"plugin.loadPreferences: Loaded isInClearMode={self.isInClearMode} from LOCK_MODE_KEY")
+            else:
+                self.isInClearMode = False  # 預設為上鎖狀態
+                self.debug_log(f"plugin.loadPreferences: Set isInClearMode to default False (上鎖狀態) as no key was found")
+            
             # 鎖定字符
             self._load_locked_chars()
             
@@ -679,6 +690,11 @@ try:
             Glyphs.defaults[self.CONTROLS_PANEL_VISIBLE_KEY] = current_controls_panel_visible
             Glyphs.defaults[self.SIDEBAR_VISIBLE_KEY] = current_controls_panel_visible # 保持同步
             self.debug_log(f"plugin.savePreferences: Saved controlsPanelVisible={current_controls_panel_visible}")
+            
+            # 儲存鎖頭狀態
+            if hasattr(self, 'isInClearMode'):
+                Glyphs.defaults[self.LOCK_MODE_KEY] = self.isInClearMode
+                self.debug_log(f"plugin.savePreferences: Saved isInClearMode={self.isInClearMode}")
             
             # 視窗位置
             if hasattr(self, 'windowPosition') and self.windowPosition:

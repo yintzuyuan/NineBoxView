@@ -24,6 +24,7 @@ SIDEBAR_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.sidebarVisible"  # 保留向後相容
 CONTROLS_PANEL_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.controlsPanelVisible"
 LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
+LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
 
 # del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastInput"]
 # del Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"]
@@ -38,12 +39,13 @@ PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 # del Glyphs.defaults["com.YinTzuYuan.NineBoxView.controlsPanelVisible"]
 # del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockedChars"]
 # del Glyphs.defaults["com.YinTzuYuan.NineBoxView.previousLockedChars"]
+# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockMode"]
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
-MIN_WINDOW_SIZE = (200, 240)
+MIN_WINDOW_SIZE = (270, 300)
 SIDEBAR_WIDTH = 180  # 保留向後相容性
-CONTROLS_PANEL_WIDTH = 180
+CONTROLS_PANEL_WIDTH = 160
 CONTROLS_PANEL_MIN_HEIGHT = 220  # 減少最小高度，確保主視窗最小尺寸時也能完整顯示控制面板
 CONTROLS_PANEL_SPACING = 15  # 控制面板與主視窗之間的間距，用於避免陰影干擾
 
@@ -52,13 +54,13 @@ MARGIN_RATIO = 0.07
 SPACING_RATIO = 0.0
 MIN_ZOOM = 0.5
 MAX_ZOOM = 2.0
-DEFAULT_ZOOM = 1.0
+DEFAULT_ZOOM = 0.85
 
 # 預設 UPM 值
 DEFAULT_UPM = 1000
 
 # 效能優化設定
-DEBUG_MODE = False  # 設為 True 時才會輸出除錯訊息 (已關閉)
+DEBUG_MODE = False  # 開發模式，輸出除錯訊息
 CACHE_ENABLED = True  # 啟用快取機制
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數
@@ -67,3 +69,6 @@ MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數
 GRID_SIZE = 3
 GRID_TOTAL = GRID_SIZE * GRID_SIZE
 CENTER_POSITION = 4  # 中央位置索引（0-8）
+
+# 顯示選項
+DEFAULT_PREVIEW_DPI = 72.0

@@ -172,7 +172,10 @@ class ControlsPanelView(NSView):
             if self:
                 self.plugin = plugin
                 self.lockFields = {}
-                self.isInClearMode = False  # True=解鎖，False=上鎖（預設為上鎖）
+                
+                # 從 plugin 對象讀取鎖頭狀態（使用者設定的偏好）
+                self.isInClearMode = getattr(plugin, 'isInClearMode', False)  # 預設為上鎖（如果無法獲取）
+                debug_log(f"[階段1.3] ControlsPanelView 初始化鎖頭狀態：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
                 
                 # UI 元件快取
                 self._ui_components = {}
@@ -594,8 +597,17 @@ class ControlsPanelView(NSView):
                 debug_log("[3.1] 從🔓解鎖切換到🔒鎖定：同步輸入欄內容到 lockedChars")
                 self._sync_input_fields_to_locked_chars()
             
-            # === 階段 3.1：立即重繪預覽 ===
+            # === 新增：將鎖頭狀態同步到 plugin 對象並儲存偏好設定 ===
             if hasattr(self, 'plugin') and self.plugin:
+                # 同步鎖頭狀態到 plugin 對象
+                self.plugin.isInClearMode = self.isInClearMode
+                debug_log(f"[3.1] 已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
+                
+                # 儲存偏好設定
+                self.plugin.savePreferences()
+                debug_log("[3.1] 已儲存鎖頭狀態到偏好設定")
+                
+                # === 階段 3.1：立即重繪預覽 ===
                 # 重新生成排列（會根據鎖定狀態決定是否應用 lockedChars）
                 self.plugin.generateNewArrangement()
                 # 觸發預覽更新
