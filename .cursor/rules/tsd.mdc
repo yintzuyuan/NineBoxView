@@ -66,6 +66,22 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
         * **新增:** 實現 `glyphsPreviewThemeChanged:` 方法處理主題變更事件。
         * **新增:** 在 `dealloc` 方法中正確移除通知觀察者。
         * **新增:** 在 `drawRect_` 方法中加入除錯日誌，以便追蹤重繪時機和視窗尺寸變更。
+    * **預覽畫面渲染細節 (2025-06-02 更新，穩定佈局版):**
+        * **佈局計算（完全基於字身寬度）:**
+            * 使用 5% 的向上偏移確保視覺平衡：`offsetY = rect.size.height * 0.05`
+            * 起始 Y 座標計算：`startY = (rect.size.height + gridHeight) / 2 + offsetY`
+            * 動態寬度調整：完全基於 `getBaseWidth()` 方法和所有顯示字符的 `layer.width`（字身寬度）
+            * **不使用** LSB、RSB 或路徑邊界等動態資訊
+        * **字符繪製（穩定佈局設計）:**
+            * 使用 `layer.width` （字身寬度 advance width）作為佈局計算的唯一依據
+            * 確保佈局穩定，不受路徑編輯或側邊距變化影響
+            * 使用 `layer.bezierPath` 和 `layer.openBezierPath` 僅用於內容繪製，不影響佈局
+        * **設計原則:**
+            * 提供穩定的預覽框架，僅當字身寬度改變時才調整佈局
+            * 佈局計算與路徑內容完全分離，確保一致的視覺參考
+        * **錯誤處理:**
+            * 確保在任何錯誤情況下都先繪製背景，避免全灰畫面
+            * 網格度量計算失敗時返回 None，優雅地中止繪製
 
 * **`controls_panel_view.py` (`ControlsPanelView`):**
     * **職責:**

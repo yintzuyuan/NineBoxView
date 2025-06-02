@@ -1,7 +1,8 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 預覽畫面（優化版）
-Nine Box Preview Plugin - Preview View (Optimized)
+九宮格預覽外掛 - 預覽畫面（穩定佈局版）
+Nine Box Preview Plugin - Preview View (Stable Layout Version)
+基於字身寬度的穩定佈局設計
 """
 
 from __future__ import division, print_function, unicode_literals
@@ -28,8 +29,13 @@ from utils import debug_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """
-    九宮格預覽畫面類別（優化版）
-    Nine Box Preview View Class (Optimized)
+    九宮格預覽畫面類別（穩定佈局版）
+    Nine Box Preview View Class (Stable Layout Version)
+    
+    設計原則：
+    - 佈局計算完全基於 layer.width（字身寬度）
+    - 不使用 LSB、RSB 或路徑邊界等動態資訊
+    - 提供穩定的預覽框架，不受路徑編輯影響
     """
 
     def initWithFrame_plugin_(self, frame, plugin):
@@ -91,14 +97,14 @@ class NineBoxPreviewView(NSView):
         return True
 
     def force_redraw(self):
-        """設置強制重繪標記（階段1.3：優化版）"""
+        """設置強制重繪標記"""
         self._force_redraw = True
         self._last_redraw_time = 0  # 重置節流計時器
         self.setNeedsDisplay_(True)
-        debug_log("[階段1.3] 已請求強制重繪，重置節流計時器")
+        debug_log("已請求強制重繪，重置節流計時器")
     
     def setFrame_(self, frame):
-        """覆寫 setFrame_ 方法（階段1.3：新增）"""
+        """覆寫 setFrame_ 方法"""
         # 記錄舊框架
         oldFrame = self.frame()
         
@@ -108,7 +114,7 @@ class NineBoxPreviewView(NSView):
         # 如果框架大小改變，觸發重繪
         if (oldFrame.size.width != frame.size.width or 
             oldFrame.size.height != frame.size.height):
-            debug_log(f"[階段1.3] 預覽視圖框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
+            debug_log(f"預覽視圖框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
             
             # 清除網格度量快取
             self._cached_grid_metrics = None
@@ -121,77 +127,88 @@ class NineBoxPreviewView(NSView):
         return NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
     
     def _calculate_grid_metrics(self, rect, display_chars, currentMaster):
-        """計算並快取網格度量"""
+        """計算網格度量（完全基於字身寬度的穩定佈局）"""
         try:
             # 檢查區域是否合法
             if rect.size.width <= 0 or rect.size.height <= 0:
                 debug_log(f"警告：無效的繪製區域：{rect.size.width}x{rect.size.height}")
-                return {
-                    'cellWidth': 10,
-                    'gridWidth': 30,
-                    'gridHeight': 30,
-                    'SPACING': 1,
-                    'startX': 0,
-                    'startY': 30,
-                    'scale': 1
-                }
+                return None
             
-            # 檢查是否可以使用快取
-            cache_key = (rect.size.width, rect.size.height, len(display_chars), self.plugin.zoomFactor)
-            if self._cached_grid_metrics and self._cached_grid_metrics[0] == cache_key:
-                return self._cached_grid_metrics[1]
-            
-            # 計算新的度量
-            self.cachedHeight = max(currentMaster.ascender - currentMaster.descender, 100)  # 確保最小高度
+            # 計算字符高度和邊距
+            self.cachedHeight = currentMaster.ascender - currentMaster.descender
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
             
-            # 使用 getBaseWidth 方法取得基準寬度
-            baseWidth = max(self.plugin.getBaseWidth(), 100)  # 確保最小寬度
+            # === 使用 getBaseWidth 方法取得基準寬度 ===
+            baseWidth = self.plugin.getBaseWidth()
+            debug_log(f"基準寬度 baseWidth: {baseWidth}")
             
-            # 優化：批次計算最大寬度
-            maxWidth = baseWidth
+            # === 計算最大字身寬度（僅使用 layer.width）===
+            # 這是佈局計算的唯一依據，確保穩定性
+            maxWidth = 0  # 初始設為 0，不預設為 baseWidth
+            
+            # 考慮周圍8個字符的寬度
             if display_chars:
                 for char in display_chars:
                     glyph = get_cached_glyph(Glyphs.font, char)
-                    if glyph:
-                        layer = glyph.layers[currentMaster.id]
-                        if layer:
-                            maxWidth = max(maxWidth, get_cached_width(layer))
+                    if glyph and glyph.layers[currentMaster.id]:
+                        # 僅使用 layer.width（字身寬度）
+                        layer_width = glyph.layers[currentMaster.id].width
+                        maxWidth = max(maxWidth, layer_width)
+                        debug_log(f"字符 '{char}' 的字身寬度: {layer_width}")
             
-            # 確保最小寬度
-            maxWidth = max(maxWidth, 100)
+            # 考慮中央字符的寬度
+            if Glyphs.font.selectedLayers:
+                center_layer = Glyphs.font.selectedLayers[0]
+                if center_layer:
+                    center_width = center_layer.width
+                    maxWidth = max(maxWidth, center_width)
+                    debug_log(f"中央字符 '{center_layer.parent.name}' 的字身寬度: {center_width}")
             
+            # 如果沒有有效字符或所有字符寬度為0，則使用 baseWidth
+            if maxWidth == 0:
+                maxWidth = baseWidth
+                debug_log(f"無有效字符寬度，使用基準寬度: {baseWidth}")
+            
+            debug_log(f"計算後的最大寬度 maxWidth: {maxWidth}")
+            
+            # 基於字身寬度計算間距
             SPACING = maxWidth * SPACING_RATIO
+            
+            # 計算單元格寬度（基於字身寬度）
             cellWidth = maxWidth + SPACING
+            debug_log(f"單元格寬度 cellWidth: {cellWidth}")
             
             # 計算網格總寬度和高度
-            gridWidth = GRID_SIZE * cellWidth + (GRID_SIZE - 1) * SPACING
-            gridHeight = GRID_SIZE * self.cachedHeight + (GRID_SIZE - 1) * SPACING
+            gridWidth = 3 * cellWidth + 2 * SPACING
+            gridHeight = 3 * self.cachedHeight + 2 * SPACING
+            debug_log(f"網格總寬度 gridWidth: {gridWidth}, 網格總高度 gridHeight: {gridHeight}")
             
-            # 計算縮放比例，但確保不會太小
-            availableWidth = max(rect.size.width - 2 * MARGIN, 10)
-            availableHeight = max(rect.size.height - 2 * MARGIN, 10)
+            # 計算縮放比例
+            availableWidth = rect.size.width - 2 * MARGIN
+            availableHeight = rect.size.height - 2 * MARGIN
             scale = min(availableWidth / gridWidth, availableHeight / gridHeight, 1)
+            debug_log(f"可用寬度 availableWidth: {availableWidth}, 可用高度 availableHeight: {availableHeight}")
+            debug_log(f"計算的縮放比例 scale: {scale}")
             
             # 應用自定義縮放
-            customScale = min(max(self.plugin.zoomFactor, MIN_ZOOM), MAX_ZOOM)
+            customScale = self.plugin.zoomFactor
             scale *= customScale
-            
-            # 確保最小縮放比例
-            scale = max(scale, 0.01)
+            debug_log(f"應用自定義縮放後的比例 scale: {scale}")
             
             # 更新網格尺寸
             cellWidth *= scale
             gridWidth *= scale
             gridHeight *= scale
             SPACING *= scale
+            debug_log(f"縮放後的單元格寬度 cellWidth: {cellWidth}")
+            debug_log(f"縮放後的網格總寬度 gridWidth: {gridWidth}")
             
-            # 計算繪製起始位置（置中）
-            startX = rect.size.width / 2 - gridWidth / 2 + self.panOffset[0]
-            # 垂直置中
-            startY = rect.size.height / 2 + gridHeight / 2 + self.panOffset[1]
+            # === 計算繪製起始位置（固定的佈局）===
+            startX = rect.size.width / 2 - gridWidth / 2
+            offsetY = rect.size.height * 0.05  # 向上偏移 5%
+            startY = (rect.size.height + gridHeight) / 2 + offsetY
             
-            # 快取結果
+            # 回傳穩定的網格度量
             metrics = {
                 'cellWidth': cellWidth,
                 'gridWidth': gridWidth,
@@ -201,55 +218,38 @@ class NineBoxPreviewView(NSView):
                 'startY': startY,
                 'scale': scale
             }
-            self._cached_grid_metrics = (cache_key, metrics)
             
-            debug_log(f"計算網格度量：{metrics}")
+            debug_log(f"網格度量（基於字身寬度）：{metrics}")
             return metrics
         
         except Exception as e:
             debug_log(f"計算網格度量時發生錯誤：{e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
-            
-            # 返回默認度量以避免繪製失敗
-            return {
-                'cellWidth': 50,
-                'gridWidth': 150,
-                'gridHeight': 150,
-                'SPACING': 5,
-                'startX': 10,
-                'startY': 160,
-                'scale': 0.5
-            }
+            return None
 
     def _draw_character_at_position(self, layer, centerX, centerY, cellWidth, cellHeight, scale, is_black):
-        """繪製單個字符（優化版）"""
+        """繪製單個字符（完全基於字身寬度的穩定佈局）"""
         if not layer:
             return
         
         try:
-            # 檢查參數是否有效
-            if cellWidth <= 0 or cellHeight <= 0 or scale <= 0:
-                debug_log(f"無效的繪製參數：cellWidth={cellWidth}, cellHeight={cellHeight}, scale={scale}")
-                return
+            # === 佈局計算：僅使用字身寬度（layer.width）===
+            glyphWidth = layer.width  # 字身寬度（advance width）- 佈局的唯一依據
+            glyphHeight = self.cachedHeight
             
-            # 檢查位置是否在視圖範圍內
-            viewFrame = self.frame()
-            if (centerX < -cellWidth or centerX > viewFrame.size.width + cellWidth or
-                centerY < -cellHeight or centerY > viewFrame.size.height + cellHeight):
-                return  # 在視圖範圍外，不需要繪製
+            debug_log(f"繪製字符 '{layer.parent.name}' - 字身寬度: {glyphWidth}")
             
-            glyphWidth = max(get_cached_width(layer), 1)  # 確保寬度不為0
-            glyphHeight = max(self.cachedHeight, 1)  # 確保高度不為0
-            
-            # 計算字符縮放比例
+            # 計算字符縮放比例（基於字身寬度）
             scaleX = cellWidth / glyphWidth if glyphWidth > 0 else 1
             scaleY = cellHeight / glyphHeight if glyphHeight > 0 else 1
-            glyphScale = max(min(scaleX, scaleY), 0.01)  # 確保縮放比例在合理範圍
+            glyphScale = min(scaleX, scaleY)
             
-            # 計算位置
+            # === 位置計算：完全基於字身寬度，確保穩定置中 ===
             scaledWidth = glyphWidth * glyphScale
             scaledHeight = glyphHeight * glyphScale
+            
+            # 計算繪製起始位置（穩定的置中，不受路徑變化影響）
             x = centerX - scaledWidth / 2
             y = centerY - scaledHeight / 2
             
@@ -258,35 +258,37 @@ class NineBoxPreviewView(NSView):
             transform.translateXBy_yBy_(x, y)
             transform.scaleBy_(glyphScale)
             
-            # 設定顏色
+            # === 內容繪製：使用 completeBezierPath 顯示實際字形 ===
+            # 注意：這裡只是繪製內容，不影響佈局
+            completeBezierPath = layer.completeBezierPath
+            if completeBezierPath:
+                completeBezierPath = completeBezierPath.copy()
+                completeBezierPath.transformUsingAffineTransform_(transform)
+            
+            completeOpenBezierPath = layer.completeOpenBezierPath
+            if completeOpenBezierPath:
+                completeOpenBezierPath = completeOpenBezierPath.copy()
+                completeOpenBezierPath.transformUsingAffineTransform_(transform)
+            
+            # 設定繪製顏色（根據主題）
             if is_black:
-                fillColor = NSColor.colorWithCalibratedRed_green_blue_alpha_(0.95, 0.95, 0.95, 1.0)
+                fillColor = NSColor.whiteColor()
+                strokeColor = NSColor.whiteColor()
             else:
                 fillColor = NSColor.blackColor()
+                strokeColor = NSColor.blackColor()
             
-            # 使用圖形上下文設定繪製環境
-            currentContext = NSGraphicsContext.currentContext()
-            if currentContext:
-                currentContext.saveGraphicsState()
-                
-                # 繪製路徑
-                bezierPath = layer.completeBezierPath
-                if bezierPath:
-                    bezierPath = bezierPath.copy()
-                    bezierPath.transformUsingAffineTransform_(transform)
-                    fillColor.set()
-                    bezierPath.fill()
-                
-                # 繪製開放路徑
-                openBezierPath = layer.completeOpenBezierPath
-                if openBezierPath:
-                    openBezierPath = openBezierPath.copy()
-                    openBezierPath.transformUsingAffineTransform_(transform)
-                    fillColor.set()
-                    openBezierPath.setLineWidth_(1.0 * glyphScale)
-                    openBezierPath.stroke()
-                
-                currentContext.restoreGraphicsState()
+            # 繪製路徑
+            if completeBezierPath:
+                fillColor.set()
+                completeBezierPath.fill()
+            
+            if completeOpenBezierPath:
+                strokeColor.set()
+                completeOpenBezierPath.setLineWidth_(1.0)
+                completeOpenBezierPath.stroke()
+            
+            debug_log(f"完成繪製 - 縮放: {glyphScale:.3f}, 位置: ({x:.1f}, {y:.1f})")
                 
         except Exception as e:
             debug_log(f"繪製字符時發生錯誤: {e}")
@@ -294,25 +296,21 @@ class NineBoxPreviewView(NSView):
                 print(traceback.format_exc())
 
     def drawRect_(self, rect):
-        """繪製畫面內容（階段2.1：修正版）"""
+        """繪製畫面內容（穩定佈局版）"""
         try:
             # 檢查是否需要重繪（節流）
             if not self._should_redraw() and not DEBUG_MODE:
                 return
             
-            rect_width = rect.size.width
-            rect_height = rect.size.height
-            debug_log(f"[階段2.1] 預覽重繪：{rect_width}x{rect_height}，視窗尺寸：{self.frame().size.width}x{self.frame().size.height}")
+            debug_log(f"預覽重繪：{rect.size.width}x{rect.size.height}")
             
-            # 確保繪製區域有效
-            if rect_width <= 0 or rect_height <= 0:
-                debug_log("無效的繪製區域尺寸")
-                return
-            
+            # === 確保在任何情況下都先繪製背景 ===
             # 設定背景顏色（根據 Glyphs 主題設定）
             is_black = self._get_theme_is_black()
-            backgroundColor = NSColor.blackColor() if is_black else NSColor.whiteColor()
-            backgroundColor.set()
+            if is_black:
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 0, 0, 1.0).set()
+            else:
+                NSColor.colorWithCalibratedRed_green_blue_alpha_(1.0, 1.0, 1.0, 1.0).set()
             NSRectFill(rect)
             
             # 檢查字型
@@ -325,120 +323,52 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
-            # === 階段2.1：統一的九宮格繪製邏輯 ===
-            # 確保字符資料有效
-            if (hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars and 
-                not getattr(self.plugin, 'currentArrangement', None)):
-                debug_log("重新生成排列")
-                self.plugin.generateNewArrangement()
-            
             # 使用目前的排列
-            display_chars = getattr(self.plugin, 'currentArrangement', [])
-            if not display_chars and hasattr(self.plugin, 'selectedChars'):
-                display_chars = self.plugin.selectedChars[:8]
-            
-            # 建立已存在字符的清單（用於替代不存在的字符）
-            available_chars = []
-            if display_chars:
-                for char in display_chars:
-                    glyph = get_cached_glyph(Glyphs.font, char)
-                    if glyph and glyph.layers[currentMaster.id]:
-                        available_chars.append(char)
-            
-            # 如果沒有可用字符，使用當前選中的字符作為備用
-            if not available_chars and Glyphs.font.selectedLayers:
-                available_chars = [Glyphs.font.selectedLayers[0].parent.name]
+            display_chars = self.plugin.currentArrangement if self.plugin.selectedChars else []
             
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
+            if not metrics:
+                debug_log("無法計算網格度量")
+                return
             
-            # 顯示九宮格對應關係
-            debug_log("\n[階段2.2] 九宮格對應關係：")
-            debug_log("網格索引(i) -> 字符索引(char_index)")
-            for test_i in range(GRID_TOTAL):
-                if test_i == CENTER_POSITION:
-                    debug_log(f"  {test_i} -> 中央位置")
-                else:
-                    test_char_index = test_i if test_i < CENTER_POSITION else test_i - 1
-                    debug_log(f"  {test_i} -> {test_char_index}")
-            debug_log("")
-            
-            # 計算單元格高度（更正確地計算）
-            cellHeight = (metrics['gridHeight'] - 2 * metrics['SPACING']) / GRID_SIZE
-            
-            # 批次繪製字符
-            char_count = 0
-            available_char_index = 0  # 用於循環使用已存在的字符
-            
-            for i in range(GRID_TOTAL):
-                row = i // GRID_SIZE
-                col = i % GRID_SIZE
+            # === 繪製九宮格字符 ===
+            for i in range(9):
+                row = i // 3
+                col = i % 3
                 
-                # 計算位置
+                # 計算目前單元格的中心位置
                 centerX = metrics['startX'] + (col + 0.5) * metrics['cellWidth'] + col * metrics['SPACING']
-                centerY = metrics['startY'] - (row + 0.5) * cellHeight - row * metrics['SPACING']
+                centerY = metrics['startY'] - (row + 0.5) * (metrics['gridHeight'] / 3)
                 
-                # 選擇圖層
+                # 選擇要繪製的字符層
                 layer = None
-                
-                if i == CENTER_POSITION:
-                    # 中央位置：優先使用當前選中的字符，如果沒有則隨機選擇周圍字符
-                    if Glyphs.font.selectedLayers:
-                        layer = Glyphs.font.selectedLayers[0]
-                        debug_log(f"[階段2.1] 中央位置使用選中字符：{layer.parent.name}")
-                    elif available_chars:
-                        # 沒有選中字符時，從可用字符中隨機選一個
-                        random_char = random.choice(available_chars)
-                        glyph = get_cached_glyph(Glyphs.font, random_char)
-                        if glyph and glyph.layers[currentMaster.id]:
-                            layer = glyph.layers[currentMaster.id]
-                            debug_log(f"[階段2.1] 中央位置使用隨機字符：{random_char}")
-                    elif display_chars:
-                        # 如果沒有可用字符，但有顯示字符，嘗試使用第一個存在的
-                        random_char = random.choice(display_chars)
-                        glyph = get_cached_glyph(Glyphs.font, random_char)
-                        if glyph and glyph.layers[currentMaster.id]:
-                            layer = glyph.layers[currentMaster.id]
-                            debug_log(f"[階段2.1] 中央位置使用顯示字符：{random_char}")
+                if i == 4 and Glyphs.font.selectedLayers:  # 中心位置
+                    layer = Glyphs.font.selectedLayers[0]
                 else:
-                    # 周圍位置
-                    char_index = i if i < CENTER_POSITION else i - 1
-                    target_char = None
-                    
-                    # === 修正：完全信任 plugin.currentArrangement，移除雙重鎖定邏輯 ===
-                    # generateNewArrangement() 已經處理了所有鎖定邏輯
-                    if char_index < len(display_chars):
-                        target_char = display_chars[char_index]
-                        debug_log(f"位置 {char_index} (網格{i}: 行{row}列{col}) 使用排列字符：{target_char}")
-                    
-                    # 嘗試取得目標字符的圖層
-                    if target_char:
-                        glyph = get_cached_glyph(Glyphs.font, target_char)
-                        if glyph and glyph.layers[currentMaster.id]:
-                            layer = glyph.layers[currentMaster.id]
-                    
-                    # 如果目標字符不存在，使用已存在的字符替代
-                    if not layer and available_chars:
-                        replacement_char = available_chars[available_char_index % len(available_chars)]
-                        available_char_index += 1
-                        glyph = get_cached_glyph(Glyphs.font, replacement_char)
-                        if glyph and glyph.layers[currentMaster.id]:
-                            layer = glyph.layers[currentMaster.id]
-                            debug_log(f"位置 {char_index} 使用替代字符：{replacement_char}")
+                    # 當沒有其他字符時，使用目前編輯的字符填充
+                    if not display_chars:
+                        if Glyphs.font.selectedLayers:
+                            layer = Glyphs.font.selectedLayers[0]
+                    else:
+                        char_index = i if i < 4 else i - 1
+                        if char_index < len(display_chars):
+                            glyph = Glyphs.font.glyphs[display_chars[char_index]]
+                            layer = glyph.layers[currentMaster.id] if glyph else None
                 
-                # 繪製字符
                 if layer:
-                    char_count += 1
+                    # 計算單元格高度
+                    cellHeight = metrics['gridHeight'] / 3 - metrics['SPACING']
+                    
+                    # 繪製字符
                     self._draw_character_at_position(
                         layer, centerX, centerY, 
                         metrics['cellWidth'], cellHeight, 
                         metrics['scale'], is_black
                     )
-            
-            debug_log(f"[階段2.1] 完成繪製，共 {char_count} 個字符")
                     
         except Exception as e:
-            print(f"[階段2.1] 繪製預覽畫面時發生錯誤: {e}")
+            print(f"繪製預覽畫面時發生錯誤: {e}")
             if DEBUG_MODE:
                 print(traceback.format_exc())
     

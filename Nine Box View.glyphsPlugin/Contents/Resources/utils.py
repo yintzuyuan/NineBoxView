@@ -101,20 +101,29 @@ def get_base_width():
             return DEFAULT_UPM
 
         # 1. 檢查主板的 Default Layer Width 參數
-        default_width_param = current_master.customParameters.get('Default Layer Width')
-        if default_width_param:
-            try:
-                # 處理可能的格式如 'han: 950'
-                if isinstance(default_width_param, str) and ':' in default_width_param:
-                    value_part = default_width_param.split(':', 1)[1].strip()
-                    default_width = float(value_part)
-                else:
-                    default_width = float(default_width_param)
-                
-                if default_width > 0:
-                    return default_width
-            except (ValueError, TypeError):
-                debug_log(f"無法解析預設圖層寬度參數: {default_width_param}")
+        try:
+            # 修正 CustomParametersProxy 物件處理方式
+            default_width_param = None
+            for param in current_master.customParameters:
+                if param.name == 'Default Layer Width':
+                    default_width_param = param.value
+                    break
+                    
+            if default_width_param:
+                try:
+                    # 處理可能的格式如 'han: 950'
+                    if isinstance(default_width_param, str) and ':' in default_width_param:
+                        value_part = default_width_param.split(':', 1)[1].strip()
+                        default_width = float(value_part)
+                    else:
+                        default_width = float(default_width_param)
+                    
+                    if default_width > 0:
+                        return default_width
+                except (ValueError, TypeError):
+                    debug_log(f"無法解析預設圖層寬度參數: {default_width_param}")
+        except Exception as e:
+            debug_log(f"檢查主板參數時發生錯誤: {e}")
 
         # 2. 使用選取的字符層寬度
         if Glyphs.font.selectedLayers:
