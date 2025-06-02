@@ -122,7 +122,7 @@ class LockCharacterField(BaseTextField):
     def _setup_appearance(self):
         """設定外觀"""
         # 使用較大的字體，提高可讀性
-        self.setFont_(NSFont.systemFontOfSize_(14.0))
+        self.setFont_(NSFont.systemFontOfSize_(16.0))
         self.setFocusRingType_(NSFocusRingTypeNone)
         self.setBezeled_(True)
         self.setEditable_(True)
@@ -164,6 +164,9 @@ class ControlsPanelView(NSView):
     控制面板視圖類別（優化版）
     Controls Panel View class (Optimized)
     """
+    
+    # 設定鎖定輸入框高度為類屬性，避免重複定義
+    LOCK_FIELD_HEIGHT = 30  # 單行高度
     
     def initWithFrame_plugin_(self, frame, plugin):
         """初始化控制面板視圖（階段1.3：基礎版）"""
@@ -211,7 +214,7 @@ class ControlsPanelView(NSView):
         
         # 預留給底部元素的固定高度
         # 九宮格高度 + 清除按鈕高度 + 間距
-        bottom_reserved_height = (3 * 40 + 2 * 4) + 22 + spacing * 3
+        bottom_reserved_height = (3 * self.LOCK_FIELD_HEIGHT + 2 * 4) + 22 + spacing * 3  # 使用類屬性
         
         # 計算搜尋欄可用的高度（動態適應）
         available_height = bounds.size.height - margin * 2 - bottom_reserved_height
@@ -223,7 +226,7 @@ class ControlsPanelView(NSView):
         
         searchField = CustomTextField.alloc().initWithFrame_plugin_(searchRect, self.plugin)
         searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)  # 允許高度調整
-        searchField.setFont_(NSFont.systemFontOfSize_(14.0))
+        searchField.setFont_(NSFont.systemFontOfSize_(16.0))
         searchField.setFocusRingType_(NSFocusRingTypeNone)
         searchField.setBezeled_(True)
         searchField.setEditable_(True)
@@ -323,7 +326,7 @@ class ControlsPanelView(NSView):
         # 計算每個輸入框的寬度
         available_width = bounds.size.width - 2 * margin
         cell_width = (available_width - 2 * grid_spacing) / 3
-        cell_height = min(cell_width, 40)
+        cell_height = min(cell_width, self.LOCK_FIELD_HEIGHT)  # 使用類屬性
         
         # 創建3x3網格
         position = 0
@@ -353,7 +356,7 @@ class ControlsPanelView(NSView):
                     lockButton.setBordered_(False)  # 無邊框更簡潔
                     
                     # 設定字體與對齊
-                    lockButton.setFont_(NSFont.systemFontOfSize_(14.0))
+                    lockButton.setFont_(NSFont.systemFontOfSize_(16.0))
                     lockButton.setAlignment_(NSCenterTextAlignment)
                     
                     # 設定Layer屬性
@@ -378,7 +381,7 @@ class ControlsPanelView(NSView):
                         fieldRect, position, self.plugin
                     )
                     lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
-                    lockField.setFont_(NSFont.systemFontOfSize_(14.0))
+                    lockField.setFont_(NSFont.systemFontOfSize_(16.0))
                     
                     self.lockFields[position] = lockField
                     self.addSubview_(lockField)
@@ -400,11 +403,11 @@ class ControlsPanelView(NSView):
         
         # 極簡標題
         clearButtonTitle = Glyphs.localize({
-            'en': u'Clear All',
-            'zh-Hant': u'清空全部',
-            'zh-Hans': u'清空全部',
-            'ja': u'すべてクリア',
-            'ko': u'모두 지우기',
+            'en': u'Clear Lock',
+            'zh-Hant': u'清空鎖定',
+            'zh-Hans': u'清空锁定',
+            'ja': u'ロックをクリア',
+            'ko': u'잠금 지우기',
         })
         
         clearAllButton.setTitle_(clearButtonTitle)
@@ -504,7 +507,7 @@ class ControlsPanelView(NSView):
             
             # 預留給底部元素的固定高度
             # 九宮格高度 + 清除按鈕高度 + 間距
-            bottom_reserved_height = (3 * 40 + 2 * 4) + button_height + spacing * 3
+            bottom_reserved_height = (3 * self.LOCK_FIELD_HEIGHT + 2 * 4) + button_height + spacing * 3  # 使用類屬性
             
             # 1. 調整搜尋欄位位置（頂部，動態高度）
             if hasattr(self, 'searchField'):
@@ -531,7 +534,7 @@ class ControlsPanelView(NSView):
                 available_width = bounds.size.width - 2 * margin
                 grid_spacing = 4
                 cell_width = (available_width - 2 * grid_spacing) / 3
-                cell_height = min(cell_width, 40)
+                cell_height = min(cell_width, self.LOCK_FIELD_HEIGHT)  # 使用類屬性
                 
                 # 創建3x3網格
                 position = 0
