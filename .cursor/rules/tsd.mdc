@@ -3,109 +3,98 @@ description:
 globs: 
 alwaysApply: true
 ---
-## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.6 (鎖頭功能實現版)
+## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.7 (程式碼優化版)
 
-**文件版本:** 1.10
-**日期:** 2025-01-20
+**文件版本:** 1.11
+**日期:** 2025-06-04
 **變更摘要:** 
-1. 修正控制面板子視窗無法編輯和即時更新的問題，確保控制面板能正確接受輸入並與主視窗同步。
-2. 改進視窗關閉與重新開啟機制，解決主視窗關閉後再次開啟時子視窗無法顯示的問題。
-3. 優化控制面板視窗的資源管理，確保資源正確釋放和重建。
-4. 實現鎖定輸入框的資料處理功能，允許使用者輸入字符或 Nice Names 並儲存到 lockedChars。
-5. 實現全局鎖頭按鈕功能，使用 Unicode 字符（🔓/🔒）並置於九宮格中央，預設為上鎖狀態。
-6. 確保鎖頭狀態切換時預覽立即重繪，提供即時的視覺反饋。
-7. **修正子視窗層級行為**：移除 `setFloatingPanel_(True)` 和 `setHidesOnDeactivate_(False)` 設定，使子視窗層級行為與主視窗一致（在 Glyphs 中始終在最上層，但如果 Glyphs 不是活動應用程式則不會置頂）。
-8. **修正視窗陰影干擾問題**：通過 `orderBack_()` 方法確保控制面板顯示在主視窗之下，並增加 `CONTROLS_PANEL_SPACING` 間距以避免陰影互相影響。
+1. 清理冗餘程式碼，提高程式碼可讀性和維護性。
+2. 優化除錯日誌系統，統一格式並確保只在除錯模式下輸出。
+3. 重構模組導入，按功能分類整理並減少重複導入。
+4. 簡化多個關鍵方法的邏輯結構，移除不必要的條件分支。
+5. 改進方法文檔，為關鍵函數添加完整的參數和返回值說明。
+6. 移除未使用的註解代碼和開發時的調試工具。
+7. 修正子視窗層級行為，確保與主視窗一致的顯示邏輯。
+8. 優化視窗資源管理，確保適當釋放和重建。
 
 ### 1. 系統架構 (System Architecture)
 
-本外掛採用集中式狀態管理。`plugin.py` 作為核心控制器，負責狀態與邏輯。系統包含兩個主要視窗：
+本外掛採用集中式狀態管理，經過優化後架構更加清晰。`plugin.py` 作為核心控制器，負責狀態與邏輯。系統包含兩個主要視窗：
 
 * **主預覽視窗 (`NineBoxPreviewWindow`):** 由 `window_controller.py` (主視窗控制器) 管理，負責顯示九宮格預覽。
 * **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，且無標題列。此視窗的生命週期與顯示狀態由主視窗控制器管理。
 
-UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責控制面板的內容佈局與事件轉發。繪圖模組 (`preview_view.py`) 負責預覽渲染。
+UI 模組 (`controls_panel_view.py`) 負責控制面板的內容佈局與事件轉發。繪圖模組 (`preview_view.py`) 負責預覽渲染。輔助模組 (`utils.py` 和 `constants.py`) 提供全域常數和共用功能，確保程式碼重用和一致性。
+
+**架構優化：**
+* 將散落在各處的除錯日誌統一使用 `debug_log` 函數，並依賴全域 `DEBUG_MODE` 常數控制輸出。
+* 透過函數職責分離和參數文檔改進，使每個模組的責任邊界更加清晰。
+* 優化狀態管理流程，減少不必要的重繪和事件傳遞，提升效能。
 
 ### 2. 主要模組職責 (Module Responsibilities)
 
-* **`plugin.py` (核心控制器):**
-    * **職責:** (基本不變)
+* **`plugin.py` (核心控制器 - 優化版):**
+    * **職責:**
         * 維護所有核心狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `isLockModeActive`, `zoomFactor`。
-        * 接收並處理所有來自 Glyphs 的回呼和來自**控制面板子視窗**的 UI 事件。
-        * 實現 `_recalculate_arrangement()`：根據所有狀態計算最終 `currentArrangement`。
-        * 實現 `_update_and_redraw()`：觸發主視窗控制器重繪請求 (`request_main_redraw()`) 並更新控制面板 UI (`request_controls_panel_ui_update()`)，儲存偏好。
-        * 管理偏好設定。
-        * **新增:** 實現 `smartLockCharacterCallback` 處理鎖定輸入框的輸入，支援字符和 Nice Names 的辨識。
-        * **新增:** 實現 `_recognize_character` 工具函式，智能辨識輸入內容（考慮大小寫差異）。
+        * 接收並處理所有來自 Glyphs 的回呼和來自控制面板子視窗的 UI 事件。
+        * 使用結構化的模組導入 (`_import_modules`) 按功能分類整理依賴。
+        * 實現優化後的 `updateInterface` 方法，避免重複更新，提升效能。
+        * 實現簡化後的 `searchFieldCallback` 和 `smartLockCharacterCallback` 邏輯，提高可讀性。
+        * 實現清晰明確的 `generateNewArrangement` 方法，處理字符排列生成。
+        * 實現優化後的 `_get_lock_state` 和 `_recognize_character` 工具函式。
+        * 優化偏好設定的載入和儲存機制，減少冗餘程式碼。
 
 * **`window_controller.py` (主視窗控制器 - `NineBoxWindow`):**
-    * **職責:**
+    * **職責:** (功能不變，程式碼已優化)
         * 管理主預覽視窗 (`NSPanel`) 的生命週期、佈局、事件。
-        * **新增:** 管理**控制面板子視窗 (`ControlsPanelWindow`)** 的實例、生命週期、顯示與隱藏。
-        * **新增:** 實現控制面板子視窗的創建：
-            * 設定為固定寬度。
-            * 設定 `styleMask` 以移除標題列 (例如，使用 `NSWindowStyleMaskBorderless` 或組合不包含 `NSWindowStyleMaskTitled` 的樣式)。
-            * 確保其行為像一個輔助面板 (utility panel)。
-        * **新增:** 監聽主預覽視窗的 `NSWindowDidResizeNotification`，並在觸發時同步更新控制面板子視窗的高度，並調整其位置以保持與主視窗的相對關係 (例如，始終在主視窗右側)。
-        * **修正:** 在 `windowDidResize_` 方法中，除了調整預覽畫面大小外，立即觸發 `setNeedsDisplay_(True)` 確保視窗尺寸變更時畫面即時更新。
-        * **修正:** 在 `makeKeyAndOrderFront` 方法中，除了調用 `updateInterface` 外，額外觸發 `setNeedsDisplay_(True)` 確保初次開啟視窗時預覽畫面即時顯示。
-        * **修正:** 在預覽視圖創建後立即設置正確的框架並觸發初始重繪。
-        * 處理原有的標題列按鈕 (`sidebarButton`) 的動作，現在用於切換控制面板子視窗的顯示/隱藏。
-        * 提供 `request_main_redraw()` 方法：觸發 `previewView.setNeedsDisplay_(True)`。
-        * **新增:** 提供 `request_controls_panel_ui_update()` 方法：呼叫控制面板視窗的內容視圖 (`ControlsPanelView`) 更新其 UI 元素。
-
-* **[新] `controls_panel_controller.py` (控制面板視窗控制器 - 可選):**
-    * 或者，將控制面板子視窗的管理邏輯封裝在一個新的 `NSWindowController` 子類中，由主視窗控制器持有其引用。這有助於職責分離。如果邏輯簡單，也可以直接在主視窗控制器中管理。
+        * 管理控制面板子視窗的實例、生命週期、顯示與隱藏。
+        * 監聽視窗尺寸變更事件，同步更新控制面板大小和位置。
+        * 提供 `request_main_redraw()` 和 `request_controls_panel_ui_update()` 方法，統一重繪請求。
 
 * **`preview_view.py` (繪圖器 - `NineBoxPreviewView`):**
-    * **職責:**
+    * **職責:** (功能不變，程式碼已優化)
         * 根據 `self.plugin.currentArrangement` 和 `Glyphs.font.selectedLayers[0]` 繪圖。
-        * **新增:** 自動檢測並適應 Glyphs 預覽區域的明暗主題 (`GSPreview_Black` 用戶偏好設定)。
-        * **新增:** 監聽 `NSUserDefaultsDidChangeNotification` 通知，當 Glyphs 預覽主題變更時自動重繪視圖。
-        * **新增:** 根據主題狀態自動調整背景顏色 (黑色/白色) 和字符顏色 (淺色/深色)。
-        * **新增:** 實現 `glyphsPreviewThemeChanged:` 方法處理主題變更事件。
-        * **新增:** 在 `dealloc` 方法中正確移除通知觀察者。
-        * **新增:** 在 `drawRect_` 方法中加入除錯日誌，以便追蹤重繪時機和視窗尺寸變更。
-    * **預覽畫面渲染細節 (2025-06-02 更新，穩定佈局版):**
-        * **佈局計算（完全基於字身寬度）:**
-            * 使用 5% 的向上偏移確保視覺平衡：`offsetY = rect.size.height * 0.05`
-            * 起始 Y 座標計算：`startY = (rect.size.height + gridHeight) / 2 + offsetY`
-            * 動態寬度調整：完全基於 `getBaseWidth()` 方法和所有顯示字符的 `layer.width`（字身寬度）
-            * **不使用** LSB、RSB 或路徑邊界等動態資訊
-        * **字符繪製（穩定佈局設計）:**
-            * 使用 `layer.width` （字身寬度 advance width）作為佈局計算的唯一依據
-            * 確保佈局穩定，不受路徑編輯或側邊距變化影響
-            * 使用 `layer.bezierPath` 和 `layer.openBezierPath` 僅用於內容繪製，不影響佈局
-        * **設計原則:**
-            * 提供穩定的預覽框架，僅當字身寬度改變時才調整佈局
-            * 佈局計算與路徑內容完全分離，確保一致的視覺參考
-        * **錯誤處理:**
-            * 確保在任何錯誤情況下都先繪製背景，避免全灰畫面
-            * 網格度量計算失敗時返回 None，優雅地中止繪製
+        * 自動檢測並適應 Glyphs 預覽區域的明暗主題。
+        * 監聽主題變更通知，即時調整顯示風格。
+        * 使用優化後的佈局計算邏輯，確保穩定的視覺效果。
+        * 適當記錄關鍵繪製點的除錯資訊，便於追蹤問題。
 
 * **`controls_panel_view.py` (`ControlsPanelView`):**
-    * **職責:**
+    * **職責:** (功能不變，程式碼已優化)
         * 作為控制面板子視窗的 `contentView`。
-        * 在其固定寬度和可變高度的框架內佈局 UI 元素。
-        * 將 UI 事件轉發給 `plugin.py`。
-        * 實現 `update_ui(plugin_state)` 方法，根據 `plugin.py` 的狀態更新內部 UI 元素 (輸入框內容、按鈕圖示等)。
-        * **新增:** 實現 `LockCharacterField` 類別，支援單字符鎖定輸入，每個輸入框對應 0-7 的位置。
-        * **新增:** 在 `update_ui` 中正確載入和顯示已儲存的鎖定字符。
+        * 佈局和管理所有 UI 元素。
+        * 將 UI 事件轉發給 `plugin.py` 的對應回呼函式。
+        * 實現 `update_ui` 方法，根據 `plugin.py` 的狀態更新界面。
+        * 管理 `LockCharacterField` 和鎖頭按鈕狀態。
 
-* **`utils.py` & `constants.py`:**
-    * **職責:** (不變) 提供輔助函數和常數。`constants.py` 可能需要新增控制面板固定寬度的常數。
+* **`utils.py` (工具函數 - 優化版):**
+    * **職責:**
+        * 提供優化後的字符處理和排列生成函數。
+        * 實現統一的除錯日誌系統 (`debug_log`, `log_to_macro_window`)。
+        * 提供效率更高的快取管理功能 (`get_cached_glyph`, `get_cached_width`, `clear_cache`)。
+        * 實現改進後的 `get_base_width` 函數，更可靠地獲取基準寬度。
+        * 提供優化後的 `parse_input_text` 和 `generate_arrangement` 函數。
+        * 實現修正後的 `apply_locked_chars` 函數，確保鎖定字符應用邏輯正確。
+
+* **`constants.py` (常數定義 - 優化版):**
+    * **職責:**
+        * 提供所有外掛常數的集中定義。
+        * 組織常數為多個邏輯區塊：偏好設定鍵值、視窗尺寸和佈局、繪圖參數等。
+        * 移除開發時使用的測試代碼和註解。
+        * 適當註釋重要常數的用途，提高程式碼可讀性。
 
 ### 3. 數據流 (Data Flow)
 
+優化後的數據流程更加清晰和高效：
+
 1.  **事件觸發 (UI):** `ControlsPanelView` 中的 UI 元素產生事件 -> 轉發給 `plugin.py` 的處理函數。
-2.  **事件觸發 (Glyphs):** Glyphs 回呼 -> `plugin.py` 的處理函數。
-3.  **狀態更新:** `plugin.py` 更新內部狀態。
-4.  **排列計算:** `plugin.py` 呼叫 `_recalculate_arrangement()`。
-5.  **請求更新:** `plugin.py` 呼叫 `_update_and_redraw()`。
-6.  `_update_and_redraw()` 內部:
+2.  **狀態更新:** `plugin.py` 更新內部狀態，使用優化後的條件檢查避免不必要的處理。
+3.  **排列計算:** `plugin.py` 使用優化後的 `generateNewArrangement` 方法計算字符排列。
+4.  **請求更新:** 
     * 呼叫主視窗控制器的 `request_main_redraw()` -> `preview_view` 重繪。
-    * 呼叫主視窗控制器的 `request_controls_panel_ui_update()` -> `ControlsPanelView` 更新 UI。
+    * 必要時呼叫主視窗控制器的 `request_controls_panel_ui_update()` -> `ControlsPanelView` 更新 UI。
     * 儲存偏好設定。
+5.  **效能控制:** 使用 `_update_scheduled` 標記防止重複更新，優化資源使用。
 
 ### 4. 關鍵資料結構 (Key Data Structures)
 
@@ -114,79 +103,75 @@ UI 模組 (`sidebar_view.py`，建議更名為 `controls_panel_view.py`) 負責�
 * `plugin.lockedChars (dict)`: 鎖定字符字典，鍵為位置 (0-7)，值為字符或 Nice Name。
 * `plugin.currentArrangement (list)`: 當前周圍 8 格的字符排列。
 * `plugin.zoomFactor (float)`: 縮放係數。
-* `plugin.isControlsPanelVisible (bool)`: 新增，用於追蹤控制面板子視窗的顯示狀態 (用於偏好設定)。
+* `plugin.isControlsPanelVisible (bool)`: 追蹤控制面板子視窗的顯示狀態。
 * `plugin.previousLockedChars (dict)`: 備份的鎖定字符，用於還原功能。
+* `plugin._update_scheduled (bool)`: 優化新增，防止重複更新的標記。
 
 ### 5. 視窗管理細節 (Window Management Details)
 
-* **控制面板創建:**
-    * 使用 `NSPanel` 或 `NSWindow` 實例。
-    * `styleMask`: 設定為不包含 `NSTitledWindowMask`，例如 `NSWindowStyleMaskUtilityWindow | NSWindowStyleMaskBorderless` 或 `NSWindowStyleMaskHUDWindow` (若適用其外觀)。
-    * **視窗層級行為：** 設定 `level` 為 `NSFloatingWindowLevel`，與主視窗相同層級。但使用 `orderBack_()` 方法確保控制面板始終顯示在主視窗之下，避免陰影干擾：
-        * 在 Glyphs 應用程式內始終保持在最上層
-        * 當 Glyphs 不是活動應用程式時，子視窗不會置頂於其他應用程式
-        * 控制面板始終在主視窗背景顯示，不會產生陰影覆蓋主視窗的問題
-    * **位置間距：** 使用 `CONTROLS_PANEL_SPACING` 常數（預設 15 像素）設定控制面板與主視窗之間的間距，進一步避免視覺干擾。
-    * **重要：** 必須設定 `canBecomeKeyWindow` 為 `True`，並覆寫 `canBecomeKeyWindow` 方法返回 `True`，以確保控制面板可以接受鍵盤輸入。
-* **高度同步:**
-    * 主視窗控制器監聽自身 `NSWindowDidResizeNotification`。
-    * 獲取主視窗新的 `contentView.frame.size.height`。
-    * 計算控制面板的 `frame`，設定其 `origin` (例如，緊貼主視窗右側) 和 `size` (固定寬度，同步高度)。
-* **顯示/隱藏:**
-    * 主視窗標題列按鈕 (`sidebarButton`) 觸發主視窗控制器的方法。
-    * 該方法呼叫控制面板視窗的 `orderBack_` 或 `orderOut_`，確保控制面板始終在主視窗之下顯示。
-    * 更新 `plugin.isControlsPanelVisible` 並儲存。
-* **視窗關閉與重新開啟:**
-    * 當主視窗關閉時 (`windowWillClose_` 方法)，完全釋放控制面板子視窗資源：
-        * 先呼叫 `orderOut_` 隱藏控制面板視窗
-        * 釋放控制面板視圖引用 (`self.controlsPanelView = None`)
-        * 呼叫 `close()` 關閉控制面板視窗
-        * 釋放控制面板視窗引用 (`self.controlsPanelWindow = None`)
-    * 當主視窗重新開啟時 (`makeKeyAndOrderFront` 方法)，檢查是否需要重新創建控制面板子視窗：
-        * 檢查 `self.controlsPanelVisible` 狀態和控制面板視窗是否存在
-        * 如果應該顯示但視窗不存在，則呼叫 `_setup_controls_panel()` 重新創建
-    * 所有可能顯示控制面板的方法 (`showControlsPanel`、`controlsPanelAction_`) 都檢查並在需要時重新創建控制面板子視窗
+* **控制面板創建與管理:**
+    * 使用 `NSPanel` 實例，設定適當的 `styleMask` 移除標題列。
+    * 設定 `level` 為 `NSFloatingWindowLevel`，並使用 `orderBack_()` 確保控制面板顯示在主視窗之下。
+    * 使用 `CONTROLS_PANEL_SPACING` 常數設定控制面板與主視窗間距，避免視覺干擾。
+    * 確保 `canBecomeKeyWindow` 為 `True`，允許控制面板接受鍵盤輸入。
+    * 優化視窗資源管理，確保在關閉主視窗時正確釋放控制面板資源。
+
+* **視窗關閉與重新開啟 (優化流程):**
+    * 當主視窗關閉時，完整釋放控制面板資源。
+    * 當主視窗重新開啟時，檢查並在需要時重新創建控制面板。
+    * 所有相關方法都進行適當檢查，確保視窗狀態一致性。
 
 ### 6. 即時更新機制 (Real-time Update Mechanism)
 
 * **初次開啟視窗:**
-    * 在 `initWithPlugin_` 中創建預覽視圖後立即設置正確框架並觸發初始重繪。
-    * 在 `makeKeyAndOrderFront` 中除了調用 `updateInterface` 外，額外觸發 `setNeedsDisplay_(True)`。
+    * 創建預覽視圖後立即設置正確框架並觸發初始重繪。
     * 確保視窗初次顯示時預覽內容立即可見。
-    * **新增：** 確保控制面板內容在初始化時被正確載入。
 
 * **視窗尺寸變更:**
-    * 在 `windowDidResize_` 中調整預覽畫面大小後立即觸發 `setNeedsDisplay_(True)`。
-    * 確保視窗尺寸變更時預覽畫面即時反映新的佈局。
+    * 調整預覽畫面大小後立即觸發重繪。
+    * 確保尺寸變更時預覽畫面即時反映新的佈局。
 
 * **控制面板同步更新:**
-    * **新增：** 所有狀態改變時（`updateInterface`、`searchFieldCallback`、`smartLockCharacterCallback` 等），都會呼叫 `request_controls_panel_ui_update`。
-    * **新增：** `request_controls_panel_ui_update` 方法確保控制面板視窗可以接受輸入（`makeKeyWindow`）。
-    * **新增：** 在 `showControlsPanel` 中，確保搜尋欄位成為 first responder。
+    * 狀態改變時，根據需要選擇性地更新控制面板 UI。
+    * 改進更新邏輯，避免不必要的輸入框刷新，保留用戶輸入。
 
-* **除錯支援:**
-    * 在關鍵重繪點加入除錯日誌，便於追蹤更新時機。
-    * 在 `drawRect_` 中記錄視窗尺寸，在視窗事件處理中記錄處理流程。
+* **更新優化:**
+    * 使用 `_update_scheduled` 標記防止短時間內的重複更新請求。
+    * 選擇性更新，例如搜尋欄位變更時不更新鎖定輸入框，避免干擾用戶輸入。
+    * 區分輕量級更新和完整更新，提高響應速度。
 
 ### 7. 持久化 (Persistence)
 
-* `plugin.py` 儲存主視窗尺寸、控制面板的顯示狀態、`zoomFactor`以及所有與預覽內容相關的狀態。
-* **鎖定字符儲存:** `LOCKED_CHARS_KEY` 和 `PREVIOUS_LOCKED_CHARS_KEY` 用於儲存用戶的鎖定字符設定，在視窗關閉時儲存，開啟時載入。
-* 控制面板子視窗的**位置**通常是相對於主視窗計算的，所以其絕對位置可能不需要單獨儲存。
+* **偏好設定管理 (優化版):**
+    * 集中在 `savePreferences` 和 `loadPreferences` 方法中處理所有持久化邏輯。
+    * 優化鎖定字符的儲存和載入，確保在不同字型間切換時的正確行為。
+    * 改進控制面板可見性設定的處理，同時維持向後相容性。
 
 ### 8. 主題自動適應機制 (Theme Auto-Adaptation Mechanism)
 
-* **主題檢測:**
-    * 使用 `NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")` 檢測 Glyphs 預覽區域的主題狀態。
-    * `True` 表示深色背景模式，`False` 表示淺色背景模式。
+* **主題檢測與切換:**
+    * 檢測 Glyphs 預覽區域的主題狀態。
+    * 監聽主題變更通知，及時調整顯示風格。
+    * 優化通知觀察者的管理，避免記憶體洩漏。
 
-* **自動更新:**
-    * `NineBoxPreviewView` 監聽 `NSUserDefaultsDidChangeNotification` 通知。
-    * 當偏好設定變更時，自動調用 `setNeedsDisplay_(True)` 重繪視圖。
+### 9. 程式碼效能與維護性改進
 
-* **顏色配置:**
-    * **深色背景模式:** 背景使用純黑色 (`NSColor.blackColor`)，字符使用淺灰色 (`rgb(0.95, 0.95, 0.95)`)。
-    * **淺色背景模式:** 背景使用純白色 (`NSColor.whiteColor`)，字符使用純黑色 (`rgb(0.0, 0.0, 0.0)`)。
+* **除錯系統優化:**
+    * 統一使用 `debug_log` 函數，受 `DEBUG_MODE` 常數控制。
+    * 移除冗餘的除錯訊息，保留關鍵點的日誌。
+    * 在關鍵功能處增加具體的錯誤處理和日誌。
 
-* **記憶體管理:**
-    * 在視圖析構時正確移除通知觀察者，避免記憶體洩漏。
+* **效能優化:**
+    * 使用快取減少重複計算和查詢。
+    * 優化字符排列生成邏輯，減少不必要的操作。
+    * 實現批次更新機制，避免短時間內的重複重繪。
+
+* **代碼可讀性:**
+    * 為主要函數添加詳細文檔字符串，明確參數和返回值。
+    * 重構複雜的條件判斷，使邏輯更加清晰。
+    * 統一命名風格和程式碼格式。
+
+* **錯誤處理:**
+    * 完善異常捕獲和處理，避免程式崩潰。
+    * 在關鍵功能處增加參數檢查和預設值處理。
+    * 優化視窗生命週期管理，確保資源正確釋放。
