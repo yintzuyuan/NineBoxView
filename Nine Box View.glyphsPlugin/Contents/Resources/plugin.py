@@ -234,6 +234,13 @@ try:
                     # 批次更新
                     self._update_scheduled = True
                     
+                    # === 修正：確保即使在沒有selectedChars的情況下也能反映鎖定輸入框的變化 ===
+                    # 檢查是否需要重新生成排列（鎖定輸入框有內容且在上鎖狀態）
+                    if (not self.selectedChars and hasattr(self, 'lockedChars') and 
+                        self.lockedChars and not self._get_lock_state()):
+                        self.debug_log("[階段2.1] 雖然沒有選擇字符，但在上鎖狀態下有鎖定字符，重新生成排列")
+                        self.generateNewArrangement()
+                    
                     if hasattr(self.windowController, 'redraw'):
                         self.windowController.redraw()
                     
@@ -288,7 +295,8 @@ try:
             # 檢查是否有變更
             if hasattr(self, 'lastInput') and self.lastInput == input_text:
                 return
-
+            
+            self.debug_log(f"[階段2.1] 搜尋欄位文本變更: {input_text}")
             self.lastInput = input_text
 
             if input_text:
@@ -298,8 +306,21 @@ try:
                     self.selectedChars = new_chars
                     self.generateNewArrangement()
             else:
-                self.selectedChars = []
-                self.currentArrangement = []
+                # === 修正：搜尋欄位為空時，不直接清空currentArrangement ===
+                # 檢查鎖頭狀態和lockedChars
+                is_in_clear_mode = self._get_lock_state()
+                has_locked_chars = hasattr(self, 'lockedChars') and self.lockedChars
+                
+                self.selectedChars = []  # 仍然清空selectedChars
+                
+                if not is_in_clear_mode and has_locked_chars:
+                    # 上鎖狀態且有鎖定字符，重新生成排列
+                    self.debug_log("[階段2.1] 搜尋欄位為空，但在上鎖狀態下有鎖定字符，重新生成排列")
+                    self.generateNewArrangement()
+                else:
+                    # 解鎖狀態或沒有鎖定字符，清空currentArrangement
+                    self.debug_log("[階段2.1] 搜尋欄位為空，且沒有鎖定字符或處於解鎖狀態，清空排列")
+                    self.currentArrangement = []
 
             self.updateInterfaceForSearchField(None)
             
@@ -374,8 +395,20 @@ try:
                                 self.windowController.redraw()
                                 self.debug_log("[LockUpdate] 已即時更新主畫面")
                     else:
-                        # 如果沒有選擇字符，僅更新介面
-                        self.updateInterface(sender)
+                        # === 修正：即使沒有選擇字符，也重新生成排列 ===
+                        # 如果在上鎖狀態下有鎖定字符，仍應重新生成排列
+                        if not is_in_clear_mode and self.lockedChars:
+                            self.debug_log("[LockUpdate] 雖然沒有選擇字符，但在上鎖狀態下有鎖定字符，將重新生成排列")
+                            self.generateNewArrangement()
+                            
+                            # 直接重繪主畫面
+                            if hasattr(self, 'windowController') and self.windowController:
+                                if hasattr(self.windowController, 'redraw'):
+                                    self.windowController.redraw()
+                                    self.debug_log("[LockUpdate] 已即時更新主畫面")
+                        else:
+                            # 如果沒有選擇字符，僅更新介面
+                            self.updateInterface(sender)
             
             except Exception as e:
                 self.debug_log(f"[LockUpdate] 智能鎖定字符處理錯誤: {e}")
@@ -560,10 +593,6 @@ try:
         @objc.python_method
         def generateNewArrangement(self):
             """生成新的字符排列（優化版）"""
-            if not self.selectedChars:
-                self.debug_log("沒有選擇字符，無法生成排列")
-                return
-            
             # 驗證鎖定字符
             if hasattr(self, 'lockedChars'):
                 self.lockedChars = self.validate_locked_positions(self.lockedChars, Glyphs.font)
@@ -579,6 +608,58 @@ try:
                 self.debug_log(f"[Random] 隨機排列觸發，開始生成排列")
             else:
                 self.debug_log(f"[Arrangement] 重新生成排列")
+            
+            # === 修正：在解鎖狀態下且沒有selectedChars時清空排列 ===
+            is_in_clear_mode = self._get_lock_state()
+            if is_in_clear_mode:
+                if not self.selectedChars:
+                    self.debug_log(f"[Arrangement] 🔓 解鎖狀態且無選擇字符，清空當前排列")
+                    self.currentArrangement = []
+                    self.savePreferences()
+                    return
+                else:
+                    self.debug_log(f"[Arrangement] 🔓 解鎖狀態但有選擇字符，生成不含鎖定字符的排列")
+                    # 繼續執行，生成不含鎖定字符的排列
+            
+            # === 修正：特殊處理空的selectedChars但有lockedChars的情況 ===
+            if not self.selectedChars:
+                # 如果是上鎖狀態且有鎖定字符，仍然繼續生成排列
+                if should_apply_locks and hasattr(self, 'lockedChars') and self.lockedChars:
+                    self.debug_log(f"[Arrangement] 雖然沒有選擇字符，但在上鎖狀態下有鎖定字符，將生成排列")
+                    # 使用當前編輯的字符作為基礎排列
+                    current_layer = None
+                    if Glyphs.font and Glyphs.font.selectedLayers:
+                        current_layer = Glyphs.font.selectedLayers[0]
+                    
+                    if current_layer and current_layer.parent:
+                        # 使用當前字符的名稱或Unicode值創建基礎排列
+                        current_glyph = current_layer.parent
+                        current_char = None
+                        if current_glyph.unicode:
+                            try:
+                                current_char = chr(int(current_glyph.unicode, 16))
+                            except:
+                                pass
+                        
+                        if not current_char and current_glyph.name:
+                            current_char = current_glyph.name
+                        
+                        if current_char:
+                            # 創建一個全是當前字符的基礎排列
+                            base_arrangement = [current_char] * 8
+                            self.debug_log(f"[Arrangement] 使用當前字符 '{current_char}' 創建基礎排列")
+                            
+                            # 應用鎖定字符
+                            self.debug_log(f"[Lock] 🔒 上鎖狀態 - 將應用鎖定字符：{self.lockedChars}")
+                            self.currentArrangement = self.apply_locked_chars(
+                                base_arrangement, self.lockedChars, []
+                            )
+                            self.debug_log(f"[Lock] 🔒 上鎖狀態 - 應用鎖定後的排列: {self.currentArrangement}")
+                            self.savePreferences()
+                            return
+                else:
+                    self.debug_log("沒有選擇字符，無法生成排列")
+                    return
             
             self.debug_log(f"[Arrangement] 可選字符：{self.selectedChars}")
             

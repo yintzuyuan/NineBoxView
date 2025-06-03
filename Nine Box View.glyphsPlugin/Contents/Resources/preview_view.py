@@ -323,8 +323,10 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
+            # === 修正：當currentArrangement非空時使用它，無論selectedChars是否為空 ===
             # 使用目前的排列
-            display_chars = self.plugin.currentArrangement if self.plugin.selectedChars else []
+            display_chars = self.plugin.currentArrangement if (self.plugin.selectedChars or self.plugin.currentArrangement) else []
+            debug_log(f"使用排列: {display_chars}")
             
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
