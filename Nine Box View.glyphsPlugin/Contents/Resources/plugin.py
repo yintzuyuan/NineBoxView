@@ -641,8 +641,51 @@ try:
                             )
                             self.savePreferences()
                             return
-                else:
-                    return  # 沒有選擇字符也沒有鎖定字符，無法生成排列
+                
+                # 修改：沒有選擇字符且沒有鎖定字符時，使用當前編輯的字符
+                current_layer = None
+                if Glyphs.font and Glyphs.font.selectedLayers:
+                    current_layer = Glyphs.font.selectedLayers[0]
+                
+                if current_layer and current_layer.parent:
+                    # 使用當前字符的名稱或Unicode值創建基礎排列
+                    current_glyph = current_layer.parent
+                    current_char = None
+                    if current_glyph.unicode:
+                        try:
+                            current_char = chr(int(current_glyph.unicode, 16))
+                        except:
+                            pass
+                    
+                    if not current_char and current_glyph.name:
+                        current_char = current_glyph.name
+                    
+                    if current_char:
+                        # 創建一個全是當前字符的基礎排列
+                        self.currentArrangement = [current_char] * 8
+                        self.savePreferences()
+                        return
+                
+                # 如果找不到當前字符，使用字型中的第一個有效字符
+                if Glyphs.font and Glyphs.font.glyphs:
+                    for glyph in Glyphs.font.glyphs:
+                        if glyph.unicode:
+                            try:
+                                char = chr(int(glyph.unicode, 16))
+                                self.currentArrangement = [char] * 8
+                                self.savePreferences()
+                                return
+                            except:
+                                continue
+                        elif glyph.name:
+                            self.currentArrangement = [glyph.name] * 8
+                            self.savePreferences()
+                            return
+                
+                # 極端情況下，使用預設值
+                self.currentArrangement = ["A"] * 8
+                self.savePreferences()
+                return
             
             # 生成基礎排列
             base_arrangement = self.generate_arrangement(self.selectedChars, 8)
@@ -792,9 +835,8 @@ try:
                     for field in self.windowController.controlsPanelView.lockFields.values():
                         field.setStringValue_("")
                 
-                # 更新排列和介面
-                if hasattr(self, 'selectedChars') and self.selectedChars:
-                    self.generateNewArrangement()
+                # 更新排列和介面，無論搜尋欄是否有內容都執行
+                self.generateNewArrangement()
                 
                 self.savePreferences()
                 self.updateInterface(None)
