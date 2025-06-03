@@ -17,8 +17,8 @@ _glyph_cache = {}
 
 def debug_log(message):
     """
-    條件式除錯記錄
-    Conditional debug logging
+    條件式除錯記錄 - 僅在DEBUG_MODE=True時輸出
+    Conditional debug logging - only outputs when DEBUG_MODE=True
     
     Args:
         message: 要記錄的訊息內容
@@ -28,8 +28,8 @@ def debug_log(message):
 
 def log_to_macro_window(message):
     """
-    將訊息記錄到巨集視窗（僅在需要時）
-    Log message to the Macro Window (only when needed)
+    將訊息記錄到巨集視窗 - 僅在DEBUG_MODE=True時輸出
+    Log message to the Macro Window - only outputs when DEBUG_MODE=True
     
     Args:
         message: 要記錄的訊息內容
