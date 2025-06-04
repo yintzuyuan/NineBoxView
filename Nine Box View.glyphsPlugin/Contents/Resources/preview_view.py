@@ -139,8 +139,16 @@ class NineBoxPreviewView(NSView):
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
             
             # === 使用 getBaseWidth 方法取得基準寬度 ===
-            baseWidth = self.plugin.getBaseWidth()
-            debug_log(f"基準寬度 baseWidth: {baseWidth}")
+            try:
+                baseWidth = self.plugin.getBaseWidth()
+                if not isinstance(baseWidth, (int, float)) or baseWidth <= 0:
+                    debug_log(f"警告：基準寬度值無效 ({baseWidth})，使用預設值 1000")
+                    baseWidth = 1000
+                else:
+                    debug_log(f"基準寬度 baseWidth: {baseWidth}")
+            except Exception as e:
+                debug_log(f"取得基準寬度時發生錯誤：{e}")
+                baseWidth = 1000
             
             # === 計算最大字身寬度（僅使用 layer.width）===
             # 這是佈局計算的唯一依據，確保穩定性
