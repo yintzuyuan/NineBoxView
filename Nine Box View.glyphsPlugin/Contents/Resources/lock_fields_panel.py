@@ -7,6 +7,7 @@ Nine Box Preview Plugin - Lock Fields Panel Module
 from __future__ import division, print_function, unicode_literals
 import traceback
 import objc
+import random
 from GlyphsApp import Glyphs
 from AppKit import (
     NSView, NSTextField, NSButton, NSFont, NSColor, NSApp,
@@ -551,20 +552,59 @@ class LockFieldsPanel(NSView):
                     if hasattr(self.plugin, 'previousLockedChars'):
                         self.plugin.previousLockedChars = self.plugin.lockedChars.copy()
                     
+                    # 記錄被清除的鎖定位置
+                    cleared_positions = list(self.plugin.lockedChars.keys())
+                    debug_log(f"將清除的鎖定位置: {cleared_positions}")
+                    
                     # 清空鎖定字符
                     self.plugin.lockedChars.clear()
                     debug_log("已清空 plugin.lockedChars")
                     
-                    # 儲存偏好設定
-                    self.plugin.savePreferences()
-                    
-                    # 重新生成排列（如果在上鎖狀態）
+                    # 在上鎖狀態時更新 currentArrangement
                     if not self.isInClearMode:  # 上鎖狀態
-                        debug_log("🔒 上鎖狀態 - 重新生成排列")
-                        self.plugin.generateNewArrangement()
-                        self.plugin.updateInterface(None)
+                        debug_log("🔒 上鎖狀態 - 更新排列並重繪")
+                        
+                        # 更新 currentArrangement：保留非鎖定位置的字符
+                        if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                            # 從選擇的字符中取得替代字符
+                            if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                                # 對每個被清除的位置，用 selectedChars 中的隨機字符替代
+                                for pos in cleared_positions:
+                                    if pos < len(self.plugin.currentArrangement):
+                                        # 隨機選擇一個字符來替代
+                                        replacement_char = random.choice(self.plugin.selectedChars)
+                                        self.plugin.currentArrangement[pos] = replacement_char
+                                        debug_log(f"位置 {pos} 替換為: {replacement_char}")
+                            else:
+                                # 如果沒有 selectedChars，清空對應位置
+                                for pos in cleared_positions:
+                                    if pos < len(self.plugin.currentArrangement):
+                                        # 使用當前編輯字符
+                                        if Glyphs.font and Glyphs.font.selectedLayers:
+                                            current_layer = Glyphs.font.selectedLayers[0]
+                                            if current_layer and current_layer.parent:
+                                                current_glyph = current_layer.parent
+                                                if current_glyph.unicode:
+                                                    try:
+                                                        char = chr(int(current_glyph.unicode, 16))
+                                                        self.plugin.currentArrangement[pos] = char
+                                                    except:
+                                                        self.plugin.currentArrangement[pos] = current_glyph.name
+                                                else:
+                                                    self.plugin.currentArrangement[pos] = current_glyph.name
+                        
+                        # 儲存偏好設定
+                        self.plugin.savePreferences()
+                        
+                        # 強制重繪預覽
+                        if (hasattr(self.plugin, 'windowController') and 
+                            self.plugin.windowController and
+                            hasattr(self.plugin.windowController, 'previewView')):
+                            self.plugin.windowController.previewView.force_redraw()
                     else:
                         debug_log("🔓 解鎖狀態 - 不需要更新預覽")
+                        # 儲存偏好設定
+                        self.plugin.savePreferences()
             
             debug_log("完成清空所有輸入框")
             
