@@ -269,34 +269,59 @@ def validate_locked_positions(locked_chars, font):
 
 def apply_locked_chars(arrangement, locked_chars, selected_chars):
     """
-    應用鎖定字符到排列中（修正版）
-    Apply locked characters to arrangement (Fixed)
+    應用鎖定字符到排列中（強化版）
+    Apply locked characters to arrangement (Enhanced)
     
     Args:
         arrangement: 基礎隨機排列
         locked_chars: 鎖定字符字典
-        selected_chars: 選擇的字符列表（此參數已不需要，保留以維持向後兼容）
+        selected_chars: 選擇的字符列表（用於填充空位）
         
     Returns:
         list: 應用鎖定後的排列
     """
-    if not locked_chars:
-        return arrangement
-    
-    # 創建新排列的副本
-    new_arrangement = list(arrangement)
-    
-    # 只應用鎖定字符，不重新分配未鎖定位置
-    # 將鎖定字符應用到指定位置
-    for position, char_or_name in locked_chars.items():
-        if position < len(new_arrangement):
-            new_arrangement[position] = char_or_name
-            debug_log(f"[Lock] 位置 {position} 鎖定為字符：{char_or_name}")
-        else:
-            debug_log(f"[Lock] 警告：鎖定位置 {position} 超出範圍")
-    
-    debug_log(f"[Lock] 應用鎖定後的排列：{new_arrangement}")
-    return new_arrangement
+    try:
+        debug_log("[Lock] 開始應用鎖定字符")
+        debug_log(f"[Lock] 初始排列: {arrangement}")
+        debug_log(f"[Lock] 鎖定字符: {locked_chars}")
+        
+        if not locked_chars:
+            debug_log("[Lock] 無鎖定字符，返回原排列")
+            return arrangement
+        
+        # 確保有基礎排列
+        if not arrangement:
+            arrangement = [''] * 8
+            debug_log("[Lock] 創建空白基礎排列")
+        
+        # 創建新排列的副本
+        new_arrangement = list(arrangement)
+        
+        # 應用鎖定字符
+        for position, char_or_name in locked_chars.items():
+            if position < len(new_arrangement):
+                if char_or_name:  # 確保字符不為空
+                    new_arrangement[position] = char_or_name
+                    debug_log(f"[Lock] 位置 {position} 鎖定為字符：{char_or_name}")
+            else:
+                debug_log(f"[Lock] 警告：鎖定位置 {position} 超出範圍")
+        
+        # 如果需要，用選擇的字符填充未鎖定的位置
+        if selected_chars:
+            for i in range(len(new_arrangement)):
+                if not new_arrangement[i] and i not in locked_chars:
+                    new_char = random.choice(selected_chars)
+                    new_arrangement[i] = new_char
+                    debug_log(f"[Lock] 位置 {i} 填充為字符：{new_char}")
+        
+        debug_log(f"[Lock] 最終排列：{new_arrangement}")
+        return new_arrangement
+        
+    except Exception as e:
+        debug_log(f"[Lock] 應用鎖定字符時發生錯誤：{e}")
+        if DEBUG_MODE:
+            print(traceback.format_exc())
+        return arrangement or [''] * 8  # 確保總是返回有效的排列
 
 # === 偏好設定管理 ===
 

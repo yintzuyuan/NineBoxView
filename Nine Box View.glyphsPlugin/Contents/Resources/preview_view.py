@@ -331,10 +331,32 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
-            # === 修正：當currentArrangement非空時使用它，無論selectedChars是否為空 ===
-            # 使用目前的排列
-            display_chars = self.plugin.currentArrangement if (self.plugin.selectedChars or self.plugin.currentArrangement) else []
-            debug_log(f"使用排列: {display_chars}")
+            # === 改進：考慮鎖定狀態和currentArrangement的優先級 ===
+            display_chars = []
+            
+            # 檢查當前模式和排列狀態
+            is_in_clear_mode = self.plugin._get_lock_state() if hasattr(self.plugin, '_get_lock_state') else False
+            has_current_arrangement = bool(self.plugin.currentArrangement)
+            has_selected_chars = bool(self.plugin.selectedChars)
+            has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))
+            
+            # 決定要顯示的字符
+            if has_current_arrangement:
+                # 優先使用現有排列
+                display_chars = self.plugin.currentArrangement
+                debug_log(f"使用現有排列: {display_chars}")
+            elif not is_in_clear_mode and has_locked_chars:
+                # 上鎖狀態下，如果有鎖定字符但沒有排列，重新生成
+                if hasattr(self.plugin, 'generateNewArrangement'):
+                    self.plugin.generateNewArrangement()
+                    display_chars = self.plugin.currentArrangement
+                    debug_log(f"上鎖狀態：重新生成排列: {display_chars}")
+            elif has_selected_chars:
+                # 如果有選擇的字符，使用它們
+                display_chars = self.plugin.selectedChars[:8]
+                debug_log(f"使用選擇的字符: {display_chars}")
+            
+            debug_log(f"最終使用排列: {display_chars}")
             
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)

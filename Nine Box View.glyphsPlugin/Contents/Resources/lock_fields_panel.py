@@ -266,28 +266,66 @@ class LockFieldsPanel(NSView):
     def toggleLockMode_(self, sender):
         """切換鎖頭模式"""
         try:
+            # 先儲存當前狀態
             was_in_clear_mode = self.isInClearMode
+            
+            # 先檢查必要的物件和方法
+            if was_in_clear_mode and not hasattr(self.plugin, 'event_handlers'):
+                debug_log("警告：event_handlers 未初始化，無法進行同步")
+                return
+            
+            # 從解鎖切換到上鎖時同步輸入框內容
+            if was_in_clear_mode:
+                debug_log("從🔓解鎖切換到🔒鎖定：開始同步流程")
+                try:
+                    debug_log("1. 預先同步輸入欄內容")
+                    self._sync_input_fields_to_locked_chars()
+                    
+                    # 確認同步是否成功
+                    if hasattr(self.plugin, 'lockedChars'):
+                        debug_log(f"同步成功，目前鎖定字符：{self.plugin.lockedChars}")
+                    else:
+                        debug_log("警告：同步後 lockedChars 未正確設置")
+                except Exception as e:
+                    debug_log(f"同步過程發生錯誤: {e}")
+                    if DEBUG_MODE:
+                        print(traceback.format_exc())
+                debug_log("同步流程完成")
+            
+            # 更新狀態
             self.isInClearMode = not self.isInClearMode
-            
-            self.updateLockButton()
-            
             debug_log(f"鎖頭模式切換：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
             
-            # 從解鎖切換到鎖定時，同步所有輸入欄內容
-            if was_in_clear_mode and not self.isInClearMode:
-                debug_log("從🔓解鎖切換到🔒鎖定：同步輸入欄內容到 lockedChars")
-                self._sync_input_fields_to_locked_chars()
+            # 更新 UI
+            self.updateLockButton()
             
-            # 同步鎖頭狀態到 plugin 對象並儲存偏好設定
+            # 同步到 plugin 對象
             if hasattr(self, 'plugin') and self.plugin:
+                # 更新 plugin 的狀態
                 self.plugin.isInClearMode = self.isInClearMode
                 debug_log(f"已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
                 
+                # 強制重新生成排列（僅在上鎖狀態）
+                if not self.isInClearMode:
+                    if hasattr(self.plugin, 'event_handlers'):
+                        debug_log("上鎖狀態：強制重新生成排列")
+                        self.plugin.event_handlers.generate_new_arrangement()
+                    else:
+                        debug_log("上鎖狀態：使用一般生成排列")
+                        self.plugin.generateNewArrangement()
+                
+                # 請求強制重繪
+                if (hasattr(self.plugin, 'windowController') and 
+                    self.plugin.windowController and
+                    hasattr(self.plugin.windowController, 'previewView')):
+                    debug_log("請求強制重繪視圖")
+                    self.plugin.windowController.previewView.force_redraw()
+                
+                # 儲存偏好設定
                 self.plugin.savePreferences()
                 debug_log("已儲存鎖頭狀態到偏好設定")
                 
-                # 重新生成排列並更新預覽
-                self.plugin.generateNewArrangement()
+                # 更新介面
                 self.plugin.updateInterface(None)
             
         except Exception as e:
@@ -296,14 +334,22 @@ class LockFieldsPanel(NSView):
                 self.updateLockButton()
     
     def _sync_input_fields_to_locked_chars(self):
-        """同步輸入欄內容到 plugin.lockedChars"""
+        """同步輸入欄內容到 plugin.lockedChars（修正版）"""
         try:
+            # 基本檢查
             if not hasattr(self, 'plugin') or not self.plugin:
                 debug_log("警告：無法取得 plugin 實例")
                 return
             
+            # 檢查必要的物件和方法
+            if not hasattr(self.plugin, 'event_handlers'):
+                debug_log("警告：plugin.event_handlers 未初始化")
+                return
+            
             if not hasattr(self.plugin, 'lockedChars'):
                 self.plugin.lockedChars = {}
+            
+            debug_log("[同步] 開始同步鎖定字符")
             
             # 清除現有的 lockedChars
             self.plugin.lockedChars.clear()
@@ -312,11 +358,17 @@ class LockFieldsPanel(NSView):
             for position, field in self.lockFields.items():
                 input_text = field.stringValue().strip()
                 if input_text:
-                    # 使用與 smartLockCharacterCallback 相同的辨識邏輯
-                    recognized_char = self.plugin._recognize_character(input_text)
-                    if recognized_char:
-                        self.plugin.lockedChars[position] = recognized_char
-                        debug_log(f"[同步] 位置 {position}: '{input_text}' → '{recognized_char}'")
+                    # 使用 event_handlers 的 _recognize_character 方法
+                    try:
+                        recognized_char = self.plugin.event_handlers._recognize_character(input_text)
+                        if recognized_char:
+                            self.plugin.lockedChars[position] = recognized_char
+                            debug_log(f"[同步] 位置 {position}: '{input_text}' → '{recognized_char}'")
+                        else:
+                            debug_log(f"[同步] 位置 {position}: '{input_text}' 無法辨識")
+                    except Exception as e:
+                        debug_log(f"[同步] 字符辨識錯誤: {e}")
+                        continue
                 else:
                     debug_log(f"[同步] 位置 {position}: 空輸入，不設定鎖定")
             
@@ -324,6 +376,11 @@ class LockFieldsPanel(NSView):
             if hasattr(self.plugin, 'savePreferences'):
                 self.plugin.savePreferences()
                 debug_log(f"[同步] 已儲存 {len(self.plugin.lockedChars)} 個鎖定字符到偏好設定")
+            
+            # 觸發重新生成排列
+            if hasattr(self.plugin, 'generateNewArrangement'):
+                debug_log("[同步] 觸發重新生成排列")
+                self.plugin.generateNewArrangement()
             
         except Exception as e:
             debug_log(f"同步輸入欄內容錯誤: {e}")

@@ -138,10 +138,8 @@ class EventHandlers:
             if not Glyphs.font:
                 return
             
-            # 解鎖狀態時，鎖定輸入欄不影響主視窗
+            # 解鎖狀態時，鎖定輸入欄不影響主視窗，但仍然更新 lockedChars
             is_in_clear_mode = self._get_lock_state()
-            if is_in_clear_mode:
-                return
             
             if not hasattr(self.plugin, 'lockedChars'):
                 self.plugin.lockedChars = {}
@@ -155,8 +153,6 @@ class EventHandlers:
                 if position in self.plugin.lockedChars:
                     del self.plugin.lockedChars[position]
                     arrangement_changed = True
-                else:
-                    return  # 沒有變更，直接返回
             else:
                 # 智能辨識
                 recognized_char = self._recognize_character(input_text)
@@ -165,25 +161,40 @@ class EventHandlers:
                 if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
                     self.plugin.lockedChars[position] = recognized_char
                     arrangement_changed = True
-                else:
-                    return  # 沒有變更，直接返回
             
-            # 有變更時更新排列並重繪
+            # 有變更時更新
             if arrangement_changed:
                 self.plugin.savePreferences()
                 
-                # 更新排列和畫面
-                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                    self.generate_new_arrangement()
-                elif self.plugin.lockedChars:  # 即使沒有選擇字符，如果有鎖定字符也更新
-                    self.generate_new_arrangement()
-                else:
-                    self.update_interface(sender)
-                
-                # 直接重繪主畫面，不更新控制面板UI
-                if hasattr(self.plugin, 'windowController') and self.plugin.windowController:
-                    if hasattr(self.plugin.windowController, 'redraw'):
-                        self.plugin.windowController.redraw()
+            # 處理鎖定狀態更新
+            if not is_in_clear_mode:
+                debug_log("[智能鎖定] 上鎖狀態 - 開始更新預覽")
+                try:
+                    # 更新排列
+                    if hasattr(self.plugin, 'selectedChars'):
+                        has_selected = bool(self.plugin.selectedChars)
+                        has_locked = bool(self.plugin.lockedChars)
+                        
+                        if has_selected or has_locked:
+                            debug_log("[智能鎖定] 重新生成排列")
+                            self.generate_new_arrangement()
+                        else:
+                            debug_log("[智能鎖定] 無選擇字符和鎖定字符，跳過更新")
+                    
+                    # 強制重繪
+                    if (hasattr(self.plugin, 'windowController') and 
+                        self.plugin.windowController and
+                        hasattr(self.plugin.windowController, 'previewView')):
+                        debug_log("[智能鎖定] 請求強制重繪")
+                        self.plugin.windowController.previewView.force_redraw()
+                    
+                    # 更新界面
+                    self.update_interface(None)
+                    
+                except Exception as e:
+                    debug_log(f"[智能鎖定] 更新預覽時發生錯誤：{e}")
+            else:
+                debug_log("[智能鎖定] 解鎖狀態 - 僅儲存輸入，不更新預覽")
         
         except Exception as e:
             debug_log(f"智能鎖定字符處理錯誤: {e}")
@@ -304,40 +315,74 @@ class EventHandlers:
     # === 字符排列生成 ===
     
     def generate_new_arrangement(self):
-        """生成新的字符排列（優化版）"""
-        # 驗證鎖定字符
-        if hasattr(self.plugin, 'lockedChars'):
-            self.plugin.lockedChars = validate_locked_positions(self.plugin.lockedChars, Glyphs.font)
-        
-        # 檢查是否應用鎖定
-        should_apply_locks = not self._get_lock_state()
-        
-        # 在解鎖狀態下且沒有selectedChars時清空排列
-        is_in_clear_mode = self._get_lock_state()
-        if is_in_clear_mode:
-            if not self.plugin.selectedChars:
-                self.plugin.currentArrangement = []
-                self.plugin.savePreferences()
+        """生成新的字符排列（強化版）"""
+        try:
+            debug_log("開始生成新排列")
+            
+            # 檢查字體和主版
+            if not Glyphs.font or not Glyphs.font.selectedFontMaster:
+                debug_log("警告：沒有開啟字體或選擇主版")
                 return
-        
-        # 特殊處理空的selectedChars但有lockedChars的情況
-        if not self.plugin.selectedChars:
-            # 使用當前編輯的字符或預設值
-            self._generate_default_arrangement(should_apply_locks)
-            return
-        
-        # 生成基礎排列
-        base_arrangement = generate_arrangement(self.plugin.selectedChars, 8)
-        
-        # 根據鎖頭狀態決定是否應用鎖定字符
-        if should_apply_locks and hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars:
-            self.plugin.currentArrangement = apply_locked_chars(
-                base_arrangement, self.plugin.lockedChars, self.plugin.selectedChars
-            )
-        else:
-            self.plugin.currentArrangement = base_arrangement
-        
-        self.plugin.savePreferences()
+            
+            # 確認當前狀態
+            is_in_clear_mode = self._get_lock_state()
+            should_apply_locks = not is_in_clear_mode
+            has_selected_chars = bool(self.plugin.selectedChars)
+            has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))
+            
+            debug_log(f"當前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
+            debug_log(f"已選擇字符：{self.plugin.selectedChars}")
+            debug_log(f"已鎖定字符：{getattr(self.plugin, 'lockedChars', {})}")
+            
+            # 驗證鎖定字符
+            if has_locked_chars:
+                self.plugin.lockedChars = validate_locked_positions(self.plugin.lockedChars, Glyphs.font)
+            
+            # 處理解鎖狀態
+            if is_in_clear_mode:
+                if not has_selected_chars:
+                    debug_log("解鎖狀態且無選擇字符：清空排列")
+                    self.plugin.currentArrangement = []
+                    self.plugin.savePreferences()
+                    return
+                else:
+                    debug_log("解鎖狀態：生成基本排列")
+                    self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+            
+            # 處理上鎖狀態
+            else:
+                if has_selected_chars:
+                    # 有選擇字符：生成基礎排列並應用鎖定
+                    base_arrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                    debug_log(f"生成基礎排列：{base_arrangement}")
+                    
+                    if has_locked_chars:
+                        self.plugin.currentArrangement = apply_locked_chars(
+                            base_arrangement,
+                            self.plugin.lockedChars,
+                            self.plugin.selectedChars
+                        )
+                        debug_log(f"應用鎖定後的排列：{self.plugin.currentArrangement}")
+                    else:
+                        self.plugin.currentArrangement = base_arrangement
+                else:
+                    # 無選擇字符：使用預設排列或當前字符
+                    self._generate_default_arrangement(should_apply_locks)
+            
+            # 儲存變更
+            self.plugin.savePreferences()
+            
+            # 要求強制重繪
+            if (hasattr(self.plugin, 'windowController') and 
+                self.plugin.windowController and
+                hasattr(self.plugin.windowController, 'previewView')):
+                debug_log("請求強制重繪")
+                self.plugin.windowController.previewView.force_redraw()
+            
+        except Exception as e:
+            debug_log(f"生成排列時發生錯誤：{e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
     
     # === 輔助方法 ===
     
