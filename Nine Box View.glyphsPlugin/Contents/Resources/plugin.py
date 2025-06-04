@@ -218,8 +218,9 @@ try:
                                    hasattr(sender, 'isKindOfClass_') and 
                                    sender.isKindOfClass_(NSTextField) and 
                                    hasattr(self.windowController, 'controlsPanelView') and
-                                   hasattr(self.windowController.controlsPanelView, 'searchField') and
-                                   sender == self.windowController.controlsPanelView.searchField)
+                                   hasattr(self.windowController.controlsPanelView, 'searchPanel') and
+                                   hasattr(self.windowController.controlsPanelView.searchPanel, 'searchField') and
+                                   sender == self.windowController.controlsPanelView.searchPanel.searchField)
             
             is_from_lock_field = (sender is not None and 
                                  hasattr(sender, 'isKindOfClass_') and 
@@ -429,8 +430,9 @@ try:
             if (hasattr(self, 'windowController') and self.windowController and 
                 hasattr(self.windowController, 'controlsPanelView') and 
                 self.windowController.controlsPanelView and 
-                hasattr(self.windowController.controlsPanelView, 'isInClearMode')):
-                return self.windowController.controlsPanelView.isInClearMode
+                hasattr(self.windowController.controlsPanelView, 'lockFieldsPanel') and
+                self.windowController.controlsPanelView.lockFieldsPanel):
+                return self.windowController.controlsPanelView.lockFieldsPanel.get_lock_state()
             
             # 從plugin對象讀取（控制面板未初始化時）
             return getattr(self, 'isInClearMode', False)  # 預設為上鎖
@@ -533,8 +535,9 @@ try:
                             if (hasattr(self, 'windowController') and 
                                 self.windowController and
                                 hasattr(self.windowController, 'controlsPanelView') and 
-                                self.windowController.controlsPanelView):
-                                self.windowController.controlsPanelView.updateSearchField()
+                                self.windowController.controlsPanelView and
+                                hasattr(self.windowController.controlsPanelView, 'searchPanel')):
+                                self.windowController.controlsPanelView.searchPanel.set_search_value(self.lastInput)
                             
                             self.savePreferences()
                             self.updateInterface(None)
@@ -830,9 +833,11 @@ try:
                 if (hasattr(self, 'windowController') and self.windowController and
                     hasattr(self.windowController, 'controlsPanelView') and 
                     self.windowController.controlsPanelView and 
-                    hasattr(self.windowController.controlsPanelView, 'lockFields')):
+                    hasattr(self.windowController.controlsPanelView, 'lockFieldsPanel') and
+                    self.windowController.controlsPanelView.lockFieldsPanel and
+                    hasattr(self.windowController.controlsPanelView.lockFieldsPanel, 'lockFields')):
                     
-                    for field in self.windowController.controlsPanelView.lockFields.values():
+                    for field in self.windowController.controlsPanelView.lockFieldsPanel.lockFields.values():
                         field.setStringValue_("")
                 
                 # 更新排列和介面，無論搜尋欄是否有內容都執行

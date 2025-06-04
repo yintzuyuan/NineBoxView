@@ -60,12 +60,28 @@ UI 模組 (`controls_panel_view.py`) 負責控制面板的內容佈局與事件�
         * 適當記錄關鍵繪製點的除錯資訊，便於追蹤問題。
 
 * **`controls_panel_view.py` (`ControlsPanelView`):**
-    * **職責:** (功能不變，程式碼已優化)
-        * 作為控制面板子視窗的 `contentView`。
-        * 佈局和管理所有 UI 元素。
-        * 將 UI 事件轉發給 `plugin.py` 的對應回呼函式。
-        * 實現 `update_ui` 方法，根據 `plugin.py` 的狀態更新界面。
-        * 管理 `LockCharacterField` 和鎖頭按鈕狀態。
+    * **職責:** (重構後)
+        * 作為控制面板子視窗的 `contentView`，但現在是一個容器。
+        * 管理兩個子面板：`SearchPanel` 和 `LockFieldsPanel`。
+        * 負責整體佈局和子面板的協調。
+        * 實現 `update_ui` 方法，將更新請求分發到各子面板。
+        * 處理主題變更和背景繪製。
+
+* **`search_panel.py` (`SearchPanel`):**
+    * **職責:** (新增)
+        * 管理長文本搜尋框的所有功能。
+        * 包含 `SearchTextField` 類別，支援右鍵選單。
+        * 處理搜尋文字變更事件，轉發給 `plugin.py` 的 `searchFieldCallback`。
+        * 提供 `update_content`、`get_search_value` 和 `set_search_value` 方法。
+
+* **`lock_fields_panel.py` (`LockFieldsPanel`):**
+    * **職責:** (新增)
+        * 管理鎖定輸入框九宮格和相關按鈕。
+        * 包含 `LockCharacterField` 類別，處理單字符輸入。
+        * 在九宮格中央放置鎖頭按鈕，控制鎖定模式。
+        * 底部放置清空鎖定按鈕。
+        * 處理鎖定字符輸入變更，轉發給 `plugin.py` 的 `smartLockCharacterCallback`。
+        * 管理鎖頭狀態和同步邏輯。
 
 * **`utils.py` (工具函數 - 優化版):**
     * **職責:**
