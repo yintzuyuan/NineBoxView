@@ -9,10 +9,11 @@ import traceback
 import objc
 from GlyphsApp import Glyphs
 from AppKit import (
-    NSView, NSTextField, NSFont, NSColor, NSApp,
+    NSView, NSTextView, NSScrollView, NSFont, NSColor, NSApp,
     NSMenu, NSMenuItem, NSNotificationCenter,
     NSViewWidthSizable, NSViewHeightSizable,
-    NSMakeRect, NSFocusRingTypeNone
+    NSMakeRect, NSFocusRingTypeNone, NSTextContainer,
+    NSLayoutManager, NSTextStorage, NSBorderlessWindowMask
 )
 from Foundation import NSObject
 
@@ -20,25 +21,42 @@ from constants import DEBUG_MODE
 from utils import debug_log
 
 
-class SearchTextField(NSTextField):
-    """支援右鍵選單的搜尋文本框"""
+class SearchTextView(NSTextView):
+    """支援右鍵選單的搜尋文本視圖"""
     
     def initWithFrame_plugin_(self, frame, plugin):
-        """初始化搜尋文本框"""
-        self = objc.super(SearchTextField, self).initWithFrame_(frame)
+        """初始化搜尋文本視圖"""
+        # 創建文本存儲和佈局管理器
+        textStorage = NSTextStorage.alloc().init()
+        layoutManager = NSLayoutManager.alloc().init()
+        textStorage.addLayoutManager_(layoutManager)
+        
+        # 創建文本容器
+        containerSize = NSMakeRect(0, 0, frame.size.width, 1000000.0).size
+        textContainer = NSTextContainer.alloc().initWithContainerSize_(containerSize)
+        textContainer.setWidthTracksTextView_(True)
+        textContainer.setHeightTracksTextView_(False)  # 允許垂直增長
+        layoutManager.addTextContainer_(textContainer)
+        
+        # 初始化 NSTextView
+        self = objc.super(SearchTextView, self).initWithFrame_textContainer_(frame, textContainer)
         if self:
             self.plugin = plugin
             self._setup_appearance()
             self._setup_context_menu()
             self._register_notifications()
+
         return self
     
     def _setup_appearance(self):
         """設定外觀"""
         self.setFont_(NSFont.systemFontOfSize_(16.0))
         self.setFocusRingType_(NSFocusRingTypeNone)
-        self.setBezeled_(True)
         self.setEditable_(True)
+        self.setSelectable_(True)
+        self.setRichText_(False)  # 只允許純文本
+        self.setImportsGraphics_(False)
+        self.setAllowsUndo_(True)
         
         # 設定符合 macOS 標準的背景顏色
         isDarkMode = NSApp.effectiveAppearance().name().containsString_("Dark")
@@ -47,15 +65,14 @@ class SearchTextField(NSTextField):
         else:
             self.setBackgroundColor_(NSColor.whiteColor())
         
-        # 設定提示文字
-        searchPlaceholder = Glyphs.localize({
+        # 儲存提示文字（NSTextView 沒有內建的 placeholder）
+        self.placeholderString = Glyphs.localize({
             'en': u'Enter characters or Nice Names...',
             'zh-Hant': u'輸入字符或 Nice Names...',
             'zh-Hans': u'输入字符或 Nice Names...',
             'ja': u'文字または Nice Names を入力...',
             'ko': u'문자 또는 Nice Names 입력...',
         })
-        self.setPlaceholderString_(searchPlaceholder)
         
         # 設定提示
         searchTooltip = Glyphs.localize({
@@ -66,6 +83,9 @@ class SearchTextField(NSTextField):
             'ko': u'여러 문자 또는 공백으로 구분된 Nice Names 입력',
         })
         self.setToolTip_(searchTooltip)
+        
+        # 初始顯示 placeholder
+        self._update_placeholder_visibility()
     
     def _setup_context_menu(self):
         """設定右鍵選單"""
@@ -94,10 +114,38 @@ class SearchTextField(NSTextField):
         NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
             self,
             "textDidChange:",
-            "NSControlTextDidChangeNotification",
+            "NSTextDidChangeNotification",
             self
         )
     
+
+    def _update_placeholder_visibility(self):
+        """更新 placeholder 的顯示"""
+        if self.string() == "":
+            # 顯示 placeholder
+            self.setTextColor_(NSColor.placeholderTextColor())
+            self.setString_(self.placeholderString)
+            self._isShowingPlaceholder = True
+        else:
+            self._isShowingPlaceholder = False
+    
+    def becomeFirstResponder(self):
+        """當文本視圖成為焦點時"""
+        result = objc.super(SearchTextView, self).becomeFirstResponder()
+        if result and hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
+            self.setString_("")
+            self.setTextColor_(NSColor.textColor())
+            self._isShowingPlaceholder = False
+        return result
+    
+    def resignFirstResponder(self):
+        """當文本視圖失去焦點時"""
+        result = objc.super(SearchTextView, self).resignFirstResponder()
+        if result:
+            self._update_placeholder_visibility()
+        return result
+    
+
     def pickGlyphAction_(self, sender):
         """選擇字符功能"""
         debug_log("選擇字符選單被點擊")
@@ -108,16 +156,36 @@ class SearchTextField(NSTextField):
     def textDidChange_(self, notification):
         """文本變更時的回調"""
         try:
-            debug_log(f"搜尋欄位文本變更: {self.stringValue()}")
+            # 處理 placeholder
+            if hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
+                self.setTextColor_(NSColor.textColor())
+                self._isShowingPlaceholder = False
+            
+            debug_log(f"搜尋欄位文本變更: {self.string()}")
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
         except Exception as e:
             debug_log(f"文本變更處理錯誤: {e}")
     
+    def stringValue(self):
+        """提供與 NSTextField 相容的 stringValue 方法"""
+        if hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
+            return ""
+        return self.string()
+    
+    def setStringValue_(self, value):
+        """提供與 NSTextField 相容的 setStringValue 方法"""
+        if value:
+            self.setTextColor_(NSColor.textColor())
+            self._isShowingPlaceholder = False
+            self.setString_(value)
+        else:
+            self._update_placeholder_visibility()
+    
     def dealloc(self):
         """析構函數"""
         NSNotificationCenter.defaultCenter().removeObserver_(self)
-        objc.super(SearchTextField, self).dealloc()
+        objc.super(SearchTextView, self).dealloc()
 
 
 class SearchPanel(NSView):
@@ -129,6 +197,7 @@ class SearchPanel(NSView):
         if self:
             self.plugin = plugin
             self.searchField = None
+            self.scrollView = None
             self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
             self._setup_ui()
         return self
@@ -137,12 +206,34 @@ class SearchPanel(NSView):
         """設定介面"""
         bounds = self.bounds()
         
-        # 創建搜尋欄位（填滿整個面板）
-        searchRect = NSMakeRect(0, 0, bounds.size.width, bounds.size.height)
-        self.searchField = SearchTextField.alloc().initWithFrame_plugin_(searchRect, self.plugin)
-        self.searchField.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        # 創建滾動視圖
+        self.scrollView = NSScrollView.alloc().initWithFrame_(bounds)
+        self.scrollView.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
+        self.scrollView.setBorderType_(1)  # NSBezelBorder
+        self.scrollView.setHasVerticalScroller_(True)
+        self.scrollView.setHasHorizontalScroller_(False)
+        self.scrollView.setAutohidesScrollers_(True)
         
-        self.addSubview_(self.searchField)
+        # 創建搜尋文本視圖
+        contentSize = self.scrollView.contentSize()
+        textViewFrame = NSMakeRect(0, 0, contentSize.width, contentSize.height)
+        self.searchField = SearchTextView.alloc().initWithFrame_plugin_(textViewFrame, self.plugin)
+        # 設定文本視圖可以垂直調整大小
+        self.searchField.setMinSize_(NSMakeRect(0, 0, 0, 0).size)
+        self.searchField.setMaxSize_(NSMakeRect(0, 0, 10000000, 10000000).size)
+        self.searchField.setVerticallyResizable_(True)
+        self.searchField.setHorizontallyResizable_(True)
+        self.searchField.setAutoresizingMask_(NSViewWidthSizable)
+        
+        # 設定文本容器
+        self.searchField.textContainer().setContainerSize_(NSMakeRect(0, 0, contentSize.width, 10000000).size)
+        self.searchField.textContainer().setWidthTracksTextView_(True)
+        self.searchField.textContainer().setHeightTracksTextView_(False)
+        
+        # 設定滾動視圖的文檔視圖
+        self.scrollView.setDocumentView_(self.searchField)
+        
+        self.addSubview_(self.scrollView)
     
     def update_content(self, plugin_state):
         """更新搜尋欄位內容"""
