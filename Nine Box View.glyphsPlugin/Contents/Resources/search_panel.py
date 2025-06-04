@@ -65,15 +65,6 @@ class SearchTextView(NSTextView):
         else:
             self.setBackgroundColor_(NSColor.whiteColor())
         
-        # 儲存提示文字（NSTextView 沒有內建的 placeholder）
-        self.placeholderString = Glyphs.localize({
-            'en': u'Enter characters or Nice Names...',
-            'zh-Hant': u'輸入字符或 Nice Names...',
-            'zh-Hans': u'输入字符或 Nice Names...',
-            'ja': u'文字または Nice Names を入力...',
-            'ko': u'문자 또는 Nice Names 입력...',
-        })
-        
         # 設定提示
         searchTooltip = Glyphs.localize({
             'en': u'Enter multiple characters or Nice Names separated by spaces',
@@ -83,9 +74,6 @@ class SearchTextView(NSTextView):
             'ko': u'여러 문자 또는 공백으로 구분된 Nice Names 입력',
         })
         self.setToolTip_(searchTooltip)
-        
-        # 初始顯示 placeholder
-        self._update_placeholder_visibility()
     
     def _setup_context_menu(self):
         """設定右鍵選單"""
@@ -119,30 +107,14 @@ class SearchTextView(NSTextView):
         )
     
 
-    def _update_placeholder_visibility(self):
-        """更新 placeholder 的顯示"""
-        if self.string() == "":
-            # 顯示 placeholder
-            self.setTextColor_(NSColor.placeholderTextColor())
-            self.setString_(self.placeholderString)
-            self._isShowingPlaceholder = True
-        else:
-            self._isShowingPlaceholder = False
-    
     def becomeFirstResponder(self):
         """當文本視圖成為焦點時"""
         result = objc.super(SearchTextView, self).becomeFirstResponder()
-        if result and hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
-            self.setString_("")
-            self.setTextColor_(NSColor.textColor())
-            self._isShowingPlaceholder = False
         return result
     
     def resignFirstResponder(self):
         """當文本視圖失去焦點時"""
         result = objc.super(SearchTextView, self).resignFirstResponder()
-        if result:
-            self._update_placeholder_visibility()
         return result
     
 
@@ -156,11 +128,6 @@ class SearchTextView(NSTextView):
     def textDidChange_(self, notification):
         """文本變更時的回調"""
         try:
-            # 處理 placeholder
-            if hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
-                self.setTextColor_(NSColor.textColor())
-                self._isShowingPlaceholder = False
-            
             debug_log(f"搜尋欄位文本變更: {self.string()}")
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
@@ -169,18 +136,14 @@ class SearchTextView(NSTextView):
     
     def stringValue(self):
         """提供與 NSTextField 相容的 stringValue 方法"""
-        if hasattr(self, '_isShowingPlaceholder') and self._isShowingPlaceholder:
-            return ""
         return self.string()
     
     def setStringValue_(self, value):
         """提供與 NSTextField 相容的 setStringValue 方法"""
         if value:
-            self.setTextColor_(NSColor.textColor())
-            self._isShowingPlaceholder = False
             self.setString_(value)
         else:
-            self._update_placeholder_visibility()
+            self.setString_("")
     
     def dealloc(self):
         """析構函數"""
