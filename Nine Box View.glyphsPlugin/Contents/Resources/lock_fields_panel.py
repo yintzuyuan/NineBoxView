@@ -275,6 +275,14 @@ class LockFieldsPanel(NSView):
                 debug_log("警告：event_handlers 未初始化，無法進行同步")
                 return
             
+            # 記錄切換前有內容的輸入框位置
+            positions_with_content = []
+            if hasattr(self, 'lockFields') and self.lockFields:
+                for position, field in self.lockFields.items():
+                    if field.stringValue().strip():
+                        positions_with_content.append(position)
+                debug_log(f"切換前有內容的輸入框位置: {positions_with_content}")
+            
             # 從解鎖切換到上鎖時同步輸入框內容
             if was_in_clear_mode:
                 debug_log("從🔓解鎖切換到🔒鎖定：開始同步流程")
@@ -307,7 +315,7 @@ class LockFieldsPanel(NSView):
                 debug_log(f"已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
                 
                 # === 修改：特殊處理鎖頭切換的排列更新 ===
-                self._update_arrangement_for_lock_toggle()
+                self._update_arrangement_for_lock_toggle(positions_with_content)
                 
                 # 請求強制重繪 - 每次切換都需要更新預覽
                 if (hasattr(self.plugin, 'windowController') and 
@@ -328,7 +336,7 @@ class LockFieldsPanel(NSView):
             if hasattr(self, 'lockButton'):
                 self.updateLockButton()
     
-    def _update_arrangement_for_lock_toggle(self):
+    def _update_arrangement_for_lock_toggle(self, positions_with_content):
         """特殊處理鎖頭切換時的排列更新（只更新有內容的輸入框位置）"""
         try:
             if not hasattr(self.plugin, 'currentArrangement'):
@@ -341,11 +349,27 @@ class LockFieldsPanel(NSView):
             
             debug_log(f"[鎖頭切換更新] 狀態: {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
             debug_log(f"[鎖頭切換更新] 有鎖定字符: {has_locked_chars}, 有選擇字符: {has_selected_chars}")
+            debug_log(f"[鎖頭切換更新] 有內容的位置: {positions_with_content}")
             
             if is_in_clear_mode:
-                # === 解鎖狀態：生成新的隨機排列 ===
-                if has_selected_chars:
-                    # 有選擇字符：生成新的隨機排列
+                # === 解鎖狀態：只更新有內容的輸入框對應位置 ===
+                if positions_with_content and self.plugin.currentArrangement and len(self.plugin.currentArrangement) >= 8:
+                    # 只替換切換前有內容的位置為隨機字符
+                    if has_selected_chars:
+                        for position in positions_with_content:
+                            if position < len(self.plugin.currentArrangement):
+                                replacement_char = random.choice(self.plugin.selectedChars)
+                                self.plugin.currentArrangement[position] = replacement_char
+                                debug_log(f"[鎖頭切換更新] 解鎖 - 位置 {position} 替換為: {replacement_char}")
+                        debug_log(f"[鎖頭切換更新] 解鎖狀態 - 只更新了位置 {positions_with_content}")
+                        debug_log(f"[鎖頭切換更新] 最終排列: {self.plugin.currentArrangement}")
+                        return  # 完成更新，直接返回
+                    else:
+                        # 沒有選擇字符時清空排列
+                        self.plugin.currentArrangement = []
+                        debug_log("[鎖頭切換更新] 解鎖狀態 - 無選擇字符，清空排列")
+                elif has_selected_chars:
+                    # 沒有現有排列，生成新的隨機排列
                     from utils import generate_arrangement
                     self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
                     debug_log(f"[鎖頭切換更新] 解鎖狀態 - 生成新隨機排列: {self.plugin.currentArrangement}")
@@ -380,15 +404,19 @@ class LockFieldsPanel(NSView):
                     debug_log(f"[鎖頭切換更新] 最終排列: {self.plugin.currentArrangement}")
                 else:
                     # 沒有鎖定字符，但在上鎖狀態
-                    if has_selected_chars:
-                        from utils import generate_arrangement
-                        self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
-                        debug_log(f"[鎖頭切換更新] 上鎖狀態但無鎖定 - 生成隨機排列: {self.plugin.currentArrangement}")
+                    # 保持現有排列不變，如果沒有排列才生成新的
+                    if not self.plugin.currentArrangement or len(self.plugin.currentArrangement) < 8:
+                        if has_selected_chars:
+                            from utils import generate_arrangement
+                            self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                            debug_log(f"[鎖頭切換更新] 上鎖狀態但無鎖定 - 生成隨機排列: {self.plugin.currentArrangement}")
+                        else:
+                            # 使用當前編輯的字符
+                            current_char = self._get_current_editing_char()
+                            self.plugin.currentArrangement = [current_char] * 8
+                            debug_log(f"[鎖頭切換更新] 上鎖狀態但無選擇 - 使用當前字符: {current_char}")
                     else:
-                        # 使用當前編輯的字符
-                        current_char = self._get_current_editing_char()
-                        self.plugin.currentArrangement = [current_char] * 8
-                        debug_log(f"[鎖頭切換更新] 上鎖狀態但無選擇 - 使用當前字符: {current_char}")
+                        debug_log("[鎖頭切換更新] 上鎖狀態無鎖定 - 保持現有排列不變")
             
         except Exception as e:
             debug_log(f"[鎖頭切換更新] 錯誤: {e}")
