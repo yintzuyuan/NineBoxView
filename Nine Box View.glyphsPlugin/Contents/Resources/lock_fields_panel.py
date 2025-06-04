@@ -306,16 +306,10 @@ class LockFieldsPanel(NSView):
                 self.plugin.isInClearMode = self.isInClearMode
                 debug_log(f"已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
                 
-                # 強制重新生成排列（僅在上鎖狀態）
-                if not self.isInClearMode:
-                    if hasattr(self.plugin, 'event_handlers'):
-                        debug_log("上鎖狀態：強制重新生成排列")
-                        self.plugin.event_handlers.generate_new_arrangement()
-                    else:
-                        debug_log("上鎖狀態：使用一般生成排列")
-                        self.plugin.generateNewArrangement()
+                # === 修改：特殊處理鎖頭切換的排列更新 ===
+                self._update_arrangement_for_lock_toggle()
                 
-                # 請求強制重繪
+                # 請求強制重繪 - 每次切換都需要更新預覽
                 if (hasattr(self.plugin, 'windowController') and 
                     self.plugin.windowController and
                     hasattr(self.plugin.windowController, 'previewView')):
@@ -333,6 +327,91 @@ class LockFieldsPanel(NSView):
             debug_log(f"切換鎖頭模式錯誤: {e}")
             if hasattr(self, 'lockButton'):
                 self.updateLockButton()
+    
+    def _update_arrangement_for_lock_toggle(self):
+        """特殊處理鎖頭切換時的排列更新（只更新有內容的輸入框位置）"""
+        try:
+            if not hasattr(self.plugin, 'currentArrangement'):
+                self.plugin.currentArrangement = []
+            
+            # 檢查目前狀態
+            is_in_clear_mode = self.isInClearMode
+            has_locked_chars = hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars
+            has_selected_chars = hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars
+            
+            debug_log(f"[鎖頭切換更新] 狀態: {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
+            debug_log(f"[鎖頭切換更新] 有鎖定字符: {has_locked_chars}, 有選擇字符: {has_selected_chars}")
+            
+            if is_in_clear_mode:
+                # === 解鎖狀態：生成新的隨機排列 ===
+                if has_selected_chars:
+                    # 有選擇字符：生成新的隨機排列
+                    from utils import generate_arrangement
+                    self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                    debug_log(f"[鎖頭切換更新] 解鎖狀態 - 生成新隨機排列: {self.plugin.currentArrangement}")
+                else:
+                    # 沒有選擇字符：清空排列
+                    self.plugin.currentArrangement = []
+                    debug_log("[鎖頭切換更新] 解鎖狀態 - 清空排列")
+            else:
+                # === 上鎖狀態：只更新有鎖定內容的位置 ===
+                if has_locked_chars:
+                    # 確保有基礎排列
+                    if not self.plugin.currentArrangement or len(self.plugin.currentArrangement) < 8:
+                        # 如果沒有或不完整，先建立基礎排列
+                        if has_selected_chars:
+                            from utils import generate_arrangement
+                            self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                        else:
+                            # 使用當前編輯的字符填充
+                            current_char = self._get_current_editing_char()
+                            self.plugin.currentArrangement = [current_char] * 8
+                        debug_log(f"[鎖頭切換更新] 建立基礎排列: {self.plugin.currentArrangement}")
+                    
+                    # 只更新有鎖定內容的位置
+                    updated_positions = []
+                    for position, char_or_name in self.plugin.lockedChars.items():
+                        if position < len(self.plugin.currentArrangement):
+                            self.plugin.currentArrangement[position] = char_or_name
+                            updated_positions.append(position)
+                            debug_log(f"[鎖頭切換更新] 更新位置 {position}: {char_or_name}")
+                    
+                    debug_log(f"[鎖頭切換更新] 上鎖狀態 - 只更新了位置 {updated_positions}")
+                    debug_log(f"[鎖頭切換更新] 最終排列: {self.plugin.currentArrangement}")
+                else:
+                    # 沒有鎖定字符，但在上鎖狀態
+                    if has_selected_chars:
+                        from utils import generate_arrangement
+                        self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                        debug_log(f"[鎖頭切換更新] 上鎖狀態但無鎖定 - 生成隨機排列: {self.plugin.currentArrangement}")
+                    else:
+                        # 使用當前編輯的字符
+                        current_char = self._get_current_editing_char()
+                        self.plugin.currentArrangement = [current_char] * 8
+                        debug_log(f"[鎖頭切換更新] 上鎖狀態但無選擇 - 使用當前字符: {current_char}")
+            
+        except Exception as e:
+            debug_log(f"[鎖頭切換更新] 錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
+    
+    def _get_current_editing_char(self):
+        """取得當前正在編輯的字符"""
+        try:
+            if Glyphs.font and Glyphs.font.selectedLayers:
+                current_layer = Glyphs.font.selectedLayers[0]
+                if current_layer and current_layer.parent:
+                    current_glyph = current_layer.parent
+                    if current_glyph.unicode:
+                        try:
+                            return chr(int(current_glyph.unicode, 16))
+                        except:
+                            pass
+                    if current_glyph.name:
+                        return current_glyph.name
+        except:
+            pass
+        return "A"  # 預設值
     
     def _sync_input_fields_to_locked_chars(self):
         """同步輸入欄內容到 plugin.lockedChars（修正版）"""
