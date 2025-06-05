@@ -235,7 +235,7 @@ def save_preferences(plugin):
 # === 字符處理 ===
 
 def get_cached_glyph(font, char_or_name):
-    """從快取或字型取得字符
+    """從快取或字型取得字符（優化版）
     
     Args:
         font: 字型物件
@@ -255,30 +255,43 @@ def get_cached_glyph(font, char_or_name):
     # 嘗試取得字符
     glyph = None
     
-    # 嘗試直接取得
-    if char_or_name in font.glyphs:
+    # 優化：使用 Glyphs 內建的快速查找方法
+    try:
+        # 1. 直接通過 glyphs 字典存取（最快）
         glyph = font.glyphs[char_or_name]
+        if glyph:
+            if CACHE_ENABLED:
+                _glyph_cache[cache_key] = glyph
+            return glyph
+    except:
+        pass
     
-    # 嘗試用 glyphForCharacter（對單一字符）
-    elif len(char_or_name) == 1:
-        glyph = font.glyphForCharacter_(ord(char_or_name))
+    # 2. 如果是單一字符，嘗試通過 Unicode
+    if len(char_or_name) == 1:
+        try:
+            unicode_val = format(ord(char_or_name), '04X')
+            glyph = font.glyphs[unicode_val]
+            if glyph:
+                if CACHE_ENABLED:
+                    _glyph_cache[cache_key] = glyph
+                return glyph
+        except:
+            pass
     
-    # 嘗試用 glyphForName（Nice Name）
-    if not glyph:
+    # 3. 嘗試用 glyphForName（Nice Name）
+    try:
         glyph = font.glyphForName_(char_or_name)
+        if glyph:
+            if CACHE_ENABLED:
+                _glyph_cache[cache_key] = glyph
+            return glyph
+    except:
+        pass
     
-    # 嘗試搜尋（包含）
-    if not glyph:
-        for g in font.glyphs:
-            if g.name and char_or_name in g.name:
-                glyph = g
-                break
+    # 移除遍歷所有字符的部分，這在大型字型中會造成嚴重效能問題
+    # 如果上述方法都找不到，就返回 None
     
-    # 儲存到快取
-    if CACHE_ENABLED and glyph:
-        _glyph_cache[cache_key] = glyph
-    
-    return glyph
+    return None
 
 def get_cached_width(layer):
     """從快取取得字符寬度
