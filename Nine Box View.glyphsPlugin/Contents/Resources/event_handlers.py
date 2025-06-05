@@ -95,6 +95,10 @@ class EventHandlers:
         if input_text:
             new_chars = parse_input_text(input_text)
             
+            # 確保 selectedChars 是可變列表
+            if hasattr(self.plugin, 'selectedChars'):
+                self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                
             if new_chars != self.plugin.selectedChars:
                 self.plugin.selectedChars = new_chars
                 self.generate_new_arrangement()
@@ -103,6 +107,10 @@ class EventHandlers:
             is_in_clear_mode = self._get_lock_state()
             has_locked_chars = hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars
             
+            # 確保 selectedChars 是可變列表
+            if hasattr(self.plugin, 'selectedChars'):
+                self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                
             self.plugin.selectedChars = []  # 清空selectedChars
             
             if not is_in_clear_mode and has_locked_chars:
@@ -110,6 +118,7 @@ class EventHandlers:
                 self.generate_new_arrangement()
             else:
                 # 解鎖狀態或沒有鎖定字符，清空currentArrangement
+                # 確保 currentArrangement 是可變列表
                 self.plugin.currentArrangement = []
 
         # 更新介面與控制面板
@@ -218,6 +227,10 @@ class EventHandlers:
                 for field in self.plugin.windowController.controlsPanelView.lockFieldsPanel.lockFields.values():
                     field.setStringValue_("")
             
+            # 確保selectedChars是可變列表
+            if hasattr(self.plugin, 'selectedChars'):
+                self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+            
             # 更新排列和介面
             self.generate_new_arrangement()
             self.plugin.savePreferences()
@@ -297,6 +310,10 @@ class EventHandlers:
     
     def randomize_callback(self, sender):
         """隨機排列按鈕回調（優化版）"""
+        # 確保 selectedChars 是可變列表
+        if hasattr(self.plugin, 'selectedChars'):
+            self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+            
         if not self.plugin.selectedChars:
             if Glyphs.font and Glyphs.font.selectedLayers:
                 self.update_interface(None)
@@ -356,20 +373,24 @@ class EventHandlers:
                     return
                 else:
                     debug_log("解鎖狀態：生成基本排列")
-                    self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                    # 確保 selectedChars 是可變列表
+                    selected_chars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                    self.plugin.currentArrangement = generate_arrangement(selected_chars, 8)
             
             # 處理上鎖狀態
             else:
                 if has_selected_chars:
                     # 有選擇字符：生成基礎排列並應用鎖定
-                    base_arrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                    # 確保 selectedChars 是可變列表
+                    selected_chars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                    base_arrangement = generate_arrangement(selected_chars, 8)
                     debug_log(f"生成基礎排列：{base_arrangement}")
                     
                     if has_locked_chars:
                         self.plugin.currentArrangement = apply_locked_chars(
                             base_arrangement,
                             self.plugin.lockedChars,
-                            self.plugin.selectedChars
+                            selected_chars
                         )
                         debug_log(f"應用鎖定後的排列：{self.plugin.currentArrangement}")
                     else:
@@ -412,33 +433,43 @@ class EventHandlers:
                     current_char = self._get_current_editing_char()
                     self.plugin.currentArrangement = [current_char] * 8
             
+            # 創建 currentArrangement 的可變複本
+            # 處理可能是不可變 NSArray 的情況
+            if hasattr(self.plugin, 'currentArrangement'):
+                current_arr = list(self.plugin.currentArrangement)
+            else:
+                current_arr = []
+            
             # 確保排列有足夠的長度
-            while len(self.plugin.currentArrangement) < 8:
+            while len(current_arr) < 8:
                 if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
                     import random
-                    self.plugin.currentArrangement.append(random.choice(self.plugin.selectedChars))
+                    current_arr.append(random.choice(self.plugin.selectedChars))
                 else:
-                    self.plugin.currentArrangement.append(self._get_current_editing_char())
+                    current_arr.append(self._get_current_editing_char())
             
             # 更新特定位置
-            if position < len(self.plugin.currentArrangement):
+            if position < len(current_arr):
                 if input_text:
                     # 有輸入：更新為識別的字符
                     recognized_char = self._recognize_character(input_text)
-                    self.plugin.currentArrangement[position] = recognized_char
+                    current_arr[position] = recognized_char
                     debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
                 else:
                     # 清空輸入：用隨機字符替換
                     if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
                         import random
                         replacement_char = random.choice(self.plugin.selectedChars)
-                        self.plugin.currentArrangement[position] = replacement_char
+                        current_arr[position] = replacement_char
                         debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")
                     else:
                         # 沒有選擇字符，使用當前編輯字符
                         current_char = self._get_current_editing_char()
-                        self.plugin.currentArrangement[position] = current_char
+                        current_arr[position] = current_char
                         debug_log(f"[單一更新] 位置 {position} 清空，使用當前字符: {current_char}")
+            
+            # 將修改後的數組賦值回plugin
+            self.plugin.currentArrangement = current_arr
             
             # 儲存更新
             self.plugin.savePreferences()
@@ -532,8 +563,6 @@ class EventHandlers:
         # 7. 絕對保底：返回 "A"
         return "A"
     
-
-    
     def _generate_default_arrangement(self, should_apply_locks):
         """生成預設排列"""
         # 如果是上鎖狀態且有鎖定字符，使用當前編輯的字符作為基礎排列
@@ -560,9 +589,11 @@ class EventHandlers:
                     base_arrangement = [current_char] * 8
                     
                     # 應用鎖定字符
-                    self.plugin.currentArrangement = apply_locked_chars(
+                    # 確保返回的是可變列表
+                    applied_arrangement = apply_locked_chars(
                         base_arrangement, self.plugin.lockedChars, []
                     )
+                    self.plugin.currentArrangement = list(applied_arrangement) if applied_arrangement else []
                     self.plugin.savePreferences()
                     return
         

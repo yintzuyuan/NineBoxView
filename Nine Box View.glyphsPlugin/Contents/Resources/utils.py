@@ -79,19 +79,81 @@ def load_preferences(plugin):
         plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
         plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
-        plugin.windowPosition = Glyphs.defaults[WINDOW_POSITION_KEY]
+        
+        # 處理窗口位置 - 從字典轉換為 CGPoint
+        window_pos_dict = Glyphs.defaults[WINDOW_POSITION_KEY]
+        if window_pos_dict and isinstance(window_pos_dict, dict) and 'x' in window_pos_dict and 'y' in window_pos_dict:
+            from Foundation import NSPoint
+            plugin.windowPosition = NSPoint(window_pos_dict['x'], window_pos_dict['y'])
+        else:
+            plugin.windowPosition = None
+            
         plugin.controlsPanelVisible = Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY]
-        plugin.lockedChars = Glyphs.defaults[LOCKED_CHARS_KEY] or {}
-        plugin.previousLockedChars = Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] or {}
+        
+        # 使用 JSON 解碼載入 lockedChars
+        import json
+        
+        # 載入鎖定字符並處理 JSON 解碼
+        locked_chars_json = Glyphs.defaults[LOCKED_CHARS_KEY]
+        plugin.lockedChars = {}
+        
+        if locked_chars_json:
+            try:
+                # 嘗試解析 JSON 字串
+                if isinstance(locked_chars_json, str):
+                    locked_chars_dict = json.loads(locked_chars_json)
+                    
+                    # 將字串鍵轉換為整數鍵
+                    for position_str, char_or_name in locked_chars_dict.items():
+                        try:
+                            position = int(position_str)
+                            plugin.lockedChars[position] = char_or_name
+                        except:
+                            debug_log(f"警告: 忽略非整數位置 '{position_str}'")
+                elif isinstance(locked_chars_json, dict):
+                    # 舊格式兼容 - 直接是字典
+                    for position_str, char_or_name in locked_chars_json.items():
+                        try:
+                            position = int(position_str)
+                            plugin.lockedChars[position] = char_or_name
+                        except:
+                            debug_log(f"警告: 忽略非整數位置 '{position_str}'")
+            except Exception as e:
+                error_log(f"解析 lockedChars JSON 時出錯: {e}")
+        
+        # 載入前一版鎖定字符並處理 JSON 解碼
+        previous_locked_chars_json = Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY]
+        plugin.previousLockedChars = {}
+        
+        if previous_locked_chars_json:
+            try:
+                # 嘗試解析 JSON 字串
+                if isinstance(previous_locked_chars_json, str):
+                    previous_locked_chars_dict = json.loads(previous_locked_chars_json)
+                    
+                    # 將字串鍵轉換為整數鍵
+                    for position_str, char_or_name in previous_locked_chars_dict.items():
+                        try:
+                            position = int(position_str)
+                            plugin.previousLockedChars[position] = char_or_name
+                        except:
+                            debug_log(f"警告: 忽略非整數位置 '{position_str}'")
+                elif isinstance(previous_locked_chars_json, dict):
+                    # 舊格式兼容 - 直接是字典
+                    for position_str, char_or_name in previous_locked_chars_json.items():
+                        try:
+                            position = int(position_str)
+                            plugin.previousLockedChars[position] = char_or_name
+                        except:
+                            debug_log(f"警告: 忽略非整數位置 '{position_str}'")
+            except Exception as e:
+                error_log(f"解析 previousLockedChars JSON 時出錯: {e}")
+        
         plugin.isInClearMode = Glyphs.defaults[LOCK_MODE_KEY] or False
         
         # 確保 controlsPanelVisible 有預設值
         if plugin.controlsPanelVisible is None:
             plugin.controlsPanelVisible = True
-        
-        # 處理 lockedChars 的鍵值類型
-        if isinstance(plugin.lockedChars, dict):
-            plugin.lockedChars = {int(k): v for k, v in plugin.lockedChars.items()}
         
         debug_log(f"載入偏好設定：lastInput='{plugin.lastInput}', "
                  f"selectedChars={plugin.selectedChars}, "
@@ -114,13 +176,55 @@ def save_preferences(plugin):
         Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         
+        # 處理窗口位置 - 將 CGPoint 轉換為字典
         if hasattr(plugin, 'windowController') and plugin.windowController:
             if hasattr(plugin.windowController, 'window') and plugin.windowController.window():
-                Glyphs.defaults[WINDOW_POSITION_KEY] = plugin.windowController.window().frame().origin
+                frame_origin = plugin.windowController.window().frame().origin
+                # 儲存為字典格式，而非直接儲存 CGPoint
+                window_pos_dict = {'x': frame_origin.x, 'y': frame_origin.y}
+                Glyphs.defaults[WINDOW_POSITION_KEY] = window_pos_dict
         
         Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = plugin.controlsPanelVisible
-        Glyphs.defaults[LOCKED_CHARS_KEY] = plugin.lockedChars
-        Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = plugin.previousLockedChars
+        
+        # 使用 JSON 編碼安全處理 lockedChars 和 previousLockedChars
+        import json
+        
+        # 安全處理 lockedChars - 使用 JSON 字串格式
+        if hasattr(plugin, 'lockedChars') and plugin.lockedChars:
+            # 將整數鍵轉換為字符串鍵，以便 JSON 序列化
+            locked_chars_json = {}
+            for position, char_or_name in plugin.lockedChars.items():
+                locked_chars_json[str(position)] = char_or_name
+            
+            try:
+                # 將字典轉換為 JSON 字串
+                json_str = json.dumps(locked_chars_json)
+                Glyphs.defaults[LOCKED_CHARS_KEY] = json_str
+                debug_log(f"已將 lockedChars 編碼為 JSON: {json_str}")
+            except Exception as e:
+                error_log(f"儲存 lockedChars 時 JSON 編碼失敗: {e}")
+                Glyphs.defaults[LOCKED_CHARS_KEY] = "{}"  # 使用空字典字串作為安全值
+        else:
+            Glyphs.defaults[LOCKED_CHARS_KEY] = "{}"  # 使用空字典字串
+            
+        # 安全處理 previousLockedChars - 使用 JSON 字串格式
+        if hasattr(plugin, 'previousLockedChars') and plugin.previousLockedChars:
+            # 將整數鍵轉換為字符串鍵，以便 JSON 序列化
+            previous_locked_chars_json = {}
+            for position, char_or_name in plugin.previousLockedChars.items():
+                previous_locked_chars_json[str(position)] = char_or_name
+            
+            try:
+                # 將字典轉換為 JSON 字串
+                json_str = json.dumps(previous_locked_chars_json)
+                Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = json_str
+                debug_log(f"已將 previousLockedChars 編碼為 JSON: {json_str}")
+            except Exception as e:
+                error_log(f"儲存 previousLockedChars 時 JSON 編碼失敗: {e}")
+                Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = "{}"  # 使用空字典字串作為安全值
+        else:
+            Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = "{}"  # 使用空字典字串
+            
         Glyphs.defaults[LOCK_MODE_KEY] = plugin.isInClearMode
         
         debug_log("已儲存偏好設定")
