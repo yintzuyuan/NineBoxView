@@ -121,9 +121,8 @@ class SearchTextView(NSTextView):
     def pickGlyphAction_(self, sender):
         """選擇字符功能"""
         debug_log("選擇字符選單被點擊")
-        # 功能暫未實現
-        # if hasattr(self, 'plugin') and self.plugin:
-        #     self.plugin.pickGlyphCallback(sender)
+        if hasattr(self, 'plugin') and self.plugin:
+            self.plugin.pickGlyphCallback(sender)
     
     def textDidChange_(self, notification):
         """文本變更時的回調"""

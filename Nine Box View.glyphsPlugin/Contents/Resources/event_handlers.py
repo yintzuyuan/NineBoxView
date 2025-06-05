@@ -6,7 +6,7 @@ Nine Box Preview Plugin - Event Handlers
 
 from __future__ import division, print_function, unicode_literals
 import traceback
-from GlyphsApp import Glyphs
+from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
 from constants import DEBUG_MODE, DEFAULT_ZOOM
 from utils import debug_log, parse_input_text, generate_arrangement, apply_locked_chars, validate_locked_positions, get_cached_glyph
@@ -243,48 +243,73 @@ class EventHandlers:
     # === 其他回調 ===
     
     def pick_glyph_callback(self, sender):
-        """選擇字符按鈕回調（優化版）"""
+        """選擇字符按鈕回調（使用官方 PickGlyphs API）"""
         try:
             if not Glyphs.font:
                 debug_log("警告：沒有開啟字型檔案")
                 return
             
-            # 準備選項列表
-            options = self._prepare_glyph_options()
+            # 使用官方 PickGlyphs API
+            choice = PickGlyphs(
+                content=list(Glyphs.font.glyphs),
+                masterID=Glyphs.font.selectedFontMaster.id,
+                searchString=self.plugin.lastInput if hasattr(self.plugin, 'lastInput') else "",
+                defaultsKey="com.YinTzuYuan.NineBoxView.search"
+            )
             
-            if options:
-                selection = Glyphs.displayDialog(
-                    Glyphs.localize({
-                        'en': u'Select glyphs (use Shift/Cmd for multiple selections)',
-                        'zh-Hant': u'選擇字符（使用 Shift/Cmd 進行多選）',
-                        'zh-Hans': u'选择字符（使用 Shift/Cmd 进行多选）',
-                        'ja': u'グリフを選択（複数選択には Shift/Cmd を使用）',
-                        'ko': u'글자 선택 (여러 개를 선택하려면 Shift/Cmd 사용)',
-                    }),
-                    options,
-                    allowsMultipleSelection=True
-                )
+            if choice and choice[0]:
+                selected_chars = []
+                for selection in choice[0]:
+                    if isinstance(selection, GSGlyph):
+                        # 優先使用 Unicode 字符，如果沒有則使用字符名稱
+                        if selection.unicode:
+                            try:
+                                char = chr(int(selection.unicode, 16))
+                                selected_chars.append(char)
+                            except:
+                                selected_chars.append(selection.name)
+                        else:
+                            selected_chars.append(selection.name)
                 
-                if selection:
-                    selected_chars = self._parse_glyph_selection(selection)
+                if selected_chars:
+                    # 獲取搜尋框的當前內容
+                    if (hasattr(self.plugin, 'windowController') and 
+                        self.plugin.windowController and
+                        hasattr(self.plugin.windowController, 'controlsPanelView') and 
+                        self.plugin.windowController.controlsPanelView and
+                        hasattr(self.plugin.windowController.controlsPanelView, 'searchPanel') and
+                        self.plugin.windowController.controlsPanelView.searchPanel):
+                        
+                        search_panel = self.plugin.windowController.controlsPanelView.searchPanel
+                        current_text = search_panel.get_search_value()
+                        
+                        # 將選取的字符用空格連接
+                        chars_to_insert = ' '.join(selected_chars)
+                        
+                        # 如果當前文字不是空的，且最後一個字符不是空格，則加入空格
+                        if current_text and not current_text.endswith(' '):
+                            new_text = current_text + ' ' + chars_to_insert
+                        else:
+                            new_text = current_text + chars_to_insert
+                        
+                        # 設定新的文字
+                        search_panel.set_search_value(new_text)
+                        
+                        # 觸發 searchFieldCallback 以更新介面
+                        # 創建一個模擬的 sender 物件
+                        class MockSender:
+                            def __init__(self, value):
+                                self.value = value
+                            def stringValue(self):
+                                return self.value
+                        
+                        mock_sender = MockSender(new_text)
+                        self.search_field_callback(mock_sender)
                     
-                    if selected_chars:
-                        self.plugin.selectedChars = selected_chars
-                        self.generate_new_arrangement()
-                        self.plugin.lastInput = "".join(selected_chars)
-                        
-                        if (hasattr(self.plugin, 'windowController') and 
-                            self.plugin.windowController and
-                            hasattr(self.plugin.windowController, 'controlsPanelView') and 
-                            self.plugin.windowController.controlsPanelView and
-                            hasattr(self.plugin.windowController.controlsPanelView, 'searchPanel')):
-                            self.plugin.windowController.controlsPanelView.searchPanel.set_search_value(self.plugin.lastInput)
-                        
-                        self.plugin.savePreferences()
-                        self.update_interface(None)
-                        
         except Exception as e:
             debug_log(f"選擇字符錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
     
     def randomize_callback(self, sender):
         """隨機排列按鈕回調（優化版）"""
@@ -453,29 +478,7 @@ class EventHandlers:
         # 7. 絕對保底：返回 "A"
         return "A"
     
-    def _prepare_glyph_options(self):
-        """準備字形選項列表"""
-        options = []
-        for glyph in Glyphs.font.glyphs:
-            if glyph.unicode:
-                try:
-                    char = chr(int(glyph.unicode, 16))
-                    options.append(f"{char} ({glyph.name})")
-                except:
-                    options.append(f".notdef ({glyph.name})")
-            else:
-                options.append(f".notdef ({glyph.name})")
-        return options
-    
-    def _parse_glyph_selection(self, selection):
-        """解析選擇的字形"""
-        selected_chars = []
-        for item in selection:
-            if " (" in item and ")" in item:
-                char = item.split(" (")[0]
-                if char != ".notdef":
-                    selected_chars.append(char)
-        return selected_chars
+
     
     def _generate_default_arrangement(self, should_apply_locks):
         """生成預設排列"""
