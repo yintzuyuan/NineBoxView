@@ -17,6 +17,7 @@ class EventHandlers:
     
     def __init__(self, plugin):
         self.plugin = plugin
+        
     
     # === 界面更新 ===
     
@@ -319,9 +320,22 @@ class EventHandlers:
             self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
             
         if not self.plugin.selectedChars:
+            debug_log("隨機排列按鈕被點擊 - 但沒有可用字符")
             if Glyphs.font and Glyphs.font.selectedLayers:
+                # 使用當前編輯字符
+                current_char = self._get_current_editing_char()
+                if current_char:
+                    debug_log(f"使用當前編輯字符 '{current_char}' 填充")
+                    self.plugin.selectedChars = [current_char]
+                    # 強制繼續執行
+                else:
+                    self.update_interface(None)
+                    return
+            else:
                 self.update_interface(None)
-            return
+                return
+        
+        debug_log(f"隨機排列按鈕被點擊 - 使用所有 {len(self.plugin.selectedChars)} 個字符作為基數")
         
         # 設定強制重排標記
         self.plugin.force_randomize = True
@@ -329,12 +343,18 @@ class EventHandlers:
         
         # 直接調用重繪，避免觸發控制面板UI更新
         if hasattr(self.plugin, 'windowController') and self.plugin.windowController:
-            if hasattr(self.plugin.windowController, 'redraw'):
+            if hasattr(self.plugin.windowController, 'previewView') and self.plugin.windowController.previewView:
+                debug_log("強制重繪主預覽視圖")
+                self.plugin.windowController.previewView.force_redraw()
+            elif hasattr(self.plugin.windowController, 'redraw'):
+                debug_log("調用標準重繪函數")
                 self.plugin.windowController.redraw()
         else:
+            debug_log("無法找到視窗控制器，使用通用更新")
             self.update_interface(None)
         
         self.plugin.force_randomize = False
+        debug_log("隨機排列完成")
     
     def reset_zoom(self, sender):
         """重置縮放"""
@@ -346,6 +366,8 @@ class EventHandlers:
     
     def generate_new_arrangement(self):
         """生成新的字符排列（強化版）"""
+        import random  # 確保在函數開頭就導入 random 模組
+        
         try:
             debug_log("開始生成新排列")
             
@@ -373,8 +395,16 @@ class EventHandlers:
             has_locked_chars = bool(self.plugin.lockedChars)
             
             debug_log(f"當前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
-            debug_log(f"已選擇字符：{self.plugin.selectedChars}")
+            debug_log(f"已選擇字符數量：{len(self.plugin.selectedChars)}")
             debug_log(f"已鎖定字符：{self.plugin.lockedChars}")
+            
+            # 處理沒有選擇字符的情況 - 使用當前編輯字符替代
+            if not has_selected_chars:
+                current_char = self._get_current_editing_char()
+                if current_char:
+                    debug_log(f"沒有選擇字符，使用當前編輯字符 '{current_char}' 填充")
+                    self.plugin.selectedChars = [current_char]
+                    has_selected_chars = True
             
             # 驗證鎖定字符
             if has_locked_chars:
@@ -388,10 +418,11 @@ class EventHandlers:
                     self.plugin.savePreferences()
                     return
                 else:
-                    debug_log("解鎖狀態：生成基本排列")
+                    debug_log(f"解鎖狀態：使用所有 {len(self.plugin.selectedChars)} 個選擇字符生成基本排列")
                     # 使用列表複本確保可變性
                     selected_chars = list(self.plugin.selectedChars)
                     self.plugin.currentArrangement = generate_arrangement(selected_chars, 8)
+                    debug_log(f"生成的排列：{self.plugin.currentArrangement}")
             
             # 處理上鎖狀態
             else:
@@ -399,11 +430,13 @@ class EventHandlers:
                     # 有選擇字符：生成基礎排列並應用鎖定
                     # 使用列表複本確保可變性
                     selected_chars = list(self.plugin.selectedChars)
+                    debug_log(f"上鎖狀態：使用所有 {len(selected_chars)} 個選擇字符生成基礎排列")
                     base_arrangement = generate_arrangement(selected_chars, 8)
                     debug_log(f"生成基礎排列：{base_arrangement}")
                     
                     if has_locked_chars:
                         # 應用鎖定並確保結果是可變列表
+                        debug_log(f"應用 {len(self.plugin.lockedChars)} 個鎖定字符")
                         result_arrangement = apply_locked_chars(
                             base_arrangement,
                             self.plugin.lockedChars,
@@ -413,8 +446,10 @@ class EventHandlers:
                         debug_log(f"應用鎖定後的排列：{self.plugin.currentArrangement}")
                     else:
                         self.plugin.currentArrangement = list(base_arrangement)
+                        debug_log(f"沒有鎖定字符，保持基礎排列")
                 else:
                     # 無選擇字符：使用預設排列或當前字符
+                    debug_log(f"上鎖狀態但無選擇字符：使用預設排列")
                     self._generate_default_arrangement(should_apply_locks)
                     # 確保結果是可變列表
                     if hasattr(self.plugin, 'currentArrangement'):
@@ -447,6 +482,8 @@ class EventHandlers:
             position: 要更新的位置 (0-7)
             input_text: 輸入的文字
         """
+        import random  # 確保在函數開頭就導入 random 模組
+        
         try:
             # 確保有 currentArrangement
             if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
@@ -468,7 +505,6 @@ class EventHandlers:
             # 確保排列有足夠的長度
             while len(current_arr) < 8:
                 if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                    import random
                     current_arr.append(random.choice(self.plugin.selectedChars))
                 else:
                     current_arr.append(self._get_current_editing_char())
@@ -483,7 +519,6 @@ class EventHandlers:
                 else:
                     # 清空輸入：用隨機字符替換
                     if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                        import random
                         replacement_char = random.choice(self.plugin.selectedChars)
                         current_arr[position] = replacement_char
                         debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")
@@ -590,6 +625,8 @@ class EventHandlers:
     
     def _generate_default_arrangement(self, should_apply_locks):
         """生成預設排列"""
+        import random  # 確保在函數開頭就導入 random 模組
+        
         # 如果是上鎖狀態且有鎖定字符，使用當前編輯的字符作為基礎排列
         if should_apply_locks and hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars:
             current_layer = None

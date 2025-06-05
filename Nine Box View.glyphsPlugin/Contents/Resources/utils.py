@@ -364,6 +364,8 @@ def generate_arrangement(chars, count=8):
     Returns:
         隨機排列的字符列表
     """
+    import random  # 確保在函數開頭就導入 random 模組
+    
     if not chars:
         return []
     
@@ -372,7 +374,11 @@ def generate_arrangement(chars, count=8):
         arrangement = chars * (count // len(chars) + 1)
         arrangement = arrangement[:count]
     else:
-        arrangement = chars[:count]
+        # 不再只取前 count 個字符，而是從所有字符中隨機選擇
+        arrangement = random.sample(chars, min(count, len(chars)))
+        # 如果還不夠，填充剩餘的位置
+        while len(arrangement) < count:
+            arrangement.append(random.choice(chars))
     
     # 隨機打亂
     random.shuffle(arrangement)
