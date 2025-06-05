@@ -335,7 +335,7 @@ class NineBoxPreviewView(NSView):
             display_chars = []
             
             # 檢查當前模式和排列狀態
-            is_in_clear_mode = self.plugin._get_lock_state() if hasattr(self.plugin, '_get_lock_state') else False
+            is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, '_get_lock_state') else False
             has_current_arrangement = bool(self.plugin.currentArrangement)
             has_selected_chars = bool(self.plugin.selectedChars)
             has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))

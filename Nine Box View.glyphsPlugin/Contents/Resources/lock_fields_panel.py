@@ -671,11 +671,11 @@ class LockFieldsPanel(NSView):
                     if not self.isInClearMode:  # 上鎖狀態
                         debug_log("🔒 上鎖狀態 - 更新排列並重繪")
                         
-                        # 更新 currentArrangement：保留非鎖定位置的字符
+                        # 更新 currentArrangement：只更新被清除的位置
                         if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
                             # 從選擇的字符中取得替代字符
                             if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                                # 對每個被清除的位置，用 selectedChars 中的隨機字符替代
+                                # 只對被清除的位置進行替換
                                 for pos in cleared_positions:
                                     if pos < len(self.plugin.currentArrangement):
                                         # 隨機選擇一個字符來替代
@@ -683,22 +683,13 @@ class LockFieldsPanel(NSView):
                                         self.plugin.currentArrangement[pos] = replacement_char
                                         debug_log(f"位置 {pos} 替換為: {replacement_char}")
                             else:
-                                # 如果沒有 selectedChars，清空對應位置
+                                # 如果沒有 selectedChars，使用當前編輯字符
                                 for pos in cleared_positions:
                                     if pos < len(self.plugin.currentArrangement):
                                         # 使用當前編輯字符
-                                        if Glyphs.font and Glyphs.font.selectedLayers:
-                                            current_layer = Glyphs.font.selectedLayers[0]
-                                            if current_layer and current_layer.parent:
-                                                current_glyph = current_layer.parent
-                                                if current_glyph.unicode:
-                                                    try:
-                                                        char = chr(int(current_glyph.unicode, 16))
-                                                        self.plugin.currentArrangement[pos] = char
-                                                    except:
-                                                        self.plugin.currentArrangement[pos] = current_glyph.name
-                                                else:
-                                                    self.plugin.currentArrangement[pos] = current_glyph.name
+                                        current_char = self._get_current_editing_char()
+                                        self.plugin.currentArrangement[pos] = current_char
+                                        debug_log(f"位置 {pos} 使用當前字符: {current_char}")
                         
                         # 儲存偏好設定
                         self.plugin.savePreferences()

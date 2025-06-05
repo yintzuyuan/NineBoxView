@@ -167,19 +167,11 @@ class EventHandlers:
                 self.plugin.savePreferences()
                 
             # 處理鎖定狀態更新
-            if not is_in_clear_mode:
+            if not is_in_clear_mode and arrangement_changed:
                 debug_log("[智能鎖定] 上鎖狀態 - 開始更新預覽")
                 try:
-                    # 更新排列
-                    if hasattr(self.plugin, 'selectedChars'):
-                        has_selected = bool(self.plugin.selectedChars)
-                        has_locked = bool(self.plugin.lockedChars)
-                        
-                        if has_selected or has_locked:
-                            debug_log("[智能鎖定] 重新生成排列")
-                            self.generate_new_arrangement()
-                        else:
-                            debug_log("[智能鎖定] 無選擇字符和鎖定字符，跳過更新")
+                    # 修改：只更新特定位置，而不是重新生成整個排列
+                    self._update_single_position(position, input_text)
                     
                     # 強制重繪
                     if (hasattr(self.plugin, 'windowController') and 
@@ -194,7 +186,7 @@ class EventHandlers:
                 except Exception as e:
                     debug_log(f"[智能鎖定] 更新預覽時發生錯誤：{e}")
             else:
-                debug_log("[智能鎖定] 解鎖狀態 - 僅儲存輸入，不更新預覽")
+                debug_log("[智能鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
         
         except Exception as e:
             debug_log(f"智能鎖定字符處理錯誤: {e}")
@@ -410,6 +402,80 @@ class EventHandlers:
                 print(traceback.format_exc())
     
     # === 輔助方法 ===
+    
+    def _update_single_position(self, position, input_text):
+        """
+        更新單個位置的字符，而不重新生成整個排列
+        
+        Args:
+            position: 要更新的位置 (0-7)
+            input_text: 輸入的文字
+        """
+        try:
+            # 確保有 currentArrangement
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                # 如果沒有當前排列，需要生成一個基礎排列
+                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                    self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
+                else:
+                    # 使用當前編輯字符填充
+                    current_char = self._get_current_editing_char()
+                    self.plugin.currentArrangement = [current_char] * 8
+            
+            # 確保排列有足夠的長度
+            while len(self.plugin.currentArrangement) < 8:
+                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                    import random
+                    self.plugin.currentArrangement.append(random.choice(self.plugin.selectedChars))
+                else:
+                    self.plugin.currentArrangement.append(self._get_current_editing_char())
+            
+            # 更新特定位置
+            if position < len(self.plugin.currentArrangement):
+                if input_text:
+                    # 有輸入：更新為識別的字符
+                    recognized_char = self._recognize_character(input_text)
+                    self.plugin.currentArrangement[position] = recognized_char
+                    debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
+                else:
+                    # 清空輸入：用隨機字符替換
+                    if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                        import random
+                        replacement_char = random.choice(self.plugin.selectedChars)
+                        self.plugin.currentArrangement[position] = replacement_char
+                        debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")
+                    else:
+                        # 沒有選擇字符，使用當前編輯字符
+                        current_char = self._get_current_editing_char()
+                        self.plugin.currentArrangement[position] = current_char
+                        debug_log(f"[單一更新] 位置 {position} 清空，使用當前字符: {current_char}")
+            
+            # 儲存更新
+            self.plugin.savePreferences()
+            debug_log(f"[單一更新] 當前排列: {self.plugin.currentArrangement}")
+            
+        except Exception as e:
+            debug_log(f"[單一更新] 更新單個位置時發生錯誤: {e}")
+            if DEBUG_MODE:
+                print(traceback.format_exc())
+    
+    def _get_current_editing_char(self):
+        """取得當前正在編輯的字符"""
+        try:
+            if Glyphs.font and Glyphs.font.selectedLayers:
+                current_layer = Glyphs.font.selectedLayers[0]
+                if current_layer and current_layer.parent:
+                    current_glyph = current_layer.parent
+                    if current_glyph.unicode:
+                        try:
+                            return chr(int(current_glyph.unicode, 16))
+                        except:
+                            pass
+                    if current_glyph.name:
+                        return current_glyph.name
+        except:
+            pass
+        return "A"  # 預設值
     
     def _get_lock_state(self):
         """取得鎖頭狀態"""
