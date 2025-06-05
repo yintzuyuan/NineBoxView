@@ -28,7 +28,7 @@ from constants import (
     CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT, CONTROLS_PANEL_SPACING,
     CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
 )
-from utils import debug_log
+from utils import debug_log, error_log
 
 
 class NineBoxWindow(NSWindowController):
@@ -119,9 +119,7 @@ class NineBoxWindow(NSWindowController):
             return self
             
         except Exception as e:
-            debug_log(f"window_controller.initWithPlugin_: 初始化視窗控制器錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("window_controller.initWithPlugin_: 初始化視窗控制器錯誤", e)
             return None
     
     def _setup_main_window_ui(self, panel):
@@ -238,9 +236,7 @@ class NineBoxWindow(NSWindowController):
                 debug_log("[階段2.2] 控制面板初始化後載入已儲存的資料")
             
         except Exception as e:
-            print(f"創建控制面板視窗錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("創建控制面板視窗錯誤", e)
     
     def _configure_controls_panel_window(self):
         """配置控制面板視窗屬性"""
@@ -283,7 +279,7 @@ class NineBoxWindow(NSWindowController):
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
                 
         except Exception as e:
-            debug_log(f"顯示控制面板錯誤: {e}")
+            error_log("顯示控制面板錯誤", e)
     
     def hideControlsPanel(self):
         """隱藏控制面板"""
@@ -301,7 +297,7 @@ class NineBoxWindow(NSWindowController):
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
                 
         except Exception as e:
-            debug_log(f"隱藏控制面板錯誤: {e}")
+            error_log("隱藏控制面板錯誤", e)
     
     def updateControlsPanelPosition(self):
         """更新控制面板位置（階段1.3：考慮最小高度）"""
@@ -339,9 +335,7 @@ class NineBoxWindow(NSWindowController):
                     debug_log(f"[階段1.3] 更新控制面板位置：({panelX}, {panelY}) 大小：{CONTROLS_PANEL_WIDTH}x{panelHeight}")
                 
         except Exception as e:
-            debug_log(f"[階段1.3] 更新控制面板位置錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[階段1.3] 更新控制面板位置錯誤", e)
     
     def controlsPanelAction_(self, sender):
         """控制面板按鈕動作"""
@@ -352,7 +346,7 @@ class NineBoxWindow(NSWindowController):
                 self.showControlsPanel()
                 
         except Exception as e:
-            debug_log(f"控制面板按鈕動作錯誤: {e}")
+            error_log("控制面板按鈕動作錯誤", e)
     
     def windowDidResize_(self, notification):
         """視窗大小調整處理（階段1.3：優化版）"""
@@ -390,9 +384,7 @@ class NineBoxWindow(NSWindowController):
                     debug_log(f"[階段1.3] 已儲存視窗大小偏好設定：{newSize}")
                 
         except Exception as e:
-            debug_log(f"[階段1.3] 處理視窗調整錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[階段1.3] 處理視窗調整錯誤", e)
     
     def windowDidMove_(self, notification):
         """視窗移動處理（階段1.3：優化版）"""
@@ -427,9 +419,7 @@ class NineBoxWindow(NSWindowController):
                     # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細日誌
                     
         except Exception as e:
-            debug_log(f"window_controller.windowDidMove_: Error in windowDidMove: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("window_controller.windowDidMove_: Error in windowDidMove", e)
     
     def windowWillClose_(self, notification):
         """視窗關閉處理（階段1.3：完整資源釋放）"""
@@ -462,7 +452,7 @@ class NineBoxWindow(NSWindowController):
                 self.plugin.windowController = None
             
         except Exception as e:
-            debug_log(f"[階段1.3] 處理視窗關閉錯誤: {e}")
+            error_log("[階段1.3] 處理視窗關閉錯誤", e)
     
     def request_main_redraw(self):
         """請求主預覽視圖重繪"""
@@ -474,7 +464,7 @@ class NineBoxWindow(NSWindowController):
                 else:
                     self.previewView.setNeedsDisplay_(True)
         except Exception as e:
-            debug_log(f"請求主預覽重繪錯誤: {e}")
+            error_log("請求主預覽重繪錯誤", e)
     
     def request_controls_panel_ui_update(self, update_lock_fields=True):
         """請求控制面板UI更新
@@ -488,7 +478,7 @@ class NineBoxWindow(NSWindowController):
                 debug_log(f"已更新控制面板 UI，update_lock_fields={update_lock_fields}")
                     
         except Exception as e:
-            debug_log(f"請求控制面板UI更新錯誤: {e}")
+            error_log("請求控制面板UI更新錯誤", e)
     
     def redraw(self):
         """重繪介面（向後相容）"""
@@ -552,7 +542,7 @@ class NineBoxWindow(NSWindowController):
                 # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細日誌
                 
         except Exception as e:
-            debug_log(f"window_controller.makeKeyAndOrderFront: Error: {e}")
+            error_log("window_controller.makeKeyAndOrderFront: Error", e)
     
     def delayedForceRedraw_(self, timer):
         """延遲強制重繪（階段1.3）"""
@@ -564,7 +554,7 @@ class NineBoxWindow(NSWindowController):
                     self.previewView.setNeedsDisplay_(True)
                 debug_log("[階段1.3] 完成延遲重繪")
         except Exception as e:
-            debug_log(f"[階段1.3] 延遲重繪錯誤: {e}")
+            error_log("[階段1.3] 延遲重繪錯誤", e)
     
     def dealloc(self):
         """析構函數"""

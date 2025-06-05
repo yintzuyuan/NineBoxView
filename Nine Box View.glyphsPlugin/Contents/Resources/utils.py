@@ -7,458 +7,336 @@ Nine Box Preview Plugin - Utility Functions (Optimized)
 from __future__ import division, print_function, unicode_literals
 import traceback
 import random
-import objc
 from GlyphsApp import Glyphs
+
+# 匯入常數
 from constants import (
-    DEBUG_MODE, DEFAULT_UPM, MAX_LOCKED_POSITIONS, CACHE_ENABLED,
-    # 偏好設定鍵值
+    CACHE_ENABLED, DEFAULT_UPM, MAX_LOCKED_POSITIONS,
     LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
-    SIDEBAR_VISIBLE_KEY,
-    # 預設值
-    DEFAULT_ZOOM
+    DEFAULT_ZOOM, DEBUG_MODE
 )
 
-# 全域快取
-_width_cache = {}
+# === 快取相關 ===
+
+# 全域快取變數
 _glyph_cache = {}
-
-# === 除錯工具 ===
-
-def debug_log(message):
-    """
-    條件式除錯記錄 - 僅在DEBUG_MODE=True時輸出
-    Conditional debug logging - only outputs when DEBUG_MODE=True
-    
-    Args:
-        message: 要記錄的訊息內容
-    """
-    if DEBUG_MODE:
-        print(f"[NineBoxView Debug] {message}")
-
-def log_to_macro_window(message):
-    """
-    將訊息記錄到巨集視窗 - 僅在DEBUG_MODE=True時輸出
-    Log message to the Macro Window - only outputs when DEBUG_MODE=True
-    
-    Args:
-        message: 要記錄的訊息內容
-    """
-    if DEBUG_MODE:
-        Glyphs.clearLog()
-        print(message)
-
-# === 快取管理 ===
+_width_cache = {}
 
 def clear_cache():
-    """清除所有快取"""
-    global _width_cache, _glyph_cache
-    _width_cache.clear()
+    """清除快取"""
+    global _glyph_cache, _width_cache
     _glyph_cache.clear()
-    debug_log("快取已清除")
+    _width_cache.clear()
 
-def get_cached_glyph(font, char_or_name):
-    """
-    取得快取的字形物件
-    Get cached glyph object
-    
-    Args:
-        font: 字型物件
-        char_or_name: 字符或名稱
-        
-    Returns:
-        GSGlyph or None
-    """
-    if not CACHE_ENABLED:
-        return font.glyphs[char_or_name] if font else None
-        
-    cache_key = (id(font), char_or_name)
-    if cache_key not in _glyph_cache:
-        _glyph_cache[cache_key] = font.glyphs[char_or_name] if font else None
-    return _glyph_cache[cache_key]
+# === 日誌相關 ===
 
-def get_cached_width(layer):
-    """
-    取得快取的圖層寬度
-    Get cached layer width
-    
-    Args:
-        layer: GSLayer 物件
-        
-    Returns:
-        float: 圖層寬度
-    """
-    if not CACHE_ENABLED or not layer:
-        return layer.width if layer else 0
-        
-    layer_id = id(layer)
-    if layer_id not in _width_cache:
-        _width_cache[layer_id] = layer.width
-    return _width_cache[layer_id]
-
-# === 尺寸計算 ===
-
-def get_base_width():
-    """
-    取得基準寬度（優化版）
-    Get the base width (optimized)
-    
-    Returns:
-        float: 基準寬度值
-    """
+def log_to_macro_window(message):
+    """記錄訊息到 Macro 視窗"""
     try:
-        if not Glyphs.font:
-            return DEFAULT_UPM
+        Glyphs.showMacroWindow()
+        print(message)
+    except:
+        print(message)
 
-        current_master = Glyphs.font.selectedFontMaster
-        if not current_master:
-            return DEFAULT_UPM
-
-        # 1. 檢查主板的 Default Layer Width 參數
-        try:
-            # 修正 CustomParametersProxy 物件處理方式
-            default_width_param = None
-            for param in current_master.customParameters:
-                if param.name == 'Default Layer Width':
-                    default_width_param = param.value
-                    break
-                    
-            if default_width_param:
-                try:
-                    # 處理可能的格式如 'han: 950'
-                    if isinstance(default_width_param, str) and ':' in default_width_param:
-                        value_part = default_width_param.split(':', 1)[1].strip()
-                        default_width = float(value_part)
-                    else:
-                        default_width = float(default_width_param)
-                    
-                    if default_width > 0:
-                        return default_width
-                except (ValueError, TypeError):
-                    debug_log(f"無法解析預設圖層寬度參數: {default_width_param}")
-        except Exception as e:
-            debug_log(f"檢查主板參數時發生錯誤: {e}")
-
-        # 2. 使用選取的字符層寬度
-        if Glyphs.font.selectedLayers:
-            selected_layer = Glyphs.font.selectedLayers[0]
-            return get_cached_width(selected_layer)
-
-        # 3. 使用字型的 UPM 值
-        if hasattr(Glyphs.font, 'upm'):
-            return max(Glyphs.font.upm, 500)
-
-        # 4. 預設值
-        return DEFAULT_UPM
-        
-    except Exception as e:
-        debug_log(f"get_base_width 錯誤: {e}")
-        return DEFAULT_UPM
-
-# === 字符處理 ===
-
-def parse_input_text(text, font=None):
-    """
-    解析輸入文字並返回有效的字符列表（優化版）
-    Parse input text and return valid character list (optimized)
+def debug_log(message):
+    """除錯日誌輸出 - 只在 DEBUG_MODE 開啟時輸出狀態訊息
     
     Args:
-        text: 要解析的文字
-        font: 字型對象，預設使用 Glyphs.font
-    
-    Returns:
-        list: 有效的字符名稱列表
+        message: 要輸出的訊息
     """
-    if font is None:
-        font = Glyphs.font
-    
-    if not font:
-        debug_log("警告：沒有開啟字型檔案")
-        return []
+    if DEBUG_MODE:
+        print(f"[九宮格預覽] {message}")
 
-    chars = []
-    
-    # 優化：預先處理空格
-    cleaned_text = ' '.join(text.split())
-    parts = cleaned_text.split(' ')
-    
-    for part in parts:
-        if not part:
-            continue
-            
-        # 先檢查是否為 Nice Name (完整名稱)
-        glyph = get_cached_glyph(font, part)
-        if glyph and len(part) > 1:  # Nice Name 通常長度 > 1
-            # 檢查是否有 Unicode 值
-            if glyph.unicode:
-                try:
-                    char = chr(int(glyph.unicode, 16))
-                    chars.append(char)
-                except ValueError:
-                    chars.append(part)  # 無效 Unicode，使用名稱
-            else:
-                # 對於沒有 Unicode 的字符，使用名稱
-                chars.append(part)
-        else:
-            # 不是 Nice Name，按字符逐個處理
-            for c in part:
-                if c and get_cached_glyph(font, c):
-                    chars.append(c)
-    
-    return chars
-
-def generate_arrangement(char_list, max_chars=8):
-    """
-    生成新的隨機排列（優化版）
-    Generate a new random arrangement (optimized)
+def error_log(error_message, exception=None):
+    """錯誤日誌輸出 - 無論什麼模式都會輸出錯誤訊息
     
     Args:
-        char_list: 字符列表
-        max_chars: 最大字符數，預設為8
-    
-    Returns:
-        list: 隨機排列後的字符列表
+        error_message: 錯誤描述
+        exception: 例外物件（可選）
     """
-    if not char_list:
-        return []
-    
-    char_count = len(char_list)
-    
-    # 優化：減少列表操作
-    if char_count > max_chars:
-        # 隨機選擇 max_chars 個
-        display_chars = random.sample(char_list, max_chars)
-    elif char_count < max_chars:
-        # 重複填充到 max_chars 個
-        repeat_times = (max_chars + char_count - 1) // char_count
-        display_chars = (char_list * repeat_times)[:max_chars]
-    else:
-        # 剛好足夠，直接複製
-        display_chars = list(char_list)
-    
-    # 隨機打亂
-    random.shuffle(display_chars)
-    return display_chars
-
-def validate_locked_positions(locked_chars, font):
-    """
-    驗證鎖定位置的有效性
-    Validate locked positions
-    
-    Args:
-        locked_chars: 鎖定字符字典
-        font: 字型物件
-        
-    Returns:
-        dict: 有效的鎖定字符字典
-    """
-    if not locked_chars or not font:
-        return {}
-    
-    valid_locks = {}
-    for position, char_or_name in locked_chars.items():
-        if position < MAX_LOCKED_POSITIONS:
-            glyph = get_cached_glyph(font, char_or_name)
-            if glyph:
-                valid_locks[position] = char_or_name
-            else:
-                debug_log(f"移除無效的鎖定字符: 位置 {position}, 字符 '{char_or_name}'")
-    
-    return valid_locks
-
-def apply_locked_chars(arrangement, locked_chars, selected_chars):
-    """
-    應用鎖定字符到排列中（強化版）
-    Apply locked characters to arrangement (Enhanced)
-    
-    Args:
-        arrangement: 基礎隨機排列
-        locked_chars: 鎖定字符字典
-        selected_chars: 選擇的字符列表（用於填充空位）
-        
-    Returns:
-        list: 應用鎖定後的排列
-    """
-    try:
-        debug_log("[Lock] 開始應用鎖定字符")
-        debug_log(f"[Lock] 初始排列: {arrangement}")
-        debug_log(f"[Lock] 鎖定字符: {locked_chars}")
-        
-        if not locked_chars:
-            debug_log("[Lock] 無鎖定字符，返回原排列")
-            return arrangement
-        
-        # 確保有基礎排列
-        if not arrangement:
-            arrangement = [''] * 8
-            debug_log("[Lock] 創建空白基礎排列")
-        
-        # 創建新排列的副本
-        new_arrangement = list(arrangement)
-        
-        # 應用鎖定字符
-        for position, char_or_name in locked_chars.items():
-            if position < len(new_arrangement):
-                if char_or_name:  # 確保字符不為空
-                    new_arrangement[position] = char_or_name
-                    debug_log(f"[Lock] 位置 {position} 鎖定為字符：{char_or_name}")
-            else:
-                debug_log(f"[Lock] 警告：鎖定位置 {position} 超出範圍")
-        
-        # 如果需要，用選擇的字符填充未鎖定的位置
-        if selected_chars:
-            for i in range(len(new_arrangement)):
-                if not new_arrangement[i] and i not in locked_chars:
-                    new_char = random.choice(selected_chars)
-                    new_arrangement[i] = new_char
-                    debug_log(f"[Lock] 位置 {i} 填充為字符：{new_char}")
-        
-        debug_log(f"[Lock] 最終排列：{new_arrangement}")
-        return new_arrangement
-        
-    except Exception as e:
-        debug_log(f"[Lock] 應用鎖定字符時發生錯誤：{e}")
-        if DEBUG_MODE:
-            print(traceback.format_exc())
-        return arrangement or [''] * 8  # 確保總是返回有效的排列
+    print(f"[九宮格預覽錯誤] {error_message}")
+    if exception and not DEBUG_MODE:
+        # 一般模式：只印出簡化的錯誤訊息
+        print(f"錯誤類型：{type(exception).__name__}")
+        print(f"錯誤內容：{str(exception)}")
+    elif exception and DEBUG_MODE:
+        # 除錯模式：印出完整的 traceback
+        print(traceback.format_exc())
 
 # === 偏好設定管理 ===
 
 def load_preferences(plugin):
-    """
-    載入所有偏好設定
+    """載入偏好設定
     
     Args:
         plugin: 外掛實例
     """
-    # 基本設定
-    plugin.lastInput = Glyphs.defaults.get(LAST_INPUT_KEY, "")
-    plugin.selectedChars = Glyphs.defaults.get(SELECTED_CHARS_KEY, [])
-    plugin.currentArrangement = Glyphs.defaults.get(CURRENT_ARRANGEMENT_KEY, [])
-    plugin.zoomFactor = float(Glyphs.defaults.get(ZOOM_FACTOR_KEY, DEFAULT_ZOOM))
-    
-    # 視窗位置
-    plugin.windowPosition = Glyphs.defaults.get(WINDOW_POSITION_KEY, None)
-    
-    # 控制面板可見性
-    controls_panel_visible_value = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY)
-    
-    if controls_panel_visible_value is not None:
-        plugin.controlsPanelVisible = bool(controls_panel_visible_value)
-        plugin.sidebarVisible = bool(controls_panel_visible_value)  # 同步
-    else:
-        # 向後相容性
-        sidebar_visible_value = Glyphs.defaults.get(SIDEBAR_VISIBLE_KEY)
-        if sidebar_visible_value is not None:
-            plugin.controlsPanelVisible = bool(sidebar_visible_value)
-            plugin.sidebarVisible = bool(sidebar_visible_value)
-        else:
+    try:
+        # 載入各項設定
+        plugin.lastInput = Glyphs.defaults[LAST_INPUT_KEY] or ""
+        plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
+        plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
+        plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
+        plugin.windowPosition = Glyphs.defaults[WINDOW_POSITION_KEY]
+        plugin.controlsPanelVisible = Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY]
+        plugin.lockedChars = Glyphs.defaults[LOCKED_CHARS_KEY] or {}
+        plugin.previousLockedChars = Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] or {}
+        plugin.isInClearMode = Glyphs.defaults[LOCK_MODE_KEY] or False
+        
+        # 確保 controlsPanelVisible 有預設值
+        if plugin.controlsPanelVisible is None:
             plugin.controlsPanelVisible = True
-            plugin.sidebarVisible = True
-    
-    # 載入鎖頭狀態
-    lock_mode_value = Glyphs.defaults.get(LOCK_MODE_KEY)
-    if lock_mode_value is not None:
-        plugin.isInClearMode = bool(lock_mode_value)
-    else:
-        plugin.isInClearMode = False  # 預設為上鎖狀態
-    
-    # 鎖定字符
-    _load_locked_chars(plugin)
-    
-    # 如果有選定字符但沒有排列，則生成初始排列
-    if plugin.selectedChars and not plugin.currentArrangement:
-        # 需要通過事件處理器生成排列
-        if hasattr(plugin, 'event_handlers'):
-            plugin.event_handlers.generate_new_arrangement()
-    
-    # 如果控制面板已初始化，更新其UI
-    if (hasattr(plugin, 'windowController') and plugin.windowController and 
-        hasattr(plugin.windowController, 'controlsPanelView') and 
-        plugin.windowController.controlsPanelView):
-        plugin.windowController.controlsPanelView.update_ui(plugin, update_lock_fields=True)
-    
-    debug_log("偏好設定載入完成")
+        
+        # 處理 lockedChars 的鍵值類型
+        if isinstance(plugin.lockedChars, dict):
+            plugin.lockedChars = {int(k): v for k, v in plugin.lockedChars.items()}
+        
+        debug_log(f"載入偏好設定：lastInput='{plugin.lastInput}', "
+                 f"selectedChars={plugin.selectedChars}, "
+                 f"lockedChars={plugin.lockedChars}, "
+                 f"isInClearMode={plugin.isInClearMode}")
+        
+    except Exception as e:
+        error_log("載入偏好設定時發生錯誤", e)
 
 def save_preferences(plugin):
-    """
-    儲存所有偏好設定
+    """儲存偏好設定
     
     Args:
         plugin: 外掛實例
     """
-    # 基本設定
-    Glyphs.defaults[LAST_INPUT_KEY] = plugin.lastInput
-    Glyphs.defaults[SELECTED_CHARS_KEY] = plugin.selectedChars
-    Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
-    Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
-    
-    # 控制面板可見性 - 同時更新新舊兩個 key
-    current_controls_panel_visible = getattr(plugin, 'controlsPanelVisible', True)
-    Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = current_controls_panel_visible
-    Glyphs.defaults[SIDEBAR_VISIBLE_KEY] = current_controls_panel_visible  # 保持同步
-    
-    # 儲存鎖頭狀態
-    if hasattr(plugin, 'isInClearMode'):
+    try:
+        # 儲存各項設定
+        Glyphs.defaults[LAST_INPUT_KEY] = plugin.lastInput
+        Glyphs.defaults[SELECTED_CHARS_KEY] = plugin.selectedChars
+        Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
+        Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
+        
+        if hasattr(plugin, 'windowController') and plugin.windowController:
+            if hasattr(plugin.windowController, 'window') and plugin.windowController.window():
+                Glyphs.defaults[WINDOW_POSITION_KEY] = plugin.windowController.window().frame().origin
+        
+        Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = plugin.controlsPanelVisible
+        Glyphs.defaults[LOCKED_CHARS_KEY] = plugin.lockedChars
+        Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = plugin.previousLockedChars
         Glyphs.defaults[LOCK_MODE_KEY] = plugin.isInClearMode
-    
-    # 視窗位置
-    if hasattr(plugin, 'windowPosition') and plugin.windowPosition:
-        Glyphs.defaults[WINDOW_POSITION_KEY] = plugin.windowPosition
-    
-    # 鎖定字符
-    _save_locked_chars(plugin)
-    
-    debug_log("偏好設定儲存完成")
-
-def _load_locked_chars(plugin):
-    """載入鎖定字符設定（內部函數）"""
-    try:
-        locked_chars_str = Glyphs.defaults.get(LOCKED_CHARS_KEY)
-        if locked_chars_str:
-            plugin.lockedChars = {int(k): v for k, v in locked_chars_str.items()}
-            # 驗證載入的鎖定字符
-            if Glyphs.font:
-                plugin.lockedChars = validate_locked_positions(plugin.lockedChars, Glyphs.font)
-            debug_log(f"已載入鎖定字符：{plugin.lockedChars}")
-        else:
-            plugin.lockedChars = {}
-            debug_log("沒有已儲存的鎖定字符")
         
-        previous_locked_chars_str = Glyphs.defaults.get(PREVIOUS_LOCKED_CHARS_KEY)
-        if previous_locked_chars_str:
-            plugin.previousLockedChars = {int(k): v for k, v in previous_locked_chars_str.items()}
-            debug_log(f"已載入先前鎖定字符：{plugin.previousLockedChars}")
-        else:
-            plugin.previousLockedChars = {}
-            
-    except Exception as e:
-        debug_log(f"載入鎖定字符時發生錯誤：{e}")
-        if DEBUG_MODE:
-            print(traceback.format_exc())
-        plugin.lockedChars = {}
-        plugin.previousLockedChars = {}
-
-def _save_locked_chars(plugin):
-    """儲存鎖定字符設定（內部函數）"""
-    try:
-        if hasattr(plugin, 'lockedChars'):
-            # 驗證鎖定字符的有效性
-            if Glyphs.font:
-                plugin.lockedChars = validate_locked_positions(plugin.lockedChars, Glyphs.font)
-            # 轉換並儲存
-            locked_chars_str = {str(k): v for k, v in plugin.lockedChars.items()}
-            Glyphs.defaults[LOCKED_CHARS_KEY] = locked_chars_str
-            debug_log(f"已儲存鎖定字符：{plugin.lockedChars}")
+        debug_log("已儲存偏好設定")
         
-        if hasattr(plugin, 'previousLockedChars'):
-            # 轉換並儲存
-            previous_locked_chars_str = {str(k): v for k, v in plugin.previousLockedChars.items()}
-            Glyphs.defaults[PREVIOUS_LOCKED_CHARS_KEY] = previous_locked_chars_str
-            debug_log(f"已儲存先前鎖定字符：{plugin.previousLockedChars}")
-            
     except Exception as e:
-        debug_log(f"儲存鎖定字符時發生錯誤：{e}")
-        if DEBUG_MODE:
-            print(traceback.format_exc())
+        error_log("儲存偏好設定時發生錯誤", e)
+
+# === 字符處理 ===
+
+def get_cached_glyph(font, char_or_name):
+    """從快取或字型取得字符
+    
+    Args:
+        font: 字型物件
+        char_or_name: 字符或字符名稱
+        
+    Returns:
+        GSGlyph 物件或 None
+    """
+    if not font or not char_or_name:
+        return None
+    
+    # 檢查快取
+    cache_key = (id(font), char_or_name)
+    if CACHE_ENABLED and cache_key in _glyph_cache:
+        return _glyph_cache[cache_key]
+    
+    # 嘗試取得字符
+    glyph = None
+    
+    # 嘗試直接取得
+    if char_or_name in font.glyphs:
+        glyph = font.glyphs[char_or_name]
+    
+    # 嘗試用 glyphForCharacter（對單一字符）
+    elif len(char_or_name) == 1:
+        glyph = font.glyphForCharacter_(ord(char_or_name))
+    
+    # 嘗試用 glyphForName（Nice Name）
+    if not glyph:
+        glyph = font.glyphForName_(char_or_name)
+    
+    # 嘗試搜尋（包含）
+    if not glyph:
+        for g in font.glyphs:
+            if g.name and char_or_name in g.name:
+                glyph = g
+                break
+    
+    # 儲存到快取
+    if CACHE_ENABLED and glyph:
+        _glyph_cache[cache_key] = glyph
+    
+    return glyph
+
+def get_cached_width(layer):
+    """從快取取得字符寬度
+    
+    Args:
+        layer: 圖層物件
+        
+    Returns:
+        字符寬度
+    """
+    if not layer:
+        return 0
+    
+    cache_key = id(layer)
+    if CACHE_ENABLED and cache_key in _width_cache:
+        return _width_cache[cache_key]
+    
+    width = layer.width
+    
+    if CACHE_ENABLED:
+        _width_cache[cache_key] = width
+    
+    return width
+
+def parse_input_text(text):
+    """解析輸入文字，提取有效字符（支援 Nice Names）
+    
+    Args:
+        text: 輸入文字
+        
+    Returns:
+        有效字符列表
+    """
+    if not text or not Glyphs.font:
+        return []
+    
+    chars = []
+    
+    # 優先處理空格分隔的 Nice Names
+    parts = text.split()
+    
+    for part in parts:
+        if not part:
+            continue
+        
+        # 檢查是否為有效的字符或 Nice Name
+        if get_cached_glyph(Glyphs.font, part):
+            chars.append(part)
+        else:
+            # 如果不是 Nice Name，嘗試解析為單個字符
+            for char in part:
+                if get_cached_glyph(Glyphs.font, char):
+                    chars.append(char)
+    
+    # 如果沒有空格分隔，則嘗試解析每個字符
+    if not chars and not ' ' in text:
+        for char in text:
+            if get_cached_glyph(Glyphs.font, char):
+                chars.append(char)
+    
+    return chars
+
+def generate_arrangement(chars, count=8):
+    """生成隨機字符排列
+    
+    Args:
+        chars: 可用字符列表
+        count: 需要的字符數量
+        
+    Returns:
+        隨機排列的字符列表
+    """
+    if not chars:
+        return []
+    
+    # 如果字符數量不足，重複使用
+    if len(chars) < count:
+        arrangement = chars * (count // len(chars) + 1)
+        arrangement = arrangement[:count]
+    else:
+        arrangement = chars[:count]
+    
+    # 隨機打亂
+    random.shuffle(arrangement)
+    
+    return arrangement
+
+def apply_locked_chars(arrangement, locked_chars, available_chars):
+    """應用鎖定字符到排列中
+    
+    Args:
+        arrangement: 基礎排列
+        locked_chars: 鎖定字符字典
+        available_chars: 可用字符列表（用於填充空位）
+        
+    Returns:
+        應用鎖定後的排列
+    """
+    if not locked_chars:
+        return arrangement
+    
+    # 複製排列以避免修改原始資料
+    result = arrangement[:]
+    
+    # 確保結果有足夠的長度
+    while len(result) < 8:
+        if available_chars:
+            result.append(random.choice(available_chars))
+        else:
+            result.append("A")  # 預設字符
+    
+    # 應用鎖定字符
+    for position, char_or_name in locked_chars.items():
+        if 0 <= position < 8:
+            result[position] = char_or_name
+    
+    return result
+
+def validate_locked_positions(locked_chars, font):
+    """驗證鎖定字符的有效性
+    
+    Args:
+        locked_chars: 鎖定字符字典
+        font: 字型物件
+        
+    Returns:
+        驗證後的鎖定字符字典
+    """
+    if not locked_chars or not font:
+        return {}
+    
+    valid_locked = {}
+    
+    for position, char_or_name in locked_chars.items():
+        # 驗證位置
+        try:
+            pos = int(position)
+            if pos < 0 or pos >= MAX_LOCKED_POSITIONS:
+                continue
+        except:
+            continue
+        
+        # 驗證字符
+        if get_cached_glyph(font, char_or_name):
+            valid_locked[pos] = char_or_name
+    
+    return valid_locked
+
+# === 寬度計算 ===
+
+def get_base_width():
+    """取得基準寬度（用於佈局計算）
+    
+    Returns:
+        基準寬度值
+    """
+    try:
+        # 如果有開啟的字型，使用其 UPM 值
+        if Glyphs.font:
+            return Glyphs.font.upm or DEFAULT_UPM
+        else:
+            return DEFAULT_UPM
+    except Exception as e:
+        error_log("取得基準寬度時發生錯誤", e)
+        return DEFAULT_UPM

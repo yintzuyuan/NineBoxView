@@ -45,8 +45,6 @@ DEFAULT_ZOOM = 0.85
 DEFAULT_UPM = 1000
 
 # 效能優化設定
-DEBUG_MODE = False  # 開發模式，輸出除錯訊息
-CACHE_ENABLED = True  # 啟用快取機制
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數
 
@@ -57,3 +55,12 @@ CENTER_POSITION = 4  # 中央位置索引（0-8）
 
 # 顯示選項
 DEFAULT_PREVIEW_DPI = 72.0
+
+# ========== 訊息列印模式設定 ==========
+# 除錯模式開關
+# False = 一般模式（預設）：只顯示錯誤訊息和 traceback，隱藏狀態訊息
+# True = 除錯模式：顯示所有錯誤訊息、traceback 和狀態訊息
+DEBUG_MODE = False
+
+# 快取設定
+CACHE_ENABLED = True  # 啟用快取機制

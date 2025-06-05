@@ -28,7 +28,7 @@ except ImportError:
     CGColorCreateGenericRGB = None
 
 from constants import DEBUG_MODE, MAX_LOCKED_POSITIONS
-from utils import debug_log, get_cached_glyph
+from utils import debug_log, error_log, get_cached_glyph
 
 
 class LockCharacterField(NSTextField):
@@ -91,7 +91,7 @@ class LockCharacterField(NSTextField):
             self.setMenu_(contextMenu)
             
         except Exception as e:
-            debug_log(f"設定右鍵選單錯誤: {e}")
+            error_log("設定右鍵選單錯誤", e)
     
     def _register_notifications(self):
         """註冊通知"""
@@ -114,7 +114,7 @@ class LockCharacterField(NSTextField):
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.smartLockCharacterCallback(self)
         except Exception as e:
-            debug_log(f"智能鎖定字符處理錯誤: {e}")
+            error_log("智能鎖定字符處理錯誤", e)
     
     def dealloc(self):
         """析構函數"""
@@ -296,9 +296,7 @@ class LockFieldsPanel(NSView):
                     else:
                         debug_log("警告：同步後 lockedChars 未正確設置")
                 except Exception as e:
-                    debug_log(f"同步過程發生錯誤: {e}")
-                    if DEBUG_MODE:
-                        print(traceback.format_exc())
+                    error_log("同步過程發生錯誤", e)
                 debug_log("同步流程完成")
             
             # 更新狀態
@@ -350,7 +348,7 @@ class LockFieldsPanel(NSView):
                 debug_log("已儲存鎖頭狀態到偏好設定")
             
         except Exception as e:
-            debug_log(f"切換鎖頭模式錯誤: {e}")
+            error_log("切換鎖頭模式錯誤", e)
             if hasattr(self, 'lockButton'):
                 self.updateLockButton()
     
@@ -443,9 +441,7 @@ class LockFieldsPanel(NSView):
                     debug_log(f"[鎖頭切換更新] 當前排列: {self.plugin.currentArrangement}")
             
         except Exception as e:
-            debug_log(f"[鎖頭切換更新] 錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[鎖頭切換更新] 錯誤", e)
     
     def _get_current_editing_char(self):
         """取得當前正在編輯的字符"""
@@ -499,7 +495,7 @@ class LockFieldsPanel(NSView):
                         else:
                             debug_log(f"[同步] 位置 {position}: '{input_text}' 無法辨識")
                     except Exception as e:
-                        debug_log(f"[同步] 字符辨識錯誤: {e}")
+                        error_log("[同步] 字符辨識錯誤", e)
                         continue
                 else:
                     debug_log(f"[同步] 位置 {position}: 空輸入，不設定鎖定")
@@ -515,9 +511,7 @@ class LockFieldsPanel(NSView):
                 self.plugin.generateNewArrangement()
             
         except Exception as e:
-            debug_log(f"同步輸入欄內容錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("同步輸入欄內容錯誤", e)
     
     def _sync_input_fields_to_locked_chars_without_regenerate(self):
         """同步輸入欄內容到 plugin.lockedChars（不觸發重新生成排列）"""
@@ -553,7 +547,7 @@ class LockFieldsPanel(NSView):
                         else:
                             debug_log(f"[同步-無重生] 位置 {position}: '{input_text}' 無法辨識")
                     except Exception as e:
-                        debug_log(f"[同步-無重生] 字符辨識錯誤: {e}")
+                        error_log("[同步-無重生] 字符辨識錯誤", e)
                         continue
                 else:
                     debug_log(f"[同步-無重生] 位置 {position}: 空輸入，不設定鎖定")
@@ -567,9 +561,7 @@ class LockFieldsPanel(NSView):
             debug_log("[同步-無重生] 同步完成，不觸發重新生成排列")
             
         except Exception as e:
-            debug_log(f"同步輸入欄內容錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("同步輸入欄內容錯誤", e)
     
     def createLockImage(self, locked=True):
         """創建極簡鎖頭圖示"""
@@ -604,7 +596,7 @@ class LockFieldsPanel(NSView):
             debug_log(f"已創建極簡{'鎖定' if locked else '解鎖'}圖示")
             
         except Exception as e:
-            debug_log(f"創建極簡鎖頭圖示時發生錯誤: {e}")
+            error_log("創建極簡鎖頭圖示時發生錯誤", e)
             
             try:
                 systemIcon = None
@@ -711,7 +703,7 @@ class LockFieldsPanel(NSView):
                     self.lockButton.setContentTintColor_(NSColor.controlTextColor())
             
         except Exception as e:
-            debug_log(f"更新鎖頭按鈕錯誤: {e}")
+            error_log("更新鎖頭按鈕錯誤", e)
             if hasattr(self, 'lockButton'):
                 title = "🔒" if not self.isInClearMode else "🔓"
                 self.lockButton.setTitle_(title)
@@ -783,9 +775,7 @@ class LockFieldsPanel(NSView):
             debug_log("完成清空所有輸入框")
             
         except Exception as e:
-            debug_log(f"清空所有欄位錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("清空所有欄位錯誤", e)
     
     def update_lock_fields(self, plugin_state):
         """更新鎖定輸入框內容"""
@@ -801,7 +791,7 @@ class LockFieldsPanel(NSView):
                         self.lockFields[position].setStringValue_(char_or_name)
                         debug_log(f"填入位置 {position}: '{char_or_name}'")
         except Exception as e:
-            debug_log(f"更新鎖定輸入框錯誤: {e}")
+            error_log("更新鎖定輸入框錯誤", e)
     
     def get_lock_state(self):
         """取得鎖頭狀態"""

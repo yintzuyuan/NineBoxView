@@ -18,7 +18,7 @@ from AppKit import (
 from Foundation import NSObject
 
 from constants import DEBUG_MODE
-from utils import debug_log
+from utils import debug_log, error_log
 
 
 class SearchTextView(NSTextView):
@@ -95,7 +95,7 @@ class SearchTextView(NSTextView):
             self.setMenu_(contextMenu)
             
         except Exception as e:
-            debug_log(f"設定右鍵選單錯誤: {e}")
+            error_log("設定右鍵選單錯誤", e)
     
     def _register_notifications(self):
         """註冊通知"""
@@ -139,7 +139,7 @@ class SearchTextView(NSTextView):
                 self.setSelectedRange_(selected_range)
                 
         except Exception as e:
-            debug_log(f"文本變更處理錯誤: {e}")
+            error_log("文本變更處理錯誤", e)
     
     def stringValue(self):
         """提供與 NSTextField 相容的 stringValue 方法"""
@@ -162,7 +162,7 @@ class SearchTextView(NSTextView):
                 self.setSelectedRange_(selected_range)
             
         except Exception as e:
-            debug_log(f"設定文字值時發生錯誤: {e}")
+            error_log("設定文字值時發生錯誤", e)
             # 發生錯誤時，使用原始方法
             if value:
                 self.setString_(value)
@@ -229,7 +229,7 @@ class SearchPanel(NSView):
                 input_value = plugin_state.lastInput or ""
                 self.searchField.setStringValue_(input_value)
         except Exception as e:
-            debug_log(f"更新搜尋欄位內容錯誤: {e}")
+            error_log("更新搜尋欄位內容錯誤", e)
     
     def get_search_value(self):
         """取得搜尋欄位的值"""

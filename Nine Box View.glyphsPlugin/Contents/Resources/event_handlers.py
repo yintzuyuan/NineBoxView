@@ -9,7 +9,7 @@ import traceback
 from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
 from constants import DEBUG_MODE, DEFAULT_ZOOM
-from utils import debug_log, parse_input_text, generate_arrangement, apply_locked_chars, validate_locked_positions, get_cached_glyph
+from utils import debug_log, error_log, parse_input_text, generate_arrangement, apply_locked_chars, validate_locked_positions, get_cached_glyph
 
 
 class EventHandlers:
@@ -49,9 +49,7 @@ class EventHandlers:
                 
         except Exception as e:
             self.plugin._update_scheduled = False
-            debug_log(f"更新介面時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("更新介面時發生錯誤", e)
     
     def selection_changed(self, sender):
         """選擇變更處理"""
@@ -74,7 +72,7 @@ class EventHandlers:
                 self.plugin.windowController.controlsPanelView.update_ui(self.plugin, update_lock_fields=False)
                 
         except Exception as e:
-            debug_log(f"選擇變更處理錯誤: {e}")
+            error_log("選擇變更處理錯誤", e)
     
     # === 搜尋欄位相關 ===
     
@@ -128,7 +126,7 @@ class EventHandlers:
             if hasattr(self.plugin, 'windowController') and self.plugin.windowController is not None:
                 self.plugin.windowController.redraw()
         except Exception as e:
-            debug_log(f"更新搜尋欄位介面錯誤: {e}")
+            error_log("更新搜尋欄位介面錯誤", e)
     
     # === 鎖定字符相關 ===
     
@@ -184,14 +182,12 @@ class EventHandlers:
                     self.update_interface(None)
                     
                 except Exception as e:
-                    debug_log(f"[智能鎖定] 更新預覽時發生錯誤：{e}")
+                    error_log("[智能鎖定] 更新預覽時發生錯誤", e)
             else:
                 debug_log("[智能鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
         
         except Exception as e:
-            debug_log(f"智能鎖定字符處理錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("智能鎖定字符處理錯誤", e)
     
     def clear_all_lock_fields_callback(self, sender):
         """清空所有鎖定輸入框"""
@@ -228,9 +224,7 @@ class EventHandlers:
             self.update_interface(None)
             
         except Exception as e:
-            debug_log(f"清空鎖定輸入框錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("清空鎖定輸入框錯誤", e)
     
     # === 其他回調 ===
     
@@ -299,9 +293,7 @@ class EventHandlers:
                         self.search_field_callback(mock_sender)
                     
         except Exception as e:
-            debug_log(f"選擇字符錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("選擇字符錯誤", e)
     
     def randomize_callback(self, sender):
         """隨機排列按鈕回調（優化版）"""
@@ -397,9 +389,7 @@ class EventHandlers:
                 self.plugin.windowController.previewView.force_redraw()
             
         except Exception as e:
-            debug_log(f"生成排列時發生錯誤：{e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("生成排列時發生錯誤", e)
     
     # === 輔助方法 ===
     
@@ -455,9 +445,7 @@ class EventHandlers:
             debug_log(f"[單一更新] 當前排列: {self.plugin.currentArrangement}")
             
         except Exception as e:
-            debug_log(f"[單一更新] 更新單個位置時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[單一更新] 更新單個位置時發生錯誤", e)
     
     def _get_current_editing_char(self):
         """取得當前正在編輯的字符"""

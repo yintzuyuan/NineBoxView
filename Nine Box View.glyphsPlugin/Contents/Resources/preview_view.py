@@ -25,7 +25,7 @@ from constants import (
     MARGIN_RATIO, SPACING_RATIO, MIN_ZOOM, MAX_ZOOM, DEBUG_MODE,
     GRID_SIZE, GRID_TOTAL, CENTER_POSITION, REDRAW_THRESHOLD
 )
-from utils import debug_log, get_cached_glyph, get_cached_width
+from utils import debug_log, error_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """
@@ -73,7 +73,7 @@ class NineBoxPreviewView(NSView):
             self.setNeedsDisplay_(True)
             debug_log("主題變更，已觸發重繪")
         except Exception as e:
-            debug_log(f"處理主題變更時發生錯誤: {e}")
+            error_log("處理主題變更時發生錯誤", e)
     
     def mouseDown_(self, event):
         """處理滑鼠點擊事件"""
@@ -147,7 +147,7 @@ class NineBoxPreviewView(NSView):
                 else:
                     debug_log(f"基準寬度 baseWidth: {baseWidth}")
             except Exception as e:
-                debug_log(f"取得基準寬度時發生錯誤：{e}")
+                error_log("取得基準寬度時發生錯誤", e)
                 baseWidth = 1000
             
             # === 計算最大字身寬度（僅使用 layer.width）===
@@ -231,9 +231,7 @@ class NineBoxPreviewView(NSView):
             return metrics
         
         except Exception as e:
-            debug_log(f"計算網格度量時發生錯誤：{e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("計算網格度量時發生錯誤", e)
             return None
 
     def _draw_character_at_position(self, layer, centerX, centerY, cellWidth, cellHeight, scale, is_black):
@@ -299,9 +297,7 @@ class NineBoxPreviewView(NSView):
             debug_log(f"完成繪製 - 縮放: {glyphScale:.3f}, 位置: ({x:.1f}, {y:.1f})")
                 
         except Exception as e:
-            debug_log(f"繪製字符時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("繪製字符時發生錯誤", e)
 
     def drawRect_(self, rect):
         """繪製畫面內容（穩定佈局版）"""
@@ -400,9 +396,7 @@ class NineBoxPreviewView(NSView):
                     )
                     
         except Exception as e:
-            print(f"繪製預覽畫面時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("繪製預覽畫面時發生錯誤", e)
     
     def dealloc(self):
         """析構函數"""

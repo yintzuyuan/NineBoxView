@@ -17,7 +17,7 @@ from AppKit import (
 from Foundation import NSObject
 
 from constants import DEBUG_MODE
-from utils import debug_log
+from utils import debug_log, error_log
 from search_panel import SearchPanel
 from lock_fields_panel import LockFieldsPanel
 
@@ -61,9 +61,7 @@ class ControlsPanelView(NSView):
                 
             return self
         except Exception as e:
-            print(f"初始化控制面板視圖錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("初始化控制面板視圖錯誤", e)
             return None
     
     def setupUI(self):
@@ -110,9 +108,7 @@ class ControlsPanelView(NSView):
             self._update_content()
             
         except Exception as e:
-            print(f"設定UI時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("設定UI時發生錯誤", e)
     
     def setFrame_(self, frame):
         """覆寫 setFrame_ 方法"""
@@ -164,9 +160,7 @@ class ControlsPanelView(NSView):
             debug_log("完成 UI 佈局調整")
             
         except Exception as e:
-            debug_log(f"重新佈局 UI 錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("重新佈局 UI 錯誤", e)
     
     def _update_content(self):
         """更新UI內容"""
@@ -200,14 +194,14 @@ class ControlsPanelView(NSView):
             self.setNeedsDisplay_(True)
             
         except Exception as e:
-            debug_log(f"更新UI錯誤: {e}")
+            error_log("更新UI錯誤", e)
     
     def themeChanged_(self, notification):
         """主題變更處理"""
         try:
             self.setNeedsDisplay_(True)
         except Exception as e:
-            debug_log(f"主題變更處理錯誤: {e}")
+            error_log("主題變更處理錯誤", e)
     
     def drawRect_(self, rect):
         """繪製背景"""
@@ -237,7 +231,7 @@ class ControlsPanelView(NSView):
                 NSRectFill(lineRect)
             
         except Exception as e:
-            debug_log(f"繪製背景錯誤: {e}")
+            error_log("繪製背景錯誤", e)
     
     def dealloc(self):
         """析構函數"""

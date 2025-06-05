@@ -66,7 +66,7 @@ try:
             
             # 導入工具函數
             from utils import (
-                log_to_macro_window, debug_log, clear_cache,
+                log_to_macro_window, debug_log, error_log, clear_cache,
                 load_preferences, save_preferences, get_base_width,
                 parse_input_text, get_cached_glyph, get_cached_width
             )
@@ -84,6 +84,7 @@ try:
             # 工具函數
             self.log_to_macro_window = log_to_macro_window
             self.debug_log = debug_log
+            self.error_log = error_log
             self.clear_cache = clear_cache
             self.load_preferences = load_preferences
             self.save_preferences = save_preferences
@@ -142,9 +143,7 @@ try:
                 self.loadPreferences()
                 
             except Exception as e:
-                print(f"啟動外掛時發生錯誤: {str(e)}")
-                if self.DEBUG_MODE:
-                    print(traceback.format_exc())
+                self.error_log("啟動外掛時發生錯誤", e)
 
         # === 視窗操作 ===
 
@@ -177,9 +176,7 @@ try:
                     self.windowController.makeKeyAndOrderFront()
                 
             except Exception as e:
-                print(f"切換視窗時發生錯誤: {str(e)}")
-                if self.DEBUG_MODE:
-                    print(traceback.format_exc())
+                self.error_log("切換視窗時發生錯誤", e)
 
         @objc.python_method
         def showWindow(self):
@@ -297,9 +294,7 @@ try:
                     return 1000
                 return width
             except Exception as e:
-                self.debug_log(f"getBaseWidth 錯誤: {str(e)}")
-                if self.DEBUG_MODE:
-                    print(traceback.format_exc())
+                self.error_log("getBaseWidth 錯誤", e)
                 return 1000  # 預設值
         
         @objc.python_method
