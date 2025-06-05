@@ -125,11 +125,19 @@ class SearchTextView(NSTextView):
             self.plugin.pickGlyphCallback(sender)
     
     def textDidChange_(self, notification):
-        """文本變更時的回調"""
+        """文本變更時的回調，並保持游標位置"""
         try:
             debug_log(f"搜尋欄位文本變更: {self.string()}")
+            # 儲存當前選擇範圍和游標位置
+            selected_range = self.selectedRange()
+            
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
+            
+            # 回調完成後恢復游標位置
+            if selected_range.location <= len(self.string()):
+                self.setSelectedRange_(selected_range)
+                
         except Exception as e:
             debug_log(f"文本變更處理錯誤: {e}")
     
@@ -138,11 +146,28 @@ class SearchTextView(NSTextView):
         return self.string()
     
     def setStringValue_(self, value):
-        """提供與 NSTextField 相容的 setStringValue 方法"""
-        if value:
-            self.setString_(value)
-        else:
-            self.setString_("")
+        """提供與 NSTextField 相容的 setStringValue 方法，並保持游標位置"""
+        try:
+            # 儲存當前選擇範圍和游標位置
+            selected_range = self.selectedRange()
+            
+            # 設定新的文字
+            if value:
+                self.setString_(value)
+            else:
+                self.setString_("")
+            
+            # 只有當游標位置在有效範圍內才恢復
+            if selected_range.location <= len(self.string()):
+                self.setSelectedRange_(selected_range)
+            
+        except Exception as e:
+            debug_log(f"設定文字值時發生錯誤: {e}")
+            # 發生錯誤時，使用原始方法
+            if value:
+                self.setString_(value)
+            else:
+                self.setString_("")
     
     def dealloc(self):
         """析構函數"""
