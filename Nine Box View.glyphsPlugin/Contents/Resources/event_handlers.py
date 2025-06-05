@@ -231,6 +231,10 @@ class EventHandlers:
             if hasattr(self.plugin, 'selectedChars'):
                 self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
             
+            # 確保currentArrangement是可變列表
+            if hasattr(self.plugin, 'currentArrangement'):
+                self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
+            
             # 更新排列和介面
             self.generate_new_arrangement()
             self.plugin.savePreferences()
@@ -353,12 +357,24 @@ class EventHandlers:
             # 確認當前狀態
             is_in_clear_mode = self._get_lock_state()
             should_apply_locks = not is_in_clear_mode
+            
+            # 確保 selectedChars 是可變列表
+            if hasattr(self.plugin, 'selectedChars'):
+                self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+            else:
+                self.plugin.selectedChars = []
+                
             has_selected_chars = bool(self.plugin.selectedChars)
-            has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))
+            
+            # 確保 lockedChars 是字典
+            if not hasattr(self.plugin, 'lockedChars'):
+                self.plugin.lockedChars = {}
+                
+            has_locked_chars = bool(self.plugin.lockedChars)
             
             debug_log(f"當前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
             debug_log(f"已選擇字符：{self.plugin.selectedChars}")
-            debug_log(f"已鎖定字符：{getattr(self.plugin, 'lockedChars', {})}")
+            debug_log(f"已鎖定字符：{self.plugin.lockedChars}")
             
             # 驗證鎖定字符
             if has_locked_chars:
@@ -373,31 +389,40 @@ class EventHandlers:
                     return
                 else:
                     debug_log("解鎖狀態：生成基本排列")
-                    # 確保 selectedChars 是可變列表
-                    selected_chars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                    # 使用列表複本確保可變性
+                    selected_chars = list(self.plugin.selectedChars)
                     self.plugin.currentArrangement = generate_arrangement(selected_chars, 8)
             
             # 處理上鎖狀態
             else:
                 if has_selected_chars:
                     # 有選擇字符：生成基礎排列並應用鎖定
-                    # 確保 selectedChars 是可變列表
-                    selected_chars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
+                    # 使用列表複本確保可變性
+                    selected_chars = list(self.plugin.selectedChars)
                     base_arrangement = generate_arrangement(selected_chars, 8)
                     debug_log(f"生成基礎排列：{base_arrangement}")
                     
                     if has_locked_chars:
-                        self.plugin.currentArrangement = apply_locked_chars(
+                        # 應用鎖定並確保結果是可變列表
+                        result_arrangement = apply_locked_chars(
                             base_arrangement,
                             self.plugin.lockedChars,
                             selected_chars
                         )
+                        self.plugin.currentArrangement = list(result_arrangement)
                         debug_log(f"應用鎖定後的排列：{self.plugin.currentArrangement}")
                     else:
-                        self.plugin.currentArrangement = base_arrangement
+                        self.plugin.currentArrangement = list(base_arrangement)
                 else:
                     # 無選擇字符：使用預設排列或當前字符
                     self._generate_default_arrangement(should_apply_locks)
+                    # 確保結果是可變列表
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
+            
+            # 確保結果是可變列表
+            if hasattr(self.plugin, 'currentArrangement'):
+                self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
             
             # 儲存變更
             self.plugin.savePreferences()

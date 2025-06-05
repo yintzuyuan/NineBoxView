@@ -742,8 +742,15 @@ class LockFieldsPanel(NSView):
                         
                         # 更新 currentArrangement：只更新被清除的位置
                         if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                            # 確保 currentArrangement 是可變列表
+                            self.plugin.currentArrangement = list(self.plugin.currentArrangement)
+                            debug_log(f"確保 currentArrangement 是可變列表: {type(self.plugin.currentArrangement)}")
+                            
                             # 從選擇的字符中取得替代字符
                             if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                                # 確保 selectedChars 是可變列表
+                                self.plugin.selectedChars = list(self.plugin.selectedChars)
+                                
                                 # 只對被清除的位置進行替換
                                 for pos in cleared_positions:
                                     if pos < len(self.plugin.currentArrangement):

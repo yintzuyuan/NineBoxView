@@ -378,10 +378,12 @@ def apply_locked_chars(arrangement, locked_chars, available_chars):
         應用鎖定後的排列
     """
     if not locked_chars:
-        return arrangement
+        # 確保返回可變列表
+        return list(arrangement) if arrangement else []
     
     # 複製排列以避免修改原始資料
-    result = arrangement[:]
+    # 確保結果是可變列表
+    result = list(arrangement) if arrangement else []
     
     # 確保結果有足夠的長度
     while len(result) < 8:
