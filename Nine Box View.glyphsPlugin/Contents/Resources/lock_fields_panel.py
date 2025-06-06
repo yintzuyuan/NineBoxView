@@ -365,7 +365,12 @@ class LockFieldsPanel(NSView):
         try:
             if not hasattr(self.plugin, 'currentArrangement'):
                 self.plugin.currentArrangement = []
-            
+
+            # --- 新增：確保 currentArrangement 是 list ---
+            if not isinstance(self.plugin.currentArrangement, list):
+                self.plugin.currentArrangement = list(self.plugin.currentArrangement)
+            # --- end ---
+
             # 檢查目前狀態
             is_in_clear_mode = self.isInClearMode
             has_locked_chars = hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars
@@ -387,6 +392,10 @@ class LockFieldsPanel(NSView):
                 elif positions_with_content and self.plugin.currentArrangement and len(self.plugin.currentArrangement) >= 8:
                     # 沒有原始排列時，只替換切換前有內容的位置為隨機字符
                     if has_selected_chars:
+                        # --- 新增：確保 currentArrangement 是 list ---
+                        if not isinstance(self.plugin.currentArrangement, list):
+                            self.plugin.currentArrangement = list(self.plugin.currentArrangement)
+                        # --- end ---
                         for position in positions_with_content:
                             if position < len(self.plugin.currentArrangement):
                                 replacement_char = random.choice(self.plugin.selectedChars)
@@ -435,6 +444,11 @@ class LockFieldsPanel(NSView):
                         self.plugin.currentArrangement = [current_char] * 8
                         debug_log(f"[鎖頭切換更新] 使用當前字符創建初始排列: {current_char}")
                 
+                # --- 新增：確保 currentArrangement 是 list ---
+                if not isinstance(self.plugin.currentArrangement, list):
+                    self.plugin.currentArrangement = list(self.plugin.currentArrangement)
+                # --- end ---
+
                 # 只更新有內容的輸入框對應的位置
                 if has_locked_chars and positions_with_content:
                     # 只更新那些有內容的位置
@@ -761,9 +775,9 @@ class LockFieldsPanel(NSView):
                         elif hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
                             # 沒有原始排列時，使用先前的邏輯
                             # 確保 currentArrangement 是可變列表
-                            self.plugin.currentArrangement = list(self.plugin.currentArrangement)
+                            if not isinstance(self.plugin.currentArrangement, list):
+                                self.plugin.currentArrangement = list(self.plugin.currentArrangement)
                             debug_log(f"確保 currentArrangement 是可變列表: {type(self.plugin.currentArrangement)}")
-                            
                             # 從選擇的字符中取得替代字符
                             if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
                                 # 確保 selectedChars 是可變列表
