@@ -80,13 +80,31 @@ def load_preferences(plugin):
         plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         
-        # 處理窗口位置 - 從字典轉換為 CGPoint
-        window_pos_dict = Glyphs.defaults[WINDOW_POSITION_KEY]
-        if window_pos_dict and isinstance(window_pos_dict, dict) and 'x' in window_pos_dict and 'y' in window_pos_dict:
-            from Foundation import NSPoint
-            plugin.windowPosition = NSPoint(window_pos_dict['x'], window_pos_dict['y'])
+        # 處理窗口位置 - 統一使用 list 格式
+        window_pos = Glyphs.defaults[WINDOW_POSITION_KEY]
+        
+        # 檢查是否為 NSArray（Objective-C 陣列）
+        if window_pos:
+            try:
+                # 嘗試直接存取元素（NSArray 支援索引存取）
+                if len(window_pos) >= 2:
+                    plugin.windowPosition = [float(window_pos[0]), float(window_pos[1])]
+                    debug_log(f"成功從 NSArray/list/tuple 載入視窗位置: {plugin.windowPosition}")
+                else:
+                    plugin.windowPosition = None
+                    debug_log(f"視窗位置資料長度不足: {len(window_pos)}")
+            except (TypeError, IndexError):
+                # 如果不是陣列類型，檢查是否為字典
+                if isinstance(window_pos, dict) and 'x' in window_pos and 'y' in window_pos:
+                    # 向後相容：支援舊的字典格式
+                    plugin.windowPosition = [float(window_pos['x']), float(window_pos['y'])]
+                    debug_log(f"從字典格式載入視窗位置: {plugin.windowPosition}")
+                else:
+                    plugin.windowPosition = None
+                    debug_log(f"無法解析視窗位置資料，類型: {type(window_pos)}")
         else:
             plugin.windowPosition = None
+            debug_log("沒有儲存的視窗位置")
             
         plugin.controlsPanelVisible = Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY]
         
@@ -150,15 +168,29 @@ def load_preferences(plugin):
                 error_log(f"解析 previousLockedChars JSON 時出錯: {e}")
         
         plugin.isInClearMode = Glyphs.defaults[LOCK_MODE_KEY] or False
+        # 同步兩個屬性（如果需要）
+        plugin.isLockModeActive = plugin.isInClearMode
         
         # 確保 controlsPanelVisible 有預設值
         if plugin.controlsPanelVisible is None:
             plugin.controlsPanelVisible = True
         
+        # 額外除錯：記錄所有載入的屬性
+        debug_log(f"plugin.isLockModeActive = {getattr(plugin, 'isLockModeActive', 'Not set')}")
+        debug_log(f"plugin.isInClearMode = {plugin.isInClearMode}")
+        
         debug_log(f"載入偏好設定：lastInput='{plugin.lastInput}', "
                  f"selectedChars={plugin.selectedChars}, "
                  f"lockedChars={plugin.lockedChars}, "
-                 f"isInClearMode={plugin.isInClearMode}")
+                 f"isInClearMode={plugin.isInClearMode}, "
+                 f"windowPosition={plugin.windowPosition}")
+        
+        # 額外除錯資訊
+        debug_log(f"WINDOW_POSITION_KEY = '{WINDOW_POSITION_KEY}'")
+        debug_log(f"Glyphs.defaults[WINDOW_POSITION_KEY] = {Glyphs.defaults.get(WINDOW_POSITION_KEY)}")
+        debug_log(f"Type of window_pos = {type(window_pos)}")
+        debug_log(f"window_pos value = {window_pos}")
+        debug_log(f"plugin.windowPosition = {plugin.windowPosition}")
         
     except Exception as e:
         error_log("載入偏好設定時發生錯誤", e)
@@ -176,13 +208,16 @@ def save_preferences(plugin):
         Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         
-        # 處理窗口位置 - 將 CGPoint 轉換為字典
+        # 處理窗口位置 - 統一使用 list 格式
         if hasattr(plugin, 'windowController') and plugin.windowController:
             if hasattr(plugin.windowController, 'window') and plugin.windowController.window():
                 frame_origin = plugin.windowController.window().frame().origin
-                # 儲存為字典格式，而非直接儲存 CGPoint
-                window_pos_dict = {'x': frame_origin.x, 'y': frame_origin.y}
-                Glyphs.defaults[WINDOW_POSITION_KEY] = window_pos_dict
+                # 儲存為 list 格式，確保一致性
+                window_pos_list = [float(frame_origin.x), float(frame_origin.y)]
+                Glyphs.defaults[WINDOW_POSITION_KEY] = window_pos_list
+                debug_log(f"已儲存視窗位置：{window_pos_list}")
+                debug_log(f"WINDOW_POSITION_KEY = '{WINDOW_POSITION_KEY}'")
+                debug_log(f"驗證儲存：Glyphs.defaults[WINDOW_POSITION_KEY] = {Glyphs.defaults.get(WINDOW_POSITION_KEY)}")
         
         Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = plugin.controlsPanelVisible
         
@@ -228,6 +263,7 @@ def save_preferences(plugin):
         Glyphs.defaults[LOCK_MODE_KEY] = plugin.isInClearMode
         
         debug_log("已儲存偏好設定")
+        debug_log(f"最終確認視窗位置：{Glyphs.defaults.get(WINDOW_POSITION_KEY)}")
         
     except Exception as e:
         error_log("儲存偏好設定時發生錯誤", e)

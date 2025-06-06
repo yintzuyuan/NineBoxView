@@ -45,7 +45,7 @@ class NineBoxWindow(NSWindowController):
             from controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
             self.ControlsPanelView = ControlsPanelView
-            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
+            # 不再需要 NSArray，因為我們統一使用 Python list
             
             # 確保偏好設定已載入
             plugin.loadPreferences()
@@ -102,17 +102,21 @@ class NineBoxWindow(NSWindowController):
                     
                 # 設定視窗位置
                 debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
-                if savedPosition and isinstance(savedPosition, (list, tuple, NSArray)) and len(savedPosition) >= 2:
+                if savedPosition:
+                    # 處理 NSArray、list 或 tuple
                     try:
-                        x = float(savedPosition[0])
-                        y = float(savedPosition[1])
-                        debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
-                        panel.setFrameOrigin_(NSMakePoint(x, y))
-                        debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
-                    except (ValueError, TypeError) as e:
+                        if len(savedPosition) >= 2:
+                            x = float(savedPosition[0])
+                            y = float(savedPosition[1])
+                            debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
+                            panel.setFrameOrigin_(NSMakePoint(x, y))
+                            debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
+                        else:
+                            debug_log(f"window_controller.initWithPlugin_: savedPosition 長度不足: {len(savedPosition)}")
+                    except (ValueError, TypeError, IndexError) as e:
                         debug_log(f"window_controller.initWithPlugin_: Error setting panel origin: {e}. savedPosition was: {savedPosition}")
                 else:
-                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition (value or type/length invalid). Value: {savedPosition}")
+                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition. Value: {savedPosition}")
 
                 debug_log("window_controller.initWithPlugin_: 主視窗和控制面板初始化完成")
             
@@ -492,19 +496,24 @@ class NineBoxWindow(NSWindowController):
         """顯示並激活視窗（階段1.3：視窗重建機制）"""
         try:
             debug_log("window_controller.makeKeyAndOrderFront: Starting.")
-            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
-            
             # 如果有記錄的位置，先設定
             position_to_apply = None
             plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
             current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
             debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition: {current_plugin_pos} (type: {type(current_plugin_pos)})")
 
-            if plugin_has_pos_attr and current_plugin_pos and isinstance(current_plugin_pos, (list, tuple, NSArray)) and len(current_plugin_pos) >= 2:
-                position_to_apply = current_plugin_pos
-                debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
+            if plugin_has_pos_attr and current_plugin_pos:
+                # 處理 NSArray、list 或 tuple
+                try:
+                    if len(current_plugin_pos) >= 2:
+                        position_to_apply = current_plugin_pos
+                        debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
+                    else:
+                        debug_log(f"window_controller.makeKeyAndOrderFront: Position 長度不足: {len(current_plugin_pos)}")
+                except (TypeError, AttributeError):
+                    debug_log(f"window_controller.makeKeyAndOrderFront: Invalid position type: {type(current_plugin_pos)}. Value: {current_plugin_pos}")
             else:
-                debug_log(f"window_controller.makeKeyAndOrderFront: No valid position in plugin.windowPosition to apply. Value: {current_plugin_pos}")
+                debug_log(f"window_controller.makeKeyAndOrderFront: No position in plugin.windowPosition. Value: {current_plugin_pos}")
 
             if position_to_apply:
                 try:

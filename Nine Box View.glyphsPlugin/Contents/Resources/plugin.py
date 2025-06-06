@@ -113,10 +113,7 @@ try:
         @objc.python_method
         def _initialize_properties(self):
             """初始化屬性"""
-            # 載入偏好設定
-            self.load_preferences(self)
-            
-            # 初始化狀態
+            # 初始化預設值
             self.selectedChars = []
             self.currentArrangement = []
             self.windowController = None
@@ -124,6 +121,9 @@ try:
             self.controlsPanelVisible = True
             self.windowPosition = None
             self._update_scheduled = False  # 防止重複更新
+            
+            # 載入偏好設定（會覆蓋預設值）
+            self.load_preferences(self)
 
         @objc.python_method
         def start(self):
