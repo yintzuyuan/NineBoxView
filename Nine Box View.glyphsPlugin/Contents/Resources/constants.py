@@ -25,6 +25,7 @@ CONTROLS_PANEL_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.controlsPanelVisible"
 LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
+ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 保存原始隨機排列
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)

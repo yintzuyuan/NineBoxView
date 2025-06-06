@@ -5,7 +5,7 @@ alwaysApply: true
 ---
 ## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.8 (效能優化版)
 
-**文件版本:** 1.17
+**文件版本:** 1.18
 **日期:** 2025-06-06
 **變更摘要:** 
 1. 清理冗餘程式碼，提高程式碼可讀性和維護性。
@@ -31,6 +31,12 @@ alwaysApply: true
     - 在 `utils.py` 中修正載入和儲存邏輯，避免格式不一致問題
     - 向後相容舊的字典格式 `{'x': x, 'y': y}`
     - 在視窗控制器中正確套用載入的視窗位置
+15. **優化隨機排列回復機制**：當從鎖定狀態回到隨機排列狀態時，不再產生新的隨機字符，而是回復到原本的隨機排列：
+    - 新增 `originalArrangement` 屬性用於保存原始隨機排列
+    - 從解鎖切換到鎖定時，保存當前的隨機排列
+    - 從鎖定切換回解鎖時，回復保存的原始排列
+    - 清空鎖定欄位時也回復原始排列
+    - 當使用者主動點擊隨機排列時，清除原始排列記錄
 
 ### 1. 系統架構 (System Architecture)
 
@@ -174,6 +180,7 @@ UI 模組 (`controls_panel_view.py`) 負責控制面板的內容佈局與事件�
 * `plugin.selectedChars (list)`: 解析後的有效字符列表。
 * `plugin.lockedChars (dict)`: 鎖定字符字典，鍵為位置 (0-7)，值為字符或 Nice Name。
 * `plugin.currentArrangement (list)`: 當前周圍 8 格的字符排列。
+* `plugin.originalArrangement (list)`: 保存的原始隨機排列，用於從鎖定模式回到解鎖模式時回復。
 * `plugin.zoomFactor (float)`: 縮放係數。
 * `plugin.isControlsPanelVisible (bool)`: 追蹤控制面板子視窗的顯示狀態。
 * `plugin.previousLockedChars (dict)`: 備份的鎖定字符，用於還原功能。

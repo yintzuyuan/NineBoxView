@@ -337,6 +337,11 @@ class EventHandlers:
         
         debug_log(f"隨機排列按鈕被點擊 - 使用所有 {len(self.plugin.selectedChars)} 個字符作為基數")
         
+        # === 新增：清除原始排列，因為使用者主動要求新的隨機排列 ===
+        if hasattr(self.plugin, 'originalArrangement'):
+            self.plugin.originalArrangement = []
+            debug_log("已清除原始排列，將生成全新的隨機排列")
+        
         # 設定強制重排標記
         self.plugin.force_randomize = True
         self.generate_new_arrangement()
@@ -517,8 +522,14 @@ class EventHandlers:
                     current_arr[position] = recognized_char
                     debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
                 else:
-                    # 清空輸入：用隨機字符替換
-                    if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                    # 清空輸入：優先使用原始排列的字符
+                    if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement and position < len(self.plugin.originalArrangement):
+                        # 使用原始排列中的字符
+                        replacement_char = self.plugin.originalArrangement[position]
+                        current_arr[position] = replacement_char
+                        debug_log(f"[單一更新] 位置 {position} 清空，回復原始字符: {replacement_char}")
+                    elif hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                        # 沒有原始排列時，用隨機字符替換
                         replacement_char = random.choice(self.plugin.selectedChars)
                         current_arr[position] = replacement_char
                         debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")

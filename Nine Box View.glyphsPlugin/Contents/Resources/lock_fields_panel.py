@@ -283,6 +283,14 @@ class LockFieldsPanel(NSView):
                         positions_with_content.append(position)
                 debug_log(f"切換前有內容的輸入框位置: {positions_with_content}")
             
+            # === 新增：從解鎖切換到鎖定時，保存當前的隨機排列 ===
+            if was_in_clear_mode and hasattr(self.plugin, 'currentArrangement'):
+                # 保存當前的隨機排列，供之後回復使用
+                self.plugin.originalArrangement = list(self.plugin.currentArrangement)
+                debug_log(f"保存原始隨機排列: {self.plugin.originalArrangement}")
+                # 儲存到偏好設定
+                self.plugin.savePreferences()
+            
             # 從解鎖切換到上鎖時同步輸入框內容（但不觸發重新生成排列）
             if was_in_clear_mode:
                 debug_log("從🔓解鎖切換到🔒鎖定：開始同步流程")
@@ -370,9 +378,14 @@ class LockFieldsPanel(NSView):
             # === 確保每次切換都會更新預覽 ===
             
             if is_in_clear_mode:
-                # === 解鎖狀態：只更新有內容的輸入框對應位置 ===
-                if positions_with_content and self.plugin.currentArrangement and len(self.plugin.currentArrangement) >= 8:
-                    # 只替換切換前有內容的位置為隨機字符
+                # === 解鎖狀態：回復原始隨機排列 ===
+                if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
+                    # 優先使用保存的原始排列
+                    self.plugin.currentArrangement = list(self.plugin.originalArrangement)
+                    debug_log(f"[鎖頭切換更新] 解鎖狀態 - 回復原始排列: {self.plugin.currentArrangement}")
+                    return  # 完成更新，直接返回
+                elif positions_with_content and self.plugin.currentArrangement and len(self.plugin.currentArrangement) >= 8:
+                    # 沒有原始排列時，只替換切換前有內容的位置為隨機字符
                     if has_selected_chars:
                         for position in positions_with_content:
                             if position < len(self.plugin.currentArrangement):
@@ -740,8 +753,13 @@ class LockFieldsPanel(NSView):
                     if not self.isInClearMode:  # 上鎖狀態
                         debug_log("🔒 上鎖狀態 - 更新排列並重繪")
                         
-                        # 更新 currentArrangement：只更新被清除的位置
-                        if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                        # === 修改：優先使用原始排列 ===
+                        if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
+                            # 回復原始排列
+                            self.plugin.currentArrangement = list(self.plugin.originalArrangement)
+                            debug_log(f"清空鎖定 - 回復原始排列: {self.plugin.currentArrangement}")
+                        elif hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                            # 沒有原始排列時，使用先前的邏輯
                             # 確保 currentArrangement 是可變列表
                             self.plugin.currentArrangement = list(self.plugin.currentArrangement)
                             debug_log(f"確保 currentArrangement 是可變列表: {type(self.plugin.currentArrangement)}")

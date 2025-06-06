@@ -60,6 +60,7 @@ try:
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
+                ORIGINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
                 DEFAULT_ZOOM, DEBUG_MODE
             )
@@ -107,6 +108,7 @@ try:
             self.LOCKED_CHARS_KEY = LOCKED_CHARS_KEY
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.LOCK_MODE_KEY = LOCK_MODE_KEY
+            self.ORIGINAL_ARRANGEMENT_KEY = ORIGINAL_ARRANGEMENT_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             self.DEBUG_MODE = DEBUG_MODE
         
@@ -116,6 +118,7 @@ try:
             # 初始化預設值
             self.selectedChars = []
             self.currentArrangement = []
+            self.originalArrangement = []  # 保存原始隨機排列
             self.windowController = None
             self.previousLockedChars = {}
             self.controlsPanelVisible = True

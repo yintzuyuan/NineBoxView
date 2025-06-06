@@ -15,6 +15,7 @@ from constants import (
     LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
+    ORIGINAL_ARRANGEMENT_KEY,
     DEFAULT_ZOOM, DEBUG_MODE
 )
 
@@ -78,6 +79,7 @@ def load_preferences(plugin):
         plugin.lastInput = Glyphs.defaults[LAST_INPUT_KEY] or ""
         plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
         plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
+        plugin.originalArrangement = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         
         # 處理窗口位置 - 統一使用 list 格式
@@ -206,6 +208,7 @@ def save_preferences(plugin):
         Glyphs.defaults[LAST_INPUT_KEY] = plugin.lastInput
         Glyphs.defaults[SELECTED_CHARS_KEY] = plugin.selectedChars
         Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
+        Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = getattr(plugin, 'originalArrangement', [])
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         
         # 處理窗口位置 - 統一使用 list 格式
