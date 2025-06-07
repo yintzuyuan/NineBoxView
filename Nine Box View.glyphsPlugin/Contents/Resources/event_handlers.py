@@ -19,10 +19,10 @@ class EventHandlers:
         self.plugin = plugin
         
     
-    # === 界面更新 ===
+    # === 介面更新 ===
     
     def update_interface(self, sender):
-        """更新界面（優化版）"""
+        """更新介面（最佳化版）"""
         try:
             # 避免重複更新
             if self.plugin._update_scheduled:
@@ -78,7 +78,7 @@ class EventHandlers:
     # === 搜尋欄位相關 ===
     
     def search_field_callback(self, sender):
-        """處理搜尋欄位輸入（優化版）"""
+        """處理搜尋欄位輸入（最佳化版）"""
         if not Glyphs.font:
             debug_log("警告：沒有開啟字型檔案")
             return
@@ -141,7 +141,7 @@ class EventHandlers:
     # === 鎖定字符相關 ===
     
     def smart_lock_character_callback(self, sender):
-        """智能鎖定字符回調（資料處理與即時更新）"""
+        """智慧鎖定字符回呼（資料處理與即時更新）"""
         try:
             if not Glyphs.font:
                 return
@@ -162,7 +162,7 @@ class EventHandlers:
                     del self.plugin.lockedChars[position]
                     arrangement_changed = True
             else:
-                # 智能辨識
+                # 智慧辨識
                 recognized_char = self._recognize_character(input_text)
                 
                 # 檢查是否有變更
@@ -176,7 +176,7 @@ class EventHandlers:
                 
             # 處理鎖定狀態更新
             if not is_in_clear_mode and arrangement_changed:
-                debug_log("[智能鎖定] 上鎖狀態 - 開始更新預覽")
+                debug_log("[智慧鎖定] 上鎖狀態 - 開始更新預覽")
                 try:
                     # 修改：只更新特定位置，而不是重新生成整個排列
                     self._update_single_position(position, input_text)
@@ -185,19 +185,19 @@ class EventHandlers:
                     if (hasattr(self.plugin, 'windowController') and 
                         self.plugin.windowController and
                         hasattr(self.plugin.windowController, 'previewView')):
-                        debug_log("[智能鎖定] 請求強制重繪")
+                        debug_log("[智慧鎖定] 請求強制重繪")
                         self.plugin.windowController.previewView.force_redraw()
                     
-                    # 更新界面
+                    # 更新介面
                     self.update_interface(None)
                     
                 except Exception as e:
-                    error_log("[智能鎖定] 更新預覽時發生錯誤", e)
+                    error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
             else:
-                debug_log("[智能鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
+                debug_log("[智慧鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
         
         except Exception as e:
-            error_log("智能鎖定字符處理錯誤", e)
+            error_log("智慧鎖定字符處理錯誤", e)
     
     def clear_all_lock_fields_callback(self, sender):
         """清空所有鎖定輸入框"""
@@ -211,7 +211,7 @@ class EventHandlers:
             if not hasattr(self.plugin, 'previousLockedChars'):
                 self.plugin.previousLockedChars = {}
             
-            # 備份當前狀態
+            # 備份目前狀態
             self.plugin.previousLockedChars = self.plugin.lockedChars.copy()
             
             # 清空鎖定字符
@@ -244,10 +244,10 @@ class EventHandlers:
         except Exception as e:
             error_log("清空鎖定輸入框錯誤", e)
     
-    # === 其他回調 ===
+    # === 其他回呼 ===
     
     def pick_glyph_callback(self, sender):
-        """選擇字符按鈕回調（使用官方 PickGlyphs API）"""
+        """選擇字符按鈕回呼（使用官方 PickGlyphs API）"""
         try:
             if not Glyphs.font:
                 debug_log("警告：沒有開啟字型檔案")
@@ -276,7 +276,7 @@ class EventHandlers:
                             selected_chars.append(selection.name)
                 
                 if selected_chars:
-                    # 獲取搜尋框的當前內容
+                    # 取得搜尋框的目前內容
                     if (hasattr(self.plugin, 'windowController') and 
                         self.plugin.windowController and
                         hasattr(self.plugin.windowController, 'controlsPanelView') and 
@@ -290,7 +290,7 @@ class EventHandlers:
                         # 將選取的字符用空格連接
                         chars_to_insert = ' '.join(selected_chars)
                         
-                        # 如果當前文字不是空的，且最後一個字符不是空格，則加入空格
+                        # 如果目前文字不是空的，且最後一個字符不是空格，則加入空格
                         if current_text and not current_text.endswith(' '):
                             new_text = current_text + ' ' + chars_to_insert
                         else:
@@ -300,7 +300,7 @@ class EventHandlers:
                         search_panel.set_search_value(new_text)
                         
                         # 觸發 searchFieldCallback 以更新介面
-                        # 創建一個模擬的 sender 物件
+                        # 建立一個模擬的 sender 物件
                         class MockSender:
                             def __init__(self, value):
                                 self.value = value
@@ -314,7 +314,7 @@ class EventHandlers:
             error_log("選擇字符錯誤", e)
     
     def randomize_callback(self, sender):
-        """隨機排列按鈕回調（優化版）"""
+        """隨機排列按鈕回呼（最佳化版）"""
         # 確保 selectedChars 是可變列表
         if hasattr(self.plugin, 'selectedChars'):
             self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
@@ -322,10 +322,10 @@ class EventHandlers:
         if not self.plugin.selectedChars:
             debug_log("隨機排列按鈕被點擊 - 但沒有可用字符")
             if Glyphs.font and Glyphs.font.selectedLayers:
-                # 使用當前編輯字符
+                # 使用目前編輯字符
                 current_char = self._get_current_editing_char()
                 if current_char:
-                    debug_log(f"使用當前編輯字符 '{current_char}' 填充")
+                    debug_log(f"使用目前編輯字符 '{current_char}' 填充")
                     self.plugin.selectedChars = [current_char]
                     # 強制繼續執行
                 else:
@@ -346,13 +346,13 @@ class EventHandlers:
         self.plugin.force_randomize = True
         self.generate_new_arrangement()
         
-        # 直接調用重繪，避免觸發控制面板UI更新
+        # 直接呼叫重繪，避免觸發控制面板UI更新
         if hasattr(self.plugin, 'windowController') and self.plugin.windowController:
             if hasattr(self.plugin.windowController, 'previewView') and self.plugin.windowController.previewView:
-                debug_log("強制重繪主預覽視圖")
+                debug_log("強制重繪主預覽畫面")
                 self.plugin.windowController.previewView.force_redraw()
             elif hasattr(self.plugin.windowController, 'redraw'):
-                debug_log("調用標準重繪函數")
+                debug_log("呼叫標準重繪函數")
                 self.plugin.windowController.redraw()
         else:
             debug_log("無法找到視窗控制器，使用通用更新")
@@ -371,17 +371,17 @@ class EventHandlers:
     
     def generate_new_arrangement(self):
         """生成新的字符排列（強化版）"""
-        import random  # 確保在函數開頭就導入 random 模組
+        import random  # 確保在函數開頭就匯入 random 模組
         
         try:
             debug_log("開始生成新排列")
             
-            # 檢查字體和主版
+            # 檢查字型和主版
             if not Glyphs.font or not Glyphs.font.selectedFontMaster:
-                debug_log("警告：沒有開啟字體或選擇主版")
+                debug_log("警告：沒有開啟字型或選擇主版")
                 return
             
-            # 確認當前狀態
+            # 確認目前狀態
             is_in_clear_mode = self._get_lock_state()
             should_apply_locks = not is_in_clear_mode
             
@@ -399,15 +399,15 @@ class EventHandlers:
                 
             has_locked_chars = bool(self.plugin.lockedChars)
             
-            debug_log(f"當前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
+            debug_log(f"目前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
             debug_log(f"已選擇字符數量：{len(self.plugin.selectedChars)}")
             debug_log(f"已鎖定字符：{self.plugin.lockedChars}")
             
-            # 處理沒有選擇字符的情況 - 使用當前編輯字符替代
+            # 處理沒有選擇字符的情況 - 使用目前編輯字符替代
             if not has_selected_chars:
                 current_char = self._get_current_editing_char()
                 if current_char:
-                    debug_log(f"沒有選擇字符，使用當前編輯字符 '{current_char}' 填充")
+                    debug_log(f"沒有選擇字符，使用目前編輯字符 '{current_char}' 填充")
                     self.plugin.selectedChars = [current_char]
                     has_selected_chars = True
             
@@ -432,7 +432,7 @@ class EventHandlers:
             # 處理上鎖狀態
             else:
                 if has_selected_chars:
-                    # 有選擇字符：生成基礎排列並應用鎖定
+                    # 有選擇字符：生成基礎排列並套用鎖定
                     # 使用列表複本確保可變性
                     selected_chars = list(self.plugin.selectedChars)
                     debug_log(f"上鎖狀態：使用所有 {len(selected_chars)} 個選擇字符生成基礎排列")
@@ -440,20 +440,20 @@ class EventHandlers:
                     debug_log(f"生成基礎排列：{base_arrangement}")
                     
                     if has_locked_chars:
-                        # 應用鎖定並確保結果是可變列表
-                        debug_log(f"應用 {len(self.plugin.lockedChars)} 個鎖定字符")
+                        # 套用鎖定並確保結果是可變列表
+                        debug_log(f"套用 {len(self.plugin.lockedChars)} 個鎖定字符")
                         result_arrangement = apply_locked_chars(
                             base_arrangement,
                             self.plugin.lockedChars,
                             selected_chars
                         )
                         self.plugin.currentArrangement = list(result_arrangement)
-                        debug_log(f"應用鎖定後的排列：{self.plugin.currentArrangement}")
+                        debug_log(f"套用鎖定後的排列：{self.plugin.currentArrangement}")
                     else:
                         self.plugin.currentArrangement = list(base_arrangement)
                         debug_log(f"沒有鎖定字符，保持基礎排列")
                 else:
-                    # 無選擇字符：使用預設排列或當前字符
+                    # 無選擇字符：使用預設排列或目前字符
                     debug_log(f"上鎖狀態但無選擇字符：使用預設排列")
                     self._generate_default_arrangement(should_apply_locks)
                     # 確保結果是可變列表
@@ -487,20 +487,20 @@ class EventHandlers:
             position: 要更新的位置 (0-7)
             input_text: 輸入的文字
         """
-        import random  # 確保在函數開頭就導入 random 模組
+        import random  # 確保在函數開頭就匯入 random 模組
         
         try:
             # 確保有 currentArrangement
             if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
-                # 如果沒有當前排列，需要生成一個基礎排列
+                # 如果沒有目前排列，需要生成一個基礎排列
                 if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
                     self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
                 else:
-                    # 使用當前編輯字符填充
+                    # 使用目前編輯字符填充
                     current_char = self._get_current_editing_char()
                     self.plugin.currentArrangement = [current_char] * 8
             
-            # 創建 currentArrangement 的可變複本
+            # 建立 currentArrangement 的可變複本
             # 處理可能是不可變 NSArray 的情況
             if hasattr(self.plugin, 'currentArrangement'):
                 current_arr = list(self.plugin.currentArrangement)
@@ -534,23 +534,23 @@ class EventHandlers:
                         current_arr[position] = replacement_char
                         debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")
                     else:
-                        # 沒有選擇字符，使用當前編輯字符
+                        # 沒有選擇字符，使用目前編輯字符
                         current_char = self._get_current_editing_char()
                         current_arr[position] = current_char
-                        debug_log(f"[單一更新] 位置 {position} 清空，使用當前字符: {current_char}")
+                        debug_log(f"[單一更新] 位置 {position} 清空，使用目前字符: {current_char}")
             
             # 將修改後的數組賦值回plugin
             self.plugin.currentArrangement = current_arr
             
             # 儲存更新
             self.plugin.savePreferences()
-            debug_log(f"[單一更新] 當前排列: {self.plugin.currentArrangement}")
+            debug_log(f"[單一更新] 目前排列: {self.plugin.currentArrangement}")
             
         except Exception as e:
             error_log("[單一更新] 更新單個位置時發生錯誤", e)
     
     def _get_current_editing_char(self):
-        """取得當前正在編輯的字符"""
+        """取得目前正在編輯的字符"""
         try:
             if Glyphs.font and Glyphs.font.selectedLayers:
                 current_layer = Glyphs.font.selectedLayers[0]
@@ -605,7 +605,7 @@ class EventHandlers:
                 if get_cached_glyph(Glyphs.font, char):
                     return char
         
-        # 5. 使用當前正在編輯的字符
+        # 5. 使用目前正在編輯的字符
         if Glyphs.font and Glyphs.font.selectedLayers:
             current_layer = Glyphs.font.selectedLayers[0]
             if current_layer and current_layer.parent:
@@ -631,21 +631,21 @@ class EventHandlers:
                 elif glyph.name:
                     return glyph.name
         
-        # 7. 絕對保底：返回 "A"
+        # 7. 絕對保底：回傳 "A"
         return "A"
     
     def _generate_default_arrangement(self, should_apply_locks):
         """生成預設排列"""
-        import random  # 確保在函數開頭就導入 random 模組
+        import random  # 確保在函數開頭就匯入 random 模組
         
-        # 如果是上鎖狀態且有鎖定字符，使用當前編輯的字符作為基礎排列
+        # 如果是上鎖狀態且有鎖定字符，使用目前編輯的字符作為基礎排列
         if should_apply_locks and hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars:
             current_layer = None
             if Glyphs.font and Glyphs.font.selectedLayers:
                 current_layer = Glyphs.font.selectedLayers[0]
             
             if current_layer and current_layer.parent:
-                # 使用當前字符的名稱或Unicode值創建基礎排列
+                # 使用目前字符的名稱或Unicode值建立基礎排列
                 current_glyph = current_layer.parent
                 current_char = None
                 if current_glyph.unicode:
@@ -658,11 +658,11 @@ class EventHandlers:
                     current_char = current_glyph.name
                 
                 if current_char:
-                    # 創建一個全是當前字符的基礎排列
+                    # 建立一個全是目前字符的基礎排列
                     base_arrangement = [current_char] * 8
                     
-                    # 應用鎖定字符
-                    # 確保返回的是可變列表
+                    # 套用鎖定字符
+                    # 確保回傳的是可變列表
                     applied_arrangement = apply_locked_chars(
                         base_arrangement, self.plugin.lockedChars, []
                     )
@@ -670,7 +670,7 @@ class EventHandlers:
                     self.plugin.savePreferences()
                     return
         
-        # 使用當前編輯的字符
+        # 使用目前編輯的字符
         current_layer = None
         if Glyphs.font and Glyphs.font.selectedLayers:
             current_layer = Glyphs.font.selectedLayers[0]
@@ -692,7 +692,7 @@ class EventHandlers:
                 self.plugin.savePreferences()
                 return
         
-        # 如果找不到當前字符，使用字型中的第一個有效字符
+        # 如果找不到目前字符，使用字型中的第一個有效字符
         if Glyphs.font and Glyphs.font.glyphs:
             for glyph in Glyphs.font.glyphs:
                 if glyph.unicode:

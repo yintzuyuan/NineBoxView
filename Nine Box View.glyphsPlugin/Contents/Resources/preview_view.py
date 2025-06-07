@@ -49,7 +49,7 @@ class NineBoxPreviewView(NSView):
             self.cachedHeight = 0
             self.panOffset = (0, 0)
             
-            # 效能優化：快取常用值
+            # 效能最佳化：快取常用值
             self._last_redraw_time = 0
             self._cached_theme_is_black = None
             self._cached_master = None
@@ -97,7 +97,7 @@ class NineBoxPreviewView(NSView):
         return True
 
     def force_redraw(self):
-        """設置強制重繪標記"""
+        """設定強制重繪標記"""
         self._force_redraw = True
         self._last_redraw_time = 0  # 重置節流計時器
         self.setNeedsDisplay_(True)
@@ -108,13 +108,13 @@ class NineBoxPreviewView(NSView):
         # 記錄舊框架
         oldFrame = self.frame()
         
-        # 呼叫父類方法
+        # 呼叫父類別方法
         objc.super(NineBoxPreviewView, self).setFrame_(frame)
         
         # 如果框架大小改變，觸發重繪
         if (oldFrame.size.width != frame.size.width or 
             oldFrame.size.height != frame.size.height):
-            debug_log(f"預覽視圖框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
+            debug_log(f"預覽畫面框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
             
             # 清除網格度量快取
             self._cached_grid_metrics = None
@@ -123,7 +123,7 @@ class NineBoxPreviewView(NSView):
             self.force_redraw()
 
     def _get_theme_is_black(self):
-        """檢查當前主題是否為深色模式"""
+        """檢查目前主題是否為深色模式"""
         return NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
     
     def _calculate_grid_metrics(self, rect, display_chars, currentMaster):
@@ -198,10 +198,10 @@ class NineBoxPreviewView(NSView):
             debug_log(f"可用寬度 availableWidth: {availableWidth}, 可用高度 availableHeight: {availableHeight}")
             debug_log(f"計算的縮放比例 scale: {scale}")
             
-            # 應用自定義縮放
+            # 套用自訂縮放
             customScale = self.plugin.zoomFactor
             scale *= customScale
-            debug_log(f"應用自定義縮放後的比例 scale: {scale}")
+            debug_log(f"套用自訂縮放後的比例 scale: {scale}")
             
             # 更新網格尺寸
             cellWidth *= scale
@@ -330,7 +330,7 @@ class NineBoxPreviewView(NSView):
             # === 改進：考慮鎖定狀態和currentArrangement的優先級 ===
             display_chars = []
             
-            # 檢查當前模式和排列狀態
+            # 檢查目前模式和排列狀態
             is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, '_get_lock_state') else False
             has_current_arrangement = bool(self.plugin.currentArrangement)
             has_selected_chars = bool(self.plugin.selectedChars)
@@ -399,7 +399,7 @@ class NineBoxPreviewView(NSView):
             error_log("繪製預覽畫面時發生錯誤", e)
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         try:
             NSNotificationCenter.defaultCenter().removeObserver_(self)
         except:

@@ -41,7 +41,7 @@ try:
                 'tr': u'Dokuz Kutu Önizleme'
             })
             
-            # 導入模組（延遲導入以避免循環依賴）
+            # 匯入模組（延遲匯入以避免反覆依賴）
             self._import_modules()
             
             # 初始化屬性
@@ -54,8 +54,8 @@ try:
         
         @objc.python_method
         def _import_modules(self):
-            """導入所需模組"""
-            # 導入常數
+            """匯入所需模組"""
+            # 匯入常數
             from constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
@@ -65,17 +65,17 @@ try:
                 DEFAULT_ZOOM, DEBUG_MODE
             )
             
-            # 導入工具函數
+            # 匯入工具函數
             from utils import (
                 log_to_macro_window, debug_log, error_log, clear_cache,
                 load_preferences, save_preferences, get_base_width,
                 parse_input_text, get_cached_glyph, get_cached_width
             )
             
-            # 導入事件處理器
+            # 匯入事件處理器
             from event_handlers import EventHandlers
             
-            # 導入視窗控制器
+            # 匯入視窗控制器
             from window_controller import NineBoxWindow
             
             # 儲存到 self 中
@@ -94,9 +94,9 @@ try:
             self.get_cached_glyph = get_cached_glyph
             self.get_cached_width = get_cached_width
 
-            # 驗證工具函數是否正確導入
+            # 驗證工具函數是否正確匯入
             if not hasattr(self, 'get_base_width'):
-                self.debug_log("警告：get_base_width 未正確導入")
+                self.debug_log("警告：get_base_width 未正確匯入")
             
             # 常數
             self.LAST_INPUT_KEY = LAST_INPUT_KEY
@@ -118,7 +118,7 @@ try:
             # 初始化預設值
             self.selectedChars = []
             self.currentArrangement = []
-            self.originalArrangement = []  # 保存原始隨機排列
+            self.originalArrangement = []  # 儲存原始隨機排列
             self.windowController = None
             self.previousLockedChars = {}
             self.controlsPanelVisible = True
@@ -136,7 +136,7 @@ try:
                 newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
                 Glyphs.menu[WINDOW_MENU].append(newMenuItem)
 
-                # 新增回調函數
+                # 新增回呼函數
                 Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
                 Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
                 Glyphs.addCallback(self.selectionChanged_, DOCUMENTOPENED)
@@ -170,7 +170,7 @@ try:
                         self.debug_log("初始化視窗控制器失敗")
                         Glyphs.showNotification(
                             self.name,
-                            "初始化視窗失敗，請檢查控制台日誌"
+                            "初始化視窗失敗，請檢查控制台記錄"
                         )
                         return
                 
@@ -202,7 +202,7 @@ try:
         
         @objc.python_method
         def updateInterface(self, sender):
-            """更新界面 - 委派給事件處理器"""
+            """更新介面 - 委派給事件處理器"""
             if hasattr(self, 'event_handlers'):
                 self.event_handlers.update_interface(sender)
         
@@ -226,7 +226,7 @@ try:
         
         @objc.python_method
         def smartLockCharacterCallback(self, sender):
-            """智能鎖定字符回調 - 委派給事件處理器"""
+            """智慧鎖定字符回呼 - 委派給事件處理器"""
             if hasattr(self, 'event_handlers'):
                 self.event_handlers.smart_lock_character_callback(sender)
         
@@ -238,13 +238,13 @@ try:
         
         @objc.python_method
         def pickGlyphCallback(self, sender):
-            """選擇字符按鈕回調 - 委派給事件處理器"""
+            """選擇字符按鈕回呼 - 委派給事件處理器"""
             if hasattr(self, 'event_handlers'):
                 self.event_handlers.pick_glyph_callback(sender)
         
         @objc.python_method
         def randomizeCallback(self, sender):
-            """隨機排列按鈕回調 - 委派給事件處理器"""
+            """隨機排列按鈕回呼 - 委派給事件處理器"""
             if hasattr(self, 'event_handlers'):
                 self.event_handlers.randomize_callback(sender)
         
@@ -276,7 +276,7 @@ try:
         
         @objc.python_method
         def __del__(self):
-            """析構函數"""
+            """解構式"""
             try:
                 Glyphs.removeCallback(self.updateInterface)
                 Glyphs.removeCallback(self.selectionChanged_)

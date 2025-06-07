@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 工具函數（優化版）
+九宮格預覽外掛 - 工具函數（最佳化版）
 Nine Box Preview Plugin - Utility Functions (Optimized)
 """
 
@@ -31,10 +31,10 @@ def clear_cache():
     _glyph_cache.clear()
     _width_cache.clear()
 
-# === 日誌相關 ===
+# === 記錄相關 ===
 
 def log_to_macro_window(message):
-    """記錄訊息到 Macro 視窗"""
+    """記錄訊息到巨集視窗"""
     try:
         Glyphs.showMacroWindow()
         print(message)
@@ -42,7 +42,7 @@ def log_to_macro_window(message):
         print(message)
 
 def debug_log(message):
-    """除錯日誌輸出 - 只在 DEBUG_MODE 開啟時輸出狀態訊息
+    """除錯記錄輸出 - 只在 DEBUG_MODE 開啟時輸出狀態訊息
     
     Args:
         message: 要輸出的訊息
@@ -51,7 +51,7 @@ def debug_log(message):
         print(f"[九宮格預覽] {message}")
 
 def error_log(error_message, exception=None):
-    """錯誤日誌輸出 - 無論什麼模式都會輸出錯誤訊息
+    """錯誤記錄輸出 - 無論什麼模式都會輸出錯誤訊息
     
     Args:
         error_message: 錯誤描述
@@ -82,7 +82,7 @@ def load_preferences(plugin):
         plugin.originalArrangement = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         
-        # 處理窗口位置 - 統一使用 list 格式
+        # 處理視窗位置 - 統一使用 list 格式
         window_pos = Glyphs.defaults[WINDOW_POSITION_KEY]
         
         # 檢查是否為 NSArray（Objective-C 陣列）
@@ -131,7 +131,7 @@ def load_preferences(plugin):
                         except:
                             debug_log(f"警告: 忽略非整數位置 '{position_str}'")
                 elif isinstance(locked_chars_json, dict):
-                    # 舊格式兼容 - 直接是字典
+                    # 舊格式相容 - 直接是字典
                     for position_str, char_or_name in locked_chars_json.items():
                         try:
                             position = int(position_str)
@@ -159,7 +159,7 @@ def load_preferences(plugin):
                         except:
                             debug_log(f"警告: 忽略非整數位置 '{position_str}'")
                 elif isinstance(previous_locked_chars_json, dict):
-                    # 舊格式兼容 - 直接是字典
+                    # 舊格式相容 - 直接是字典
                     for position_str, char_or_name in previous_locked_chars_json.items():
                         try:
                             position = int(position_str)
@@ -211,7 +211,7 @@ def save_preferences(plugin):
         Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = getattr(plugin, 'originalArrangement', [])
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         
-        # 處理窗口位置 - 統一使用 list 格式
+        # 處理視窗位置 - 統一使用 list 格式
         if hasattr(plugin, 'windowController') and plugin.windowController:
             if hasattr(plugin.windowController, 'window') and plugin.windowController.window():
                 frame_origin = plugin.windowController.window().frame().origin
@@ -274,7 +274,7 @@ def save_preferences(plugin):
 # === 字符處理 ===
 
 def get_cached_glyph(font, char_or_name):
-    """從快取或字型取得字符（優化版）
+    """從快取或字型取得字符（最佳化版）
     
     Args:
         font: 字型物件
@@ -294,7 +294,7 @@ def get_cached_glyph(font, char_or_name):
     # 嘗試取得字符
     glyph = None
     
-    # 優化：使用 Glyphs 內建的快速查找方法
+    # 最佳化：使用 Glyphs 內建的快速查找方法
     try:
         # 1. 直接通過 glyphs 字典存取（最快）
         glyph = font.glyphs[char_or_name]
@@ -328,7 +328,7 @@ def get_cached_glyph(font, char_or_name):
         pass
     
     # 移除遍歷所有字符的部分，這在大型字型中會造成嚴重效能問題
-    # 如果上述方法都找不到，就返回 None
+    # 如果上述方法都找不到，就回傳 None
     
     return None
 
@@ -403,7 +403,7 @@ def generate_arrangement(chars, count=8):
     Returns:
         隨機排列的字符列表
     """
-    import random  # 確保在函數開頭就導入 random 模組
+    import random  # 確保在函數開頭就匯入 random 模組
     
     if not chars:
         return []
@@ -425,7 +425,7 @@ def generate_arrangement(chars, count=8):
     return arrangement
 
 def apply_locked_chars(arrangement, locked_chars, available_chars):
-    """應用鎖定字符到排列中
+    """套用鎖定字符到排列中
     
     Args:
         arrangement: 基礎排列
@@ -433,10 +433,10 @@ def apply_locked_chars(arrangement, locked_chars, available_chars):
         available_chars: 可用字符列表（用於填充空位）
         
     Returns:
-        應用鎖定後的排列
+        套用鎖定後的排列
     """
     if not locked_chars:
-        # 確保返回可變列表
+        # 確保回傳可變列表
         return list(arrangement) if arrangement else []
     
     # 複製排列以避免修改原始資料
@@ -450,7 +450,7 @@ def apply_locked_chars(arrangement, locked_chars, available_chars):
         else:
             result.append("A")  # 預設字符
     
-    # 應用鎖定字符
+    # 套用鎖定字符
     for position, char_or_name in locked_chars.items():
         if 0 <= position < 8:
             result[position] = char_or_name

@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 控制面板視圖（重構版）
+九宮格預覽外掛 - 控制面板畫面（重構版）
 Nine Box Preview Plugin - Controls Panel View (Refactored)
 """
 
@@ -24,12 +24,12 @@ from lock_fields_panel import LockFieldsPanel
 
 class ControlsPanelView(NSView):
     """
-    控制面板視圖類別（重構版）
+    控制面板畫面類別（重構版）
     Controls Panel View class (Refactored)
     """
     
     def initWithFrame_plugin_(self, frame, plugin):
-        """初始化控制面板視圖"""
+        """初始化控制面板畫面"""
         try:
             self = objc.super(ControlsPanelView, self).initWithFrame_(frame)
             if self:
@@ -43,10 +43,10 @@ class ControlsPanelView(NSView):
                 self.isInClearMode = getattr(plugin, 'isInClearMode', False)
                 debug_log(f"ControlsPanelView 初始化鎖頭狀態：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
                 
-                # 設定視圖屬性
+                # 設定畫面屬性
                 self.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
                 
-                # 創建UI元件
+                # 建立UI元件
                 self.setupUI()
                 
                 # 監聽主題變更
@@ -57,21 +57,21 @@ class ControlsPanelView(NSView):
                     None
                 )
                 
-                debug_log("控制面板視圖初始化完成")
+                debug_log("控制面板畫面初始化完成")
                 
             return self
         except Exception as e:
-            error_log("初始化控制面板視圖錯誤", e)
+            error_log("初始化控制面板畫面錯誤", e)
             return None
     
     def setupUI(self):
         """設定使用者介面元件"""
         try:
-            # 清除現有子視圖
+            # 清除現有子畫面
             for subview in self.subviews():
                 subview.removeFromSuperview()
             
-            # 獲取視圖尺寸
+            # 取得畫面尺寸
             bounds = self.bounds()
             
             # 計算佈局
@@ -84,7 +84,7 @@ class ControlsPanelView(NSView):
             button_height = 22
             lock_panel_height = (3 * lock_field_height + 2 * grid_spacing) + button_height + 8
             
-            # 創建搜尋面板（頂部，動態高度）
+            # 建立搜尋面板（頂部，動態高度）
             search_panel_y = margin + lock_panel_height + spacing
             search_panel_height = bounds.size.height - search_panel_y - margin
             search_panel_height = max(search_panel_height, 50)  # 最小高度
@@ -94,7 +94,7 @@ class ControlsPanelView(NSView):
             self.searchPanel = SearchPanel.alloc().initWithFrame_plugin_(searchRect, self.plugin)
             self.addSubview_(self.searchPanel)
             
-            # 創建鎖定欄位面板（底部，固定高度）
+            # 建立鎖定欄位面板（底部，固定高度）
             lockRect = NSMakeRect(margin, margin, 
                                  bounds.size.width - 2 * margin, lock_panel_height)
             self.lockFieldsPanel = LockFieldsPanel.alloc().initWithFrame_plugin_(lockRect, self.plugin)
@@ -114,7 +114,7 @@ class ControlsPanelView(NSView):
         """覆寫 setFrame_ 方法"""
         oldFrame = self.frame()
         
-        # 呼叫父類方法
+        # 呼叫父類別方法
         objc.super(ControlsPanelView, self).setFrame_(frame)
         
         # 如果框架大小改變，重新佈局 UI
@@ -234,7 +234,7 @@ class ControlsPanelView(NSView):
             error_log("繪製背景錯誤", e)
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         try:
             NSNotificationCenter.defaultCenter().removeObserver_(self)
         except:
@@ -242,7 +242,7 @@ class ControlsPanelView(NSView):
         objc.super(ControlsPanelView, self).dealloc()
 
 
-# 為了向後兼容，保留一些舊的引用
+# 為了向後相容，保留一些舊的引用
 BaseTextField = None
 CustomTextField = None
 LockCharacterField = None

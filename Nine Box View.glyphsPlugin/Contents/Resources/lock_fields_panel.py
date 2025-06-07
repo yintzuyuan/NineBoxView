@@ -105,25 +105,25 @@ class LockCharacterField(NSTextField):
     def pickGlyphAction_(self, sender):
         """選擇字符功能"""
         debug_log("鎖定欄位選擇字符選單被點擊")
-        # 功能暫未實現
+        # 功能暫未實作
     
     def textDidChange_(self, notification):
-        """文本變更時的智能回調"""
+        """文字變更時的智慧回呼"""
         try:
-            debug_log(f"鎖定欄位 {self.position} 文本變更: {self.stringValue()}")
+            debug_log(f"鎖定欄位 {self.position} 文字變更: {self.stringValue()}")
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.smartLockCharacterCallback(self)
         except Exception as e:
-            error_log("智能鎖定字符處理錯誤", e)
+            error_log("智慧鎖定字符處理錯誤", e)
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         NSNotificationCenter.defaultCenter().removeObserver_(self)
         objc.super(LockCharacterField, self).dealloc()
 
 
 class LockFieldsPanel(NSView):
-    """鎖定欄位面板視圖"""
+    """鎖定欄位面板畫面"""
     
     LOCK_FIELD_HEIGHT = 30  # 單行高度
     
@@ -148,14 +148,14 @@ class LockFieldsPanel(NSView):
         """設定介面"""
         bounds = self.bounds()
         
-        # 創建清除按鈕（底部）
+        # 建立清除按鈕（底部）
         self._create_clear_button(bounds)
         
-        # 創建鎖定輸入框九宮格（上方）
+        # 建立鎖定輸入框九宮格（上方）
         self._create_lock_fields(bounds)
     
     def _create_lock_fields(self, bounds):
-        """創建鎖定輸入框和鎖頭按鈕"""
+        """建立鎖定輸入框和鎖頭按鈕"""
         grid_spacing = 4
         button_height = 22
         spacing = 8
@@ -168,7 +168,7 @@ class LockFieldsPanel(NSView):
         # 從頂部開始（清除按鈕上方）
         current_y = button_height + spacing
         
-        # 創建3x3網格
+        # 建立3x3網格
         position = 0
         for row in range(3):
             for col in range(3):
@@ -192,7 +192,7 @@ class LockFieldsPanel(NSView):
                     position += 1
     
     def _create_lock_button(self, x, y, width, height):
-        """創建鎖頭按鈕"""
+        """建立鎖頭按鈕"""
         button_padding = 1
         lockRect = NSMakeRect(
             x + button_padding, 
@@ -211,7 +211,7 @@ class LockFieldsPanel(NSView):
         self.lockButton.setButtonType_(NSButtonTypeToggle)
         self.lockButton.setBordered_(False)
         
-        # 設定字體與對齊
+        # 設定字型與對齊
         self.lockButton.setFont_(NSFont.systemFontOfSize_(16.0))
         self.lockButton.setAlignment_(NSCenterTextAlignment)
         
@@ -228,7 +228,7 @@ class LockFieldsPanel(NSView):
         self.addSubview_(self.lockButton)
     
     def _create_clear_button(self, bounds):
-        """創建清除按鈕"""
+        """建立清除按鈕"""
         button_height = 22
         
         # 清空欄位按鈕，固定在底部
@@ -267,7 +267,7 @@ class LockFieldsPanel(NSView):
     def toggleLockMode_(self, sender):
         """切換鎖頭模式"""
         try:
-            # 先儲存當前狀態
+            # 先儲存目前狀態
             was_in_clear_mode = self.isInClearMode
             
             # 先檢查必要的物件和方法
@@ -283,11 +283,11 @@ class LockFieldsPanel(NSView):
                         positions_with_content.append(position)
                 debug_log(f"切換前有內容的輸入框位置: {positions_with_content}")
             
-            # === 新增：從解鎖切換到鎖定時，保存當前的隨機排列 ===
+            # === 新增：從解鎖切換到鎖定時，儲存目前的隨機排列 ===
             if was_in_clear_mode and hasattr(self.plugin, 'currentArrangement'):
-                # 保存當前的隨機排列，供之後回復使用
+                # 儲存目前的隨機排列，供之後回復使用
                 self.plugin.originalArrangement = list(self.plugin.currentArrangement)
-                debug_log(f"保存原始隨機排列: {self.plugin.originalArrangement}")
+                debug_log(f"儲存原始隨機排列: {self.plugin.originalArrangement}")
                 # 儲存到偏好設定
                 self.plugin.savePreferences()
             
@@ -302,7 +302,7 @@ class LockFieldsPanel(NSView):
                     if hasattr(self.plugin, 'lockedChars'):
                         debug_log(f"同步成功，目前鎖定字符：{self.plugin.lockedChars}")
                     else:
-                        debug_log("警告：同步後 lockedChars 未正確設置")
+                        debug_log("警告：同步後 lockedChars 未正確設定")
                 except Exception as e:
                     error_log("同步過程發生錯誤", e)
                 debug_log("同步流程完成")
@@ -385,10 +385,10 @@ class LockFieldsPanel(NSView):
             if is_in_clear_mode:
                 # === 解鎖狀態：回復原始隨機排列 ===
                 if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
-                    # 優先使用保存的原始排列
+                    # 優先使用儲存的原始排列
                     self.plugin.currentArrangement = list(self.plugin.originalArrangement)
                     debug_log(f"[鎖頭切換更新] 解鎖狀態 - 回復原始排列: {self.plugin.currentArrangement}")
-                    return  # 完成更新，直接返回
+                    return  # 完成更新，直接回傳
                 elif positions_with_content and self.plugin.currentArrangement and len(self.plugin.currentArrangement) >= 8:
                     # 沒有原始排列時，只替換切換前有內容的位置為隨機字符
                     if has_selected_chars:
@@ -403,7 +403,7 @@ class LockFieldsPanel(NSView):
                                 debug_log(f"[鎖頭切換更新] 解鎖 - 位置 {position} 替換為: {replacement_char}")
                         debug_log(f"[鎖頭切換更新] 解鎖狀態 - 只更新了位置 {positions_with_content}")
                         debug_log(f"[鎖頭切換更新] 最終排列: {self.plugin.currentArrangement}")
-                        return  # 完成更新，直接返回
+                        return  # 完成更新，直接回傳
                     else:
                         # 沒有選擇字符時清空排列
                         self.plugin.currentArrangement = []
@@ -417,7 +417,7 @@ class LockFieldsPanel(NSView):
                             debug_log(f"[鎖頭切換更新] 維持現有排列: {self.plugin.currentArrangement}")
                         else:
                             debug_log("[鎖頭切換更新] 無現有排列")
-                        return  # 不更新排列，直接返回
+                        return  # 不更新排列，直接回傳
                     else:
                         # 有輸入框有內容但沒有現有排列，生成新的隨機排列
                         from utils import generate_arrangement
@@ -433,16 +433,16 @@ class LockFieldsPanel(NSView):
                 
                 # 先確保有基礎排列（但不要覆蓋現有排列）
                 if not self.plugin.currentArrangement or len(self.plugin.currentArrangement) < 8:
-                    # 只有在完全沒有排列時才創建新的
+                    # 只有在完全沒有排列時才建立新的
                     if has_selected_chars:
                         from utils import generate_arrangement
                         self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
-                        debug_log(f"[鎖頭切換更新] 創建初始排列: {self.plugin.currentArrangement}")
+                        debug_log(f"[鎖頭切換更新] 建立初始排列: {self.plugin.currentArrangement}")
                     else:
-                        # 使用當前編輯的字符填充
+                        # 使用目前編輯的字符填充
                         current_char = self._get_current_editing_char()
                         self.plugin.currentArrangement = [current_char] * 8
-                        debug_log(f"[鎖頭切換更新] 使用當前字符創建初始排列: {current_char}")
+                        debug_log(f"[鎖頭切換更新] 使用目前字符建立初始排列: {current_char}")
                 
                 # --- 新增：確保 currentArrangement 是 list ---
                 if not isinstance(self.plugin.currentArrangement, list):
@@ -465,13 +465,13 @@ class LockFieldsPanel(NSView):
                 else:
                     # 沒有需要更新的位置，保持現有排列不變
                     debug_log("[鎖頭切換更新] 上鎖狀態 - 無需更新，保持現有排列不變")
-                    debug_log(f"[鎖頭切換更新] 當前排列: {self.plugin.currentArrangement}")
+                    debug_log(f"[鎖頭切換更新] 目前排列: {self.plugin.currentArrangement}")
             
         except Exception as e:
             error_log("[鎖頭切換更新] 錯誤", e)
     
     def _get_current_editing_char(self):
-        """取得當前正在編輯的字符"""
+        """取得目前正在編輯的字符"""
         try:
             if Glyphs.font and Glyphs.font.selectedLayers:
                 current_layer = Glyphs.font.selectedLayers[0]
@@ -591,7 +591,7 @@ class LockFieldsPanel(NSView):
             error_log("同步輸入欄內容錯誤", e)
     
     def createLockImage(self, locked=True):
-        """創建極簡鎖頭圖示"""
+        """建立極簡鎖頭圖示"""
         imageSize = 18
         lockImage = NSImage.alloc().initWithSize_((imageSize, imageSize))
         
@@ -620,10 +620,10 @@ class LockFieldsPanel(NSView):
             
             string.drawAtPoint_withAttributes_(NSMakePoint(x, y), attrs)
             
-            debug_log(f"已創建極簡{'鎖定' if locked else '解鎖'}圖示")
+            debug_log(f"已建立極簡{'鎖定' if locked else '解鎖'}圖示")
             
         except Exception as e:
-            error_log("創建極簡鎖頭圖示時發生錯誤", e)
+            error_log("建立極簡鎖頭圖示時發生錯誤", e)
             
             try:
                 systemIcon = None
@@ -662,7 +662,7 @@ class LockFieldsPanel(NSView):
                 self.lockButton.setTitle_("")
                 self.lockButton.setState_(1 if is_locked else 0)
                 
-                # 設置背景色（如果有 layer）
+                # 設定背景色（如果有 layer）
                 if hasattr(self.lockButton, 'layer') and self.lockButton.layer():
                     layer = self.lockButton.layer()
                     
@@ -685,7 +685,7 @@ class LockFieldsPanel(NSView):
                     
                     layer.setBorderWidth_(0.0)
                 
-                # 設置圖示顏色
+                # 設定圖示顏色
                 if hasattr(self.lockButton, 'setContentTintColor_'):
                     if is_locked:
                         self.lockButton.setContentTintColor_(NSColor.controlAccentColor())
@@ -695,7 +695,7 @@ class LockFieldsPanel(NSView):
                         else:
                             self.lockButton.setContentTintColor_(NSColor.labelColor())
                 
-                # 設置工具提示
+                # 設定工具提示
                 if self.isInClearMode:
                     tooltip = Glyphs.localize({
                         'en': u'Unlock Mode (click to lock)',
@@ -719,7 +719,7 @@ class LockFieldsPanel(NSView):
                 debug_log(f"已更新鎖頭按鈕外觀：{'🔒 鎖定' if is_locked else '🔓 解鎖'}")
             else:
                 # 後備方案：極簡文字按鈕
-                debug_log("圖示創建失敗，使用極簡文字後備方案")
+                debug_log("圖示建立失敗，使用極簡文字後備方案")
                 
                 title = "🔒" if not self.isInClearMode else "🔓"
                 self.lockButton.setTitle_(title)
@@ -750,7 +750,7 @@ class LockFieldsPanel(NSView):
             # 更新 plugin 的 lockedChars
             if hasattr(self, 'plugin') and self.plugin:
                 if hasattr(self.plugin, 'lockedChars'):
-                    # 備份當前狀態
+                    # 備份目前狀態
                     if hasattr(self.plugin, 'previousLockedChars'):
                         self.plugin.previousLockedChars = self.plugin.lockedChars.copy()
                     
@@ -791,13 +791,13 @@ class LockFieldsPanel(NSView):
                                         self.plugin.currentArrangement[pos] = replacement_char
                                         debug_log(f"位置 {pos} 替換為: {replacement_char}")
                             else:
-                                # 如果沒有 selectedChars，使用當前編輯字符
+                                # 如果沒有 selectedChars，使用目前編輯字符
                                 for pos in cleared_positions:
                                     if pos < len(self.plugin.currentArrangement):
-                                        # 使用當前編輯字符
+                                        # 使用目前編輯字符
                                         current_char = self._get_current_editing_char()
                                         self.plugin.currentArrangement[pos] = current_char
-                                        debug_log(f"位置 {pos} 使用當前字符: {current_char}")
+                                        debug_log(f"位置 {pos} 使用目前字符: {current_char}")
                     else:
                         debug_log("🔓 解鎖狀態 - 雖然不影響預覽，但仍強制重繪以確保一致性")
                     
@@ -842,5 +842,5 @@ class LockFieldsPanel(NSView):
         self.updateLockButton()
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         objc.super(LockFieldsPanel, self).dealloc()

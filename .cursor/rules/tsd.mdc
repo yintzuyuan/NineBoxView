@@ -3,208 +3,173 @@ description:
 globs: 
 alwaysApply: true
 ---
-## 技術規格文件 (TSD) - 九宮格預覽 (Nine Box Preview) v3.8 (效能優化版)
+## 技術規格檔案 (TSD) - 九宮格預覽 (Nine Box Preview) v3.0.0 (模組化重構版)
 
-**文件版本:** 1.18
-**日期:** 2025-06-06
+**檔案版本:** 1.0 (對應程式碼版本 3.0.0)
+**日期:** 2025-06-07 (根據程式碼檢視更新)
 **變更摘要:** 
-1. 清理冗餘程式碼，提高程式碼可讀性和維護性。
-2. 優化除錯日誌系統，統一格式並確保只在除錯模式下輸出。
-3. 重構模組導入，按功能分類整理並減少重複導入。
-4. 簡化多個關鍵方法的邏輯結構，移除不必要的條件分支。
-5. 改進方法文檔，為關鍵函數添加完整的參數和返回值說明。
-6. 移除未使用的註解代碼和開發時的調試工具。
-7. 修正子視窗層級行為，確保與主視窗一致的顯示邏輯。
-8. 優化視窗資源管理，確保適當釋放和重建。
-9. 優化鎖定輸入框清除行為：在鎖定模式下清除時不再重新隨機排列整個視窗，而是智能替換被清除的位置，保持其他位置不變。
-10. 優化鎖頭按鈕切換行為：每次切換鎖頭狀態時都強制更新預覽，但只更新有內容的輸入框對應位置，避免影響其他位置的字符。無論在上鎖或解鎖狀態下，清除所有輸入框時也會強制重繪預覽。特別修正：從解鎖切換到鎖定時，保持現有排列不變，只更新有內容的輸入框位置。
-11. **重構字符選擇功能**：改用官方 PickGlyphs API 實現字符選擇對話框，取代自定義的 displayDialog 實作，提供更原生的使用體驗。
-12. **簡化字符插入邏輯**：避免複雜的遊標位置處理，直接將選擇的字符附加到搜尋框末尾，提高穩定性。
-13. **大型字型效能優化**：針對包含數千或數萬字符的大型字型（如中文字型）進行效能優化，解決輸入時的卡頓問題：
-    - 優化字符查找機制，使用 Glyphs 內建的快速查找 API，避免遍歷所有字符
-    - 實施輸入防抖（debounce）機制，延遲 150ms 處理連續輸入
-    - 增強繪製快取，包括字符圖層快取和佈局度量快取
-    - 針對大型字型調整重繪節流閾值，從 60 FPS 降至 20 FPS
-    - 實現批次更新機制，減少重複的介面更新呼叫
-14. **修正視窗位置記憶功能**：統一視窗位置的儲存和載入格式，確保外掛能正確記憶並恢復視窗在螢幕中的位置：
-    - 統一使用 Python list 格式 `[x, y]` 儲存和載入視窗位置
-    - 在 `utils.py` 中修正載入和儲存邏輯，避免格式不一致問題
-    - 向後相容舊的字典格式 `{'x': x, 'y': y}`
-    - 在視窗控制器中正確套用載入的視窗位置
-15. **優化隨機排列回復機制**：當從鎖定狀態回到隨機排列狀態時，不再產生新的隨機字符，而是回復到原本的隨機排列：
-    - 新增 `originalArrangement` 屬性用於保存原始隨機排列
-    - 從解鎖切換到鎖定時，保存當前的隨機排列
-    - 從鎖定切換回解鎖時，回復保存的原始排列
-    - 清空鎖定欄位時也回復原始排列
-    - 當使用者主動點擊隨機排列時，清除原始排列記錄
+1. **模組化重構**：將程式碼拆分為多個獨立模組 (`plugin.py`, `window_controller.py`, `preview_view.py`, `controls_panel_view.py`, `search_panel.py`, `lock_fields_panel.py`, `event_handlers.py`, `utils.py`, `constants.py`)，提高可讀性和可維護性。
+2. **集中式事件處理**：新增 `event_handlers.py` 模組，統一管理大部分 UI 事件和 Glyphs 回呼邏輯。
+3. **控制面板結構化**：`controls_panel_view.py` 作為容器，管理 `search_panel.py`（搜尋功能）和 `lock_fields_panel.py`（鎖定功能）。
+4. **原生字符選擇器**：搜尋輸入框 (`SearchTextView`) 整合 Glyphs 官方 `PickGlyphs()` API，提供更佳的字符選擇體驗。
+5. **穩定預覽佈局**：`preview_view.py` 中的字符佈局基於字身寬度 (`layer.width`)，確保在編輯字符時預覽框架的穩定性。
+6. **鎖定與回復機制**：`lock_fields_panel.py` 和 `event_handlers.py` 實現了鎖定模式切換、鎖定字符清除，並引入 `originalArrangement` 屬性以在特定操作後回復先前的隨機排列。
+7. **效能考量**：
+    - `utils.py` 中的 `get_cached_glyph` 使用 Glyphs 內建 API 最佳化字符查找。
+    - `preview_view.py` 實作繪製節流 (`REDRAW_THRESHOLD`)。
+    - `plugin.py` 中使用 `_update_scheduled` 標記避免部分重複更新。
+8. **視窗位置記憶**：統一使用 Python list 格式 `[x, y]` 儲存和載入視窗位置，並相容舊的字典格式。
+9. **偏好設定管理**：`utils.py` 中集中處理偏好設定的載入與儲存，針對鎖定字符等字典類型的資料使用 JSON 格式儲存。
+10. **程式碼整理**：改進除錯記錄系統，統一使用 `debug_log` 和 `error_log`。
+
 
 ### 1. 系統架構 (System Architecture)
 
-本外掛採用集中式狀態管理，經過優化後架構更加清晰。`plugin.py` 作為核心控制器，負責狀態與邏輯。系統包含兩個主要視窗：
+本外掛採用模組化設計，`plugin.py` 作為核心控制器，負責狀態管理與主要邏輯分派。`event_handlers.py` 集中處理大部分事件回呼。系統包含兩個主要視窗：
 
 * **主預覽視窗 (`NineBoxPreviewWindow`):** 由 `window_controller.py` (主視窗控制器) 管理，負責顯示九宮格預覽。
 * **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，且無標題列。此視窗的生命週期與顯示狀態由主視窗控制器管理。
 
-UI 模組 (`controls_panel_view.py`) 負責控制面板的內容佈局與事件轉發。繪圖模組 (`preview_view.py`) 負責預覽渲染。輔助模組 (`utils.py` 和 `constants.py`) 提供全域常數和共用功能，確保程式碼重用和一致性。
-
-**架構優化：**
-* 將散落在各處的除錯日誌統一使用 `debug_log` 函數，並依賴全域 `DEBUG_MODE` 常數控制輸出。
-* 透過函數職責分離和參數文檔改進，使每個模組的責任邊界更加清晰。
-* 優化狀態管理流程，減少不必要的重繪和事件傳遞，提升效能。
+UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search_panel.py`（搜尋功能面板）和 `lock_fields_panel.py`（鎖定功能面板）。繪圖模組 (`preview_view.py`) 負責預覽渲染。輔助模組 (`utils.py` 和 `constants.py`) 提供全域常數和共用功能。
 
 ### 2. 主要模組職責 (Module Responsibilities)
 
-* **`plugin.py` (核心控制器 - 優化版):**
+* **`plugin.py` (核心控制器 - 最佳化版):**
     * **職責:**
-        * 維護所有核心狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `isLockModeActive`, `zoomFactor`。
-        * 接收並處理所有來自 Glyphs 的回呼和來自控制面板子視窗的 UI 事件。
-        * 使用結構化的模組導入 (`_import_modules`) 按功能分類整理依賴。
-        * 實現優化後的 `updateInterface` 方法，避免重複更新，提升效能。
-        * 實現簡化後的 `searchFieldCallback` 和 `smartLockCharacterCallback` 邏輯，提高可讀性。
-        * 實現清晰明確的 `generateNewArrangement` 方法，處理字符排列生成。
-        * 實現優化後的 `_get_lock_state` 和 `_recognize_character` 工具函式。
-        * 優化偏好設定的載入和儲存機制，減少冗餘程式碼。
+        * 初始化外掛，設定名稱、匯入模組、初始化屬性。
+        * 註冊 Glyphs 選單項目和全域回呼 (`UPDATEINTERFACE`, `DOCUMENTACTIVATED`, etc.)。
+        * 管理核心狀態：`lastInput`, `selectedChars`, `lockedChars`, `currentArrangement`, `originalArrangement`, `zoomFactor`, `isInClearMode` (鎖頭狀態), `windowPosition`, `controlsPanelVisible`。
+        * 實例化 `EventHandlers` 並將事件處理委派給它。
+        * 管理 `NineBoxWindow` (主視窗控制器) 的生命週期。
+        * 提供 `loadPreferences` 和 `savePreferences` 方法 (實際邏輯在 `utils.py`)。
+        * 使用 `_update_scheduled` 標記來避免 `updateInterface` 的重複執行。
 
 * **`window_controller.py` (主視窗控制器 - `NineBoxWindow`):**
-    * **職責:** (功能不變，程式碼已優化)
-        * 管理主預覽視窗 (`NSPanel`) 的生命週期、佈局、事件。
+    * **職責:** (功能不變，程式碼已最佳化)
+        * 管理主預覽視窗 (`NSPanel`) 的生命週期、佈局、視窗事件 (移動、縮放、關閉)。
         * 管理控制面板子視窗的實例、生命週期、顯示與隱藏。
-        * 監聽視窗尺寸變更事件，同步更新控制面板大小和位置。
+        * 在主視窗標題列提供「⚙」按鈕以切換控制面板的顯示。
+        * 同步主視窗與控制面板子視窗的位置與大小。
         * 提供 `request_main_redraw()` 和 `request_controls_panel_ui_update()` 方法，統一重繪請求。
+        * 處理視窗位置和大小的偏好設定儲存。
 
 * **`preview_view.py` (繪圖器 - `NineBoxPreviewView`):**
-    * **職責:** (功能不變，程式碼已優化)
-        * 根據 `self.plugin.currentArrangement` 和 `Glyphs.font.selectedLayers[0]` 繪圖。
+    * **職責:** (功能不變，程式碼已最佳化)
+        * 根據 `plugin.currentArrangement` (或 `plugin.selectedChars`) 和 `Glyphs.font.selectedLayers[0]` 繪製九宮格預覽。
         * 自動檢測並適應 Glyphs 預覽區域的明暗主題。
         * 監聽主題變更通知，即時調整顯示風格。
-        * 使用優化後的佈局計算邏輯，確保穩定的視覺效果。
-        * 適當記錄關鍵繪製點的除錯資訊，便於追蹤問題。
-        * **效能優化**：
-          - 增加字符圖層快取 (`_cached_layers`)，避免重複查找
-          - 增加佈局度量快取 (`_cached_grid_metrics`)，減少重複計算
-          - 針對大型字型調整重繪節流闾值，從 60 FPS 降至 20 FPS
-          - 實現 `invalidate_caches` 方法管理快取生命週期
+        * 實現基於字身寬度 (`layer.width`) 的穩定佈局計算邏輯。
+        * 處理滑鼠點擊事件以觸發隨機排列 (`plugin.randomizeCallback`)。
+        * 實作繪製節流機制 (`_should_redraw`, `force_redraw`)，使用 `REDRAW_THRESHOLD` (約 60 FPS)。
+        * 支援透過 `plugin.zoomFactor` 縮放預覽內容。
 
 * **`controls_panel_view.py` (`ControlsPanelView`):**
     * **職責:** (重構後)
         * 作為控制面板子視窗的 `contentView`，但現在是一個容器。
         * 管理兩個子面板：`SearchPanel` 和 `LockFieldsPanel`。
         * 負責整體佈局和子面板的協調。
-        * 實現 `update_ui` 方法，將更新請求分發到各子面板。
+        * 實作 `update_ui` 方法，將更新請求分發到各子面板 (可選擇是否更新鎖定輸入框)。
         * 處理主題變更和背景繪製。
 
 * **`search_panel.py` (`SearchPanel`):**
     * **職責:** (新增)
-        * 管理長文本搜尋框的所有功能。
-        * 包含 `SearchTextView` 類別，支援右鍵選單。
-        * 處理搜尋文字變更事件，轉發給 `plugin.py` 的 `searchFieldCallback`。
-        * 提供 `update_content`、`get_search_value` 和 `set_search_value` 方法。
-        * **右鍵選單功能**：實現 `pickGlyphAction_` 方法，呼叫 `plugin` 的 `pickGlyphCallback` 來開啟字符選擇對話框。
+        * `SearchTextView`: 繼承 `NSTextView`，用於多行文字輸入。支援右鍵選單呼叫 `plugin.pickGlyphCallback` 以使用 `PickGlyphs` API。文字變更時觸發 `plugin.searchFieldCallback`。
+        * `SearchPanel`: 繼承 `NSView`，包含一個 `SearchTextView` (置於 `NSScrollView` 中)。提供 `update_content`、`get_search_value` 和 `set_search_value` 方法。
 
 * **`lock_fields_panel.py` (`LockFieldsPanel`):**
     * **職責:** (新增)
-        * 管理鎖定輸入框九宮格和相關按鈕。
-        * 包含 `LockCharacterField` 類別，處理單字符輸入。
-        * 在九宮格中央放置鎖頭按鈕，控制鎖定模式。
-        * 底部放置清空鎖定按鈕。
-        * 處理鎖定字符輸入變更，轉發給 `plugin.py` 的 `smartLockCharacterCallback`。
-        * 管理鎖頭狀態和同步邏輯。
-        * **清除行為優化**：在鎖定模式下清除所有輸入框時：
-          - 不會重新隨機排列整個主視窗
-          - 只將被清除的鎖定位置替換為 `selectedChars` 中的隨機字符
-          - 保持其他非鎖定位置的字符不變
-          - 確保 `currentArrangement` 正確更新後再觸發重繪
-        * **鎖頭切換行為優化**：點擊鎖頭按鈕切換模式時：
-          - 記錄切換前有內容的輸入框位置 (positions_with_content)
-          - 切換到解鎖狀態：只將有內容的位置替換為隨機字符，其他位置保持不變
-          - 切換到上鎖狀態：
-            * 使用 `_sync_input_fields_to_locked_chars_without_regenerate` 同步輸入框內容，但不觸發重新生成
-            * 保持現有的 currentArrangement 不變
-            * 只更新有內容的輸入框位置（positions_with_content 中的位置）
-            * 其他位置的字符完全不受影響
-          - 每次切換都強制重繪預覽（包括鎖定和解鎖兩種情況），確保立即更新
-          - 無論在上鎖或解鎖狀態，清除所有輸入框時也會強制重繪預覽
-          - 實現 `_update_arrangement_for_lock_toggle` 方法處理特殊更新邏輯
-          - 新增 `_sync_input_fields_to_locked_chars_without_regenerate` 方法，避免觸發全局重新生成
-          - 新增 `_get_current_editing_char` 輔助方法獲取當前編輯字符
+        * `LockCharacterField`: 繼承 `NSTextField`，用於九宮格中的 8 個鎖定位置的單字符輸入。文字變更時觸發 `plugin.smartLockCharacterCallback`。
+        * `LockFieldsPanel`: 繼承 `NSView`，管理 8 個 `LockCharacterField`、中央的鎖頭按鈕和底部的「清空鎖定」按鈕。
+        * 處理搜尋文字變更事件，轉發給 `plugin.py` 的 `searchFieldCallback`。
+        * `toggleLockMode_`: 處理鎖頭按鈕點擊事件。切換 `plugin.isInClearMode` 狀態。儲存/回復 `plugin.originalArrangement`。同步輸入框內容到 `plugin.lockedChars` (使用 `_sync_input_fields_to_locked_chars_without_regenerate`)。透過 `_update_arrangement_for_lock_toggle` 更新預覽排列，並強制重繪。
+        * `clearAllFields_`: 處理「清空鎖定」按鈕點擊事件。清除 UI 欄位和 `plugin.lockedChars`。在鎖定模式下，嘗試回復 `plugin.originalArrangement` 或用 `plugin.selectedChars` 中的隨機字符替換被清除的位置。強制重繪預覽。
+        * `update_lock_fields`: 根據 `plugin.lockedChars` 更新鎖定輸入框的顯示內容。
 
 * **`event_handlers.py` (`EventHandlers`):**
-    * **職責:** (新增優化)
+    * **職責:** (新增最佳化)
         * 集中管理所有事件處理邏輯。
-        * **字符選擇功能重構**：`pick_glyph_callback` 方法改用官方 `PickGlyphs()` API，提供：
+        * `update_interface`: 處理 Glyphs 的 `UPDATEINTERFACE` 等回呼，觸發主視窗和控制面板的重繪/更新。
+        * `search_field_callback`: 處理搜尋框文字變更。更新 `plugin.lastInput` 和 `plugin.selectedChars`。若有需要則呼叫 `generate_new_arrangement`。
+        * `smart_lock_character_callback`: 處理單一鎖定框文字變更。更新 `plugin.lockedChars`。若在鎖定模式，則呼叫 `_update_single_position` 更新 `plugin.currentArrangement` 的對應位置並強制重繪。
+        * `clear_all_lock_fields_callback`: 處理來自 `LockFieldsPanel` 的清空請求，更新 `plugin.lockedChars` 並重新生成排列。
+        * `pick_glyph_callback`: 使用官方 `PickGlyphs()` API 選擇字符，並將結果附加到搜尋框。
+        * `randomize_callback`: 處理預覽區點擊事件。清除 `plugin.originalArrangement`，呼叫 `generate_new_arrangement`，並強制重繪預覽。
+        * `generate_new_arrangement`: 核心排列生成邏輯。根據 `plugin.isInClearMode` (鎖頭狀態)、`plugin.selectedChars` 和 `plugin.lockedChars` 計算 `plugin.currentArrangement`。
+        * 輔助方法如 `_update_single_position`, `_get_current_editing_char`, `_get_lock_state`, `_recognize_character`, `_generate_default_arrangement`。
+        * **效能考量**:
+          - `update_interface` 方法透過 `plugin._update_scheduled` 標記避免短時間內重複呼叫。
           - 更原生的字符選擇體驗
           - 支援搜尋字串預填功能
-          - 自動使用當前主版進行預覽
+          - 自動使用目前主版進行預覽
           - 將選擇的字符附加到搜尋框內容末尾
-          - 智能處理空格分隔
-        * 移除舊的輔助方法 `_prepare_glyph_options` 和 `_parse_glyph_selection`，簡化程式碼結構。
-        * **效能優化**：
-          - 實施輸入防抖（debounce）機制，在 `search_field_callback` 中延遲 150ms 處理連續輸入
-          - 實現批次更新機制（`_batch_update`），避免重複的介面更新呼叫
-          - 在析構函數中確保清理所有計時器，避免記憶體洩漏
-        * 其他事件處理功能保持不變。
+          - 智慧處理空格分隔
 
-* **`utils.py` (工具函數 - 優化版):**
+* **`utils.py` (工具函數 - 最佳化版):**
     * **職責:**
-        * 提供優化後的字符處理和排列生成函數。
-        * 實現統一的除錯日誌系統 (`debug_log`, `log_to_macro_window`)。
-        * 提供效率更高的快取管理功能 (`get_cached_glyph`, `get_cached_width`, `clear_cache`)。
-        * **效能優化**：`get_cached_glyph` 函數大幅改進，使用 Glyphs 內建的快速查找 API（`font.glyphs[char_or_name]`），避免遍歷所有字符，在大型字型中提升效能 100-1000 倍。
-        * 實現改進後的 `get_base_width` 函數，更可靠地獲取基準寬度。
-        * 提供優化後的 `parse_input_text` 和 `generate_arrangement` 函數。
-        * 實現修正後的 `apply_locked_chars` 函數，確保鎖定字符應用邏輯正確。
+        * 提供字符處理 (`parse_input_text`, `get_cached_glyph`, `get_cached_width`) 和排列生成 (`generate_arrangement`, `apply_locked_chars`) 函數。
+        * 實作統一的除錯記錄系統 (`debug_log`, `log_to_macro_window`)。
+        * 提供快取管理功能 (`_glyph_cache`, `_width_cache`, `clear_cache`)。`get_cached_glyph` 使用 Glyphs 內建 API 最佳化查找。
+        * 實作改進後的 `get_base_width` 函數，更可靠地取得基準寬度。
+        * 集中處理偏好設定的載入 (`load_preferences`) 與儲存 (`save_preferences`)，包括對字典使用 JSON 格式和對視窗位置使用 list 格式。
 
-* **`constants.py` (常數定義 - 優化版):**
+* **`constants.py` (常數定義 - 最佳化版):**
     * **職責:**
         * 提供所有外掛常數的集中定義。
         * 組織常數為多個邏輯區塊：偏好設定鍵值、視窗尺寸和佈局、繪圖參數等。
-        * 移除開發時使用的測試代碼和註解。
-        * 適當註釋重要常數的用途，提高程式碼可讀性。
+        * 包含 `DEBUG_MODE` 開關。
 
 ### 3. 數據流 (Data Flow)
 
-優化後的數據流程更加清晰和高效：
-
-1.  **事件觸發 (UI):** `ControlsPanelView` 中的 UI 元素產生事件 -> 轉發給 `plugin.py` 的處理函數。
-2.  **狀態更新:** `plugin.py` 更新內部狀態，使用優化後的條件檢查避免不必要的處理。
-3.  **排列計算:** `plugin.py` 使用優化後的 `generateNewArrangement` 方法計算字符排列。
-4.  **請求更新:** 
-    * 呼叫主視窗控制器的 `request_main_redraw()` -> `preview_view` 重繪。
-    * 必要時呼叫主視窗控制器的 `request_controls_panel_ui_update()` -> `ControlsPanelView` 更新 UI。
-    * 儲存偏好設定。
-5.  **效能控制:** 使用 `_update_scheduled` 標記防止重複更新，優化資源使用。
+1.  **UI 事件觸發:**
+    *   控制面板 (`SearchPanel`, `LockFieldsPanel`) 中的 UI 元件 (文字輸入、按鈕點擊) 產生事件。
+    *   事件通常先由對應的面板類別處理，然後呼叫 `plugin.py` 中對應的回呼方法 (例如 `plugin.searchFieldCallback`)。
+    *   `plugin.py` 將這些回呼進一步委派給 `EventHandlers` 中的方法。
+    *   預覽畫面 (`NineBoxPreviewView`) 的點擊事件直接呼叫 `plugin.randomizeCallback` (委派給 `EventHandlers`)。
+2.  **Glyphs 事件觸發:**
+    *   Glyphs 的全域事件 (如 `UPDATEINTERFACE`, `SELECTIONCHANGED`) 觸發 `plugin.py` 中註冊的回呼方法，這些方法再委派給 `EventHandlers`。
+3.  **事件處理與狀態更新 (`EventHandlers`):**
+    *   `EventHandlers` 中的方法根據事件類型更新 `plugin` 的核心狀態 (如 `plugin.lastInput`, `plugin.selectedChars`, `plugin.lockedChars`, `plugin.isInClearMode`)。
+    *   若需要，呼叫 `generate_new_arrangement` 或 `_update_single_position` 來計算或修改 `plugin.currentArrangement`。
+    *   呼叫 `plugin.savePreferences()` 將變更儲存到偏好設定。
+4.  **介面更新請求:**
+    *   `EventHandlers` 通常會呼叫 `plugin.updateInterface()`。
+    *   `plugin.updateInterface()` (透過 `_update_scheduled` 標記進行節流) 接著請求主視窗控制器 (`windowController`) 更新介面：
+        *   呼叫 `windowController.request_main_redraw()` -> `NineBoxPreviewView` 觸發重繪 (使用 `force_redraw` 或 `setNeedsDisplay_`)。
+        *   呼叫 `windowController.request_controls_panel_ui_update()` -> `ControlsPanelView` 更新其子面板的 UI (可選擇是否更新鎖定輸入框)。
 
 ### 4. 關鍵資料結構 (Key Data Structures)
 
 * `plugin.lastInput (str)`: 搜尋欄位的輸入內容。
 * `plugin.selectedChars (list)`: 解析後的有效字符列表。
 * `plugin.lockedChars (dict)`: 鎖定字符字典，鍵為位置 (0-7)，值為字符或 Nice Name。
-* `plugin.currentArrangement (list)`: 當前周圍 8 格的字符排列。
-* `plugin.originalArrangement (list)`: 保存的原始隨機排列，用於從鎖定模式回到解鎖模式時回復。
+* `plugin.currentArrangement (list)`: 目前周圍 8 格的字符排列。
+* `plugin.originalArrangement (list)`: 儲存的原始隨機排列，用於從鎖定模式切換到解鎖模式，或清除鎖定欄位時回復。
 * `plugin.zoomFactor (float)`: 縮放係數。
-* `plugin.isControlsPanelVisible (bool)`: 追蹤控制面板子視窗的顯示狀態。
-* `plugin.previousLockedChars (dict)`: 備份的鎖定字符，用於還原功能。
-* `plugin._update_scheduled (bool)`: 優化新增，防止重複更新的標記。
+* `plugin.isInClearMode (bool)`: 鎖頭狀態，`True` 為解鎖模式，`False` 為上鎖模式 (對應 `LOCK_MODE_KEY`)。
+* `plugin.controlsPanelVisible (bool)`: 控制面板子視窗的顯示狀態。
+* `plugin.windowPosition (list)`: 主視窗位置 `[x, y]`。
+* `plugin.previousLockedChars (dict)`: 備份的鎖定字符 (目前主要在 `clearAllLockFieldsCallback` 中用於記錄被清除的項目，而非完整的復原功能)。
+* `plugin._update_scheduled (bool)`: 最佳化新增，防止重複更新的標記。
 
 ### 5. 視窗管理細節 (Window Management Details)
 
-* **控制面板創建與管理:**
+* **控制面板建立與管理:**
     * 使用 `NSPanel` 實例，設定適當的 `styleMask` 移除標題列。
     * 設定 `level` 為 `NSFloatingWindowLevel`，並使用 `orderBack_()` 確保控制面板顯示在主視窗之下。
-    * 使用 `CONTROLS_PANEL_SPACING` 常數設定控制面板與主視窗間距，避免視覺干擾。
-    * 確保 `canBecomeKeyWindow` 為 `True`，允許控制面板接受鍵盤輸入。
-    * 優化視窗資源管理，確保在關閉主視窗時正確釋放控制面板資源。
+    * 使用 `CONTROLS_PANEL_SPACING` 常數設定控制面板與主視窗間距。
+    * 控制面板的標題列按鈕 (`NSWindowCloseButton` 等) 被隱藏，標題列設為透明。
+    * 主視窗關閉時，`windowWillClose_` 方法會釋放控制面板資源。
 
-* **視窗關閉與重新開啟 (優化流程):**
+* **視窗關閉與重新開啟:**
     * 當主視窗關閉時，完整釋放控制面板資源。
-    * 當主視窗重新開啟時，檢查並在需要時重新創建控制面板。
-    * 所有相關方法都進行適當檢查，確保視窗狀態一致性。
+    * 當主視窗透過選單重新開啟 (`toggleWindow_`) 時：
+        * 若 `windowController` 不存在，則建立新的實例。
+        * `makeKeyAndOrderFront` 方法負責顯示主視窗，並根據 `controlsPanelVisible` 狀態檢查和重建/顯示控制面板。
 
 ### 6. 即時更新機制 (Real-time Update Mechanism)
 
 * **初次開啟視窗:**
-    * 創建預覽視圖後立即設置正確框架並觸發初始重繪。
-    * 確保視窗初次顯示時預覽內容立即可見。
+    * `makeKeyAndOrderFront` 方法中，會安排一次延遲的強制重繪 (`delayedForceRedraw_`)，確保初次顯示內容正確。
 
 * **視窗尺寸變更:**
     * 調整預覽畫面大小後立即觸發重繪。
@@ -212,47 +177,44 @@ UI 模組 (`controls_panel_view.py`) 負責控制面板的內容佈局與事件�
 
 * **控制面板同步更新:**
     * 狀態改變時，根據需要選擇性地更新控制面板 UI。
-    * 改進更新邏輯，避免不必要的輸入框刷新，保留用戶輸入。
+    * `request_controls_panel_ui_update` 方法允許指定是否更新鎖定輸入框，以避免在搜尋時干擾鎖定框的用戶輸入。
 
-* **更新優化:**
-    * 使用 `_update_scheduled` 標記防止短時間內的重複更新請求。
+* **更新最佳化:**
+    * `plugin.py` 中的 `_update_scheduled` 標記用於對 `updateInterface` 的呼叫進行節流，防止短時間內重複執行。
     * 選擇性更新，例如搜尋欄位變更時不更新鎖定輸入框，避免干擾用戶輸入。
-    * 區分輕量級更新和完整更新，提高響應速度。
 
 ### 7. 持久化 (Persistence)
 
-* **偏好設定管理 (優化版):**
-    * 集中在 `savePreferences` 和 `loadPreferences` 方法中處理所有持久化邏輯。
-    * 優化鎖定字符的儲存和載入，確保在不同字型間切換時的正確行為。
-    * 改進控制面板可見性設定的處理，同時維持向後相容性。
+* **偏好設定管理 (最佳化版):**
+    * 集中在 `utils.py` 的 `save_preferences` 和 `load_preferences` 方法中處理所有持久化邏輯。
+    * `lockedChars` 和 `previousLockedChars` (字典類型) 儲存為 JSON 字串，鍵名從整數轉換為字串。
     * 統一視窗位置的儲存格式為 Python list `[x, y]`，確保位置資料的一致性。
     * 支援從舊的字典格式 `{'x': x, 'y': y}` 載入，提供向後相容性。
+    * 儲存的項目包括：`lastInput`, `selectedChars`, `currentArrangement`, `originalArrangement`, `zoomFactor`, `windowPosition`, `controlsPanelVisible`, `lockedChars`, `previousLockedChars`, `isInClearMode` (鎖頭狀態)。
 
 ### 8. 主題自動適應機制 (Theme Auto-Adaptation Mechanism)
 
 * **主題檢測與切換:**
-    * 檢測 Glyphs 預覽區域的主題狀態。
-    * 監聽主題變更通知，及時調整顯示風格。
-    * 優化通知觀察者的管理，避免記憶體洩漏。
+    * `preview_view.py` 透過 `NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")` 檢測 Glyphs 預覽區域的主題狀態。
+    * `preview_view.py` 和 `window_controller.py` (針對設定按鈕) 監聽 `NSUserDefaultsDidChangeNotification` 主題變更通知，即時調整顯示風格。
 
 ### 9. 程式碼效能與維護性改進
 
-* **除錯系統優化:**
+* **除錯系統最佳化:**
     * 統一使用 `debug_log` 函數，受 `DEBUG_MODE` 常數控制。
-    * 移除冗餘的除錯訊息，保留關鍵點的日誌。
-    * 在關鍵功能處增加具體的錯誤處理和日誌。
+    * `error_log` 用於記錄錯誤，可在 `DEBUG_MODE` 下輸出完整 traceback。
 
-* **效能優化:**
-    * 使用快取減少重複計算和查詢。
-    * 優化字符排列生成邏輯，減少不必要的操作。
-    * 實現批次更新機制，避免短時間內的重複重繪。
+* **效能最佳化:**
+    * **字符查找**: `utils.get_cached_glyph` 使用 Glyphs 內建 API (`font.glyphs[char_or_name]`)，避免遍歷，並使用快取 (`_glyph_cache`)。
+    * **字符寬度**: `utils.get_cached_width` 使用快取 (`_width_cache`)。
+    * **繪製節流**: `preview_view.py` 實作 `_should_redraw` 方法，基於 `REDRAW_THRESHOLD` (約 60 FPS) 控制重繪頻率。
+    * **更新節流**: `plugin.py` 的 `_update_scheduled` 標記為 `updateInterface` 提供基本的更新請求批次處理。
+    * (注意：TSD v3.8 中提及的輸入防抖 (debounce) 和更複雜的批次更新機制在 v3.0.0 程式碼中未完全實現。)
 
-* **代碼可讀性:**
-    * 為主要函數添加詳細文檔字符串，明確參數和返回值。
-    * 重構複雜的條件判斷，使邏輯更加清晰。
-    * 統一命名風格和程式碼格式。
+* **程式碼可讀性:**
+    * 程式碼已模組化，職責分離到不同檔案和類別。
+    * 部分關鍵方法包含註解說明。
 
 * **錯誤處理:**
-    * 完善異常捕獲和處理，避免程式崩潰。
-    * 在關鍵功能處增加參數檢查和預設值處理。
-    * 優化視窗生命週期管理，確保資源正確釋放。
+    * 多數關鍵函數使用 `try...except` 結構捕獲異常，並透過 `error_log` 記錄。
+    * 視窗生命週期管理確保在關閉時釋放相關資源。

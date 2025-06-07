@@ -22,16 +22,16 @@ from utils import debug_log, error_log
 
 
 class SearchTextView(NSTextView):
-    """支援右鍵選單的搜尋文本視圖"""
+    """支援右鍵選單的搜尋文字畫面"""
     
     def initWithFrame_plugin_(self, frame, plugin):
-        """初始化搜尋文本視圖"""
-        # 創建文本存儲和佈局管理器
+        """初始化搜尋文字畫面"""
+        # 建立文字存放區和佈局管理器
         textStorage = NSTextStorage.alloc().init()
         layoutManager = NSLayoutManager.alloc().init()
         textStorage.addLayoutManager_(layoutManager)
         
-        # 創建文本容器
+        # 建立文字容器
         containerSize = NSMakeRect(0, 0, frame.size.width, 1000000.0).size
         textContainer = NSTextContainer.alloc().initWithContainerSize_(containerSize)
         textContainer.setWidthTracksTextView_(True)
@@ -54,7 +54,7 @@ class SearchTextView(NSTextView):
         self.setFocusRingType_(NSFocusRingTypeNone)
         self.setEditable_(True)
         self.setSelectable_(True)
-        self.setRichText_(False)  # 只允許純文本
+        self.setRichText_(False)  # 只允許純文字
         self.setImportsGraphics_(False)
         self.setAllowsUndo_(True)
         
@@ -108,12 +108,12 @@ class SearchTextView(NSTextView):
     
 
     def becomeFirstResponder(self):
-        """當文本視圖成為焦點時"""
+        """當文字畫面成為焦點時"""
         result = objc.super(SearchTextView, self).becomeFirstResponder()
         return result
     
     def resignFirstResponder(self):
-        """當文本視圖失去焦點時"""
+        """當文字畫面失去焦點時"""
         result = objc.super(SearchTextView, self).resignFirstResponder()
         return result
     
@@ -125,21 +125,21 @@ class SearchTextView(NSTextView):
             self.plugin.pickGlyphCallback(sender)
     
     def textDidChange_(self, notification):
-        """文本變更時的回調，並保持游標位置"""
+        """文字變更時的回呼，並保持游標位置"""
         try:
-            debug_log(f"搜尋欄位文本變更: {self.string()}")
-            # 儲存當前選擇範圍和游標位置
+            debug_log(f"搜尋欄位文字變更: {self.string()}")
+            # 儲存目前選擇範圍和游標位置
             selected_range = self.selectedRange()
             
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
             
-            # 回調完成後恢復游標位置
+            # 回呼完成後恢復游標位置
             if selected_range.location <= len(self.string()):
                 self.setSelectedRange_(selected_range)
                 
         except Exception as e:
-            error_log("文本變更處理錯誤", e)
+            error_log("文字變更處理錯誤", e)
     
     def stringValue(self):
         """提供與 NSTextField 相容的 stringValue 方法"""
@@ -148,7 +148,7 @@ class SearchTextView(NSTextView):
     def setStringValue_(self, value):
         """提供與 NSTextField 相容的 setStringValue 方法，並保持游標位置"""
         try:
-            # 儲存當前選擇範圍和游標位置
+            # 儲存目前選擇範圍和游標位置
             selected_range = self.selectedRange()
             
             # 設定新的文字
@@ -170,13 +170,13 @@ class SearchTextView(NSTextView):
                 self.setString_("")
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         NSNotificationCenter.defaultCenter().removeObserver_(self)
         objc.super(SearchTextView, self).dealloc()
 
 
 class SearchPanel(NSView):
-    """搜尋面板視圖"""
+    """搜尋面板畫面"""
     
     def initWithFrame_plugin_(self, frame, plugin):
         """初始化搜尋面板"""
@@ -193,7 +193,7 @@ class SearchPanel(NSView):
         """設定介面"""
         bounds = self.bounds()
         
-        # 創建滾動視圖
+        # 建立滾動畫面
         self.scrollView = NSScrollView.alloc().initWithFrame_(bounds)
         self.scrollView.setAutoresizingMask_(NSViewWidthSizable | NSViewHeightSizable)
         self.scrollView.setBorderType_(1)  # NSBezelBorder
@@ -201,23 +201,23 @@ class SearchPanel(NSView):
         self.scrollView.setHasHorizontalScroller_(False)
         self.scrollView.setAutohidesScrollers_(True)
         
-        # 創建搜尋文本視圖
+        # 建立搜尋文字畫面
         contentSize = self.scrollView.contentSize()
         textViewFrame = NSMakeRect(0, 0, contentSize.width, contentSize.height)
         self.searchField = SearchTextView.alloc().initWithFrame_plugin_(textViewFrame, self.plugin)
-        # 設定文本視圖可以垂直調整大小
+        # 設定文字畫面可以垂直調整大小
         self.searchField.setMinSize_(NSMakeRect(0, 0, 0, 0).size)
         self.searchField.setMaxSize_(NSMakeRect(0, 0, 10000000, 10000000).size)
         self.searchField.setVerticallyResizable_(True)
         self.searchField.setHorizontallyResizable_(True)
         self.searchField.setAutoresizingMask_(NSViewWidthSizable)
         
-        # 設定文本容器
+        # 設定文字容器
         self.searchField.textContainer().setContainerSize_(NSMakeRect(0, 0, contentSize.width, 10000000).size)
         self.searchField.textContainer().setWidthTracksTextView_(True)
         self.searchField.textContainer().setHeightTracksTextView_(False)
         
-        # 設定滾動視圖的文檔視圖
+        # 設定滾動畫面的文檔畫面
         self.scrollView.setDocumentView_(self.searchField)
         
         self.addSubview_(self.scrollView)
@@ -243,5 +243,5 @@ class SearchPanel(NSView):
             self.searchField.setStringValue_(value)
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         objc.super(SearchPanel, self).dealloc()

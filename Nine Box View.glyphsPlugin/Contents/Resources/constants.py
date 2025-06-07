@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 常數定義（優化版）
+九宮格預覽外掛 - 常數定義（最佳化版）
 Nine Box Preview Plugin - Constants Definition (Optimized)
 """
 
@@ -25,7 +25,7 @@ CONTROLS_PANEL_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.controlsPanelVisible"
 LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
-ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 保存原始隨機排列
+ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 儲存原始隨機排列
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
@@ -45,11 +45,11 @@ DEFAULT_ZOOM = 0.85
 # 預設 UPM 值
 DEFAULT_UPM = 1000
 
-# 效能優化設定
+# 效能最佳化設定
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數
 
-# 九宮格配置
+# 九宮格設定
 GRID_SIZE = 3
 GRID_TOTAL = GRID_SIZE * GRID_SIZE
 CENTER_POSITION = 4  # 中央位置索引（0-8）
