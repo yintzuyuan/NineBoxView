@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 常數定義（優化版）
+九宮格預覽外掛 - 常數定義（最佳化版）
 Nine Box Preview Plugin - Constants Definition (Optimized)
 """
 
@@ -25,21 +25,7 @@ CONTROLS_PANEL_VISIBLE_KEY = f"{PLUGIN_ID_PREFIX}.controlsPanelVisible"
 LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
-
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastInput"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.currentArrangement"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.showNumbers"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowPosition"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.sidebarVisible"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.controlsPanelVisible"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockedChars"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.previousLockedChars"]
-# del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockMode"]
+ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 儲存原始隨機排列
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
@@ -50,7 +36,7 @@ CONTROLS_PANEL_MIN_HEIGHT = 220  # 減少最小高度，確保主視窗最小尺
 CONTROLS_PANEL_SPACING = 15  # 控制面板與主視窗之間的間距，用於避免陰影干擾
 
 # 繪圖相關參數
-MARGIN_RATIO = 0.07
+MARGIN_RATIO = 0.08 # 邊距比例
 SPACING_RATIO = 0.0
 MIN_ZOOM = 0.5
 MAX_ZOOM = 2.0
@@ -59,16 +45,23 @@ DEFAULT_ZOOM = 0.85
 # 預設 UPM 值
 DEFAULT_UPM = 1000
 
-# 效能優化設定
-DEBUG_MODE = False  # 開發模式，輸出除錯訊息
-CACHE_ENABLED = True  # 啟用快取機制
+# 效能最佳化設定
 REDRAW_THRESHOLD = 0.016  # 重繪間隔閾值（約 60 FPS）
 MAX_LOCKED_POSITIONS = 8  # 最大鎖定位置數
 
-# 九宮格配置
+# 九宮格設定
 GRID_SIZE = 3
 GRID_TOTAL = GRID_SIZE * GRID_SIZE
 CENTER_POSITION = 4  # 中央位置索引（0-8）
 
 # 顯示選項
 DEFAULT_PREVIEW_DPI = 72.0
+
+# ========== 訊息列印模式設定 ==========
+# 除錯模式開關
+# False = 一般模式（預設）：只顯示錯誤訊息和 traceback，隱藏狀態訊息
+# True = 除錯模式：顯示所有錯誤訊息、traceback 和狀態訊息
+DEBUG_MODE = False
+
+# 快取設定
+CACHE_ENABLED = True  # 啟用快取機制

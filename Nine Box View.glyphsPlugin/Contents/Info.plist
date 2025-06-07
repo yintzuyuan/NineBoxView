@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- 文件詳細說明：https://github.com/schriftgestalt/GlyphsSDK/tree/Glyphs3/Python%20Templates -->
+<!-- 檔案詳細說明：https://github.com/schriftgestalt/GlyphsSDK/tree/Glyphs3/Python%20Templates -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key> <!-- 開發語言 -->
@@ -22,7 +22,7 @@
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>介面優化：移除深淺色介面背景更動，讓介面使用系統原生風格；只在預覽區域保留黑白對比色彩；全面移除框線與標記。</string>
+	<string>介面最佳化：移除深淺色介面背景更動，讓介面使用系統原生風格；只在預覽區域保留黑白對比色彩；全面移除框線與標記。</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>Copyright, Tzuyuan Yin, 2024</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->

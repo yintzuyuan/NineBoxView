@@ -25,7 +25,7 @@ from constants import (
     MARGIN_RATIO, SPACING_RATIO, MIN_ZOOM, MAX_ZOOM, DEBUG_MODE,
     GRID_SIZE, GRID_TOTAL, CENTER_POSITION, REDRAW_THRESHOLD
 )
-from utils import debug_log, get_cached_glyph, get_cached_width
+from utils import debug_log, error_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """
@@ -49,7 +49,7 @@ class NineBoxPreviewView(NSView):
             self.cachedHeight = 0
             self.panOffset = (0, 0)
             
-            # 效能優化：快取常用值
+            # 效能最佳化：快取常用值
             self._last_redraw_time = 0
             self._cached_theme_is_black = None
             self._cached_master = None
@@ -73,7 +73,7 @@ class NineBoxPreviewView(NSView):
             self.setNeedsDisplay_(True)
             debug_log("主題變更，已觸發重繪")
         except Exception as e:
-            debug_log(f"處理主題變更時發生錯誤: {e}")
+            error_log("處理主題變更時發生錯誤", e)
     
     def mouseDown_(self, event):
         """處理滑鼠點擊事件"""
@@ -97,7 +97,7 @@ class NineBoxPreviewView(NSView):
         return True
 
     def force_redraw(self):
-        """設置強制重繪標記"""
+        """設定強制重繪標記"""
         self._force_redraw = True
         self._last_redraw_time = 0  # 重置節流計時器
         self.setNeedsDisplay_(True)
@@ -108,13 +108,13 @@ class NineBoxPreviewView(NSView):
         # 記錄舊框架
         oldFrame = self.frame()
         
-        # 呼叫父類方法
+        # 呼叫父類別方法
         objc.super(NineBoxPreviewView, self).setFrame_(frame)
         
         # 如果框架大小改變，觸發重繪
         if (oldFrame.size.width != frame.size.width or 
             oldFrame.size.height != frame.size.height):
-            debug_log(f"預覽視圖框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
+            debug_log(f"預覽畫面框架變更：{oldFrame.size.width}x{oldFrame.size.height} -> {frame.size.width}x{frame.size.height}")
             
             # 清除網格度量快取
             self._cached_grid_metrics = None
@@ -123,7 +123,7 @@ class NineBoxPreviewView(NSView):
             self.force_redraw()
 
     def _get_theme_is_black(self):
-        """檢查當前主題是否為深色模式"""
+        """檢查目前主題是否為深色模式"""
         return NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
     
     def _calculate_grid_metrics(self, rect, display_chars, currentMaster):
@@ -139,8 +139,16 @@ class NineBoxPreviewView(NSView):
             MARGIN = min(rect.size.width, rect.size.height) * MARGIN_RATIO
             
             # === 使用 getBaseWidth 方法取得基準寬度 ===
-            baseWidth = self.plugin.getBaseWidth()
-            debug_log(f"基準寬度 baseWidth: {baseWidth}")
+            try:
+                baseWidth = self.plugin.getBaseWidth()
+                if not isinstance(baseWidth, (int, float)) or baseWidth <= 0:
+                    debug_log(f"警告：基準寬度值無效 ({baseWidth})，使用預設值 1000")
+                    baseWidth = 1000
+                else:
+                    debug_log(f"基準寬度 baseWidth: {baseWidth}")
+            except Exception as e:
+                error_log("取得基準寬度時發生錯誤", e)
+                baseWidth = 1000
             
             # === 計算最大字身寬度（僅使用 layer.width）===
             # 這是佈局計算的唯一依據，確保穩定性
@@ -190,10 +198,10 @@ class NineBoxPreviewView(NSView):
             debug_log(f"可用寬度 availableWidth: {availableWidth}, 可用高度 availableHeight: {availableHeight}")
             debug_log(f"計算的縮放比例 scale: {scale}")
             
-            # 應用自定義縮放
+            # 套用自訂縮放
             customScale = self.plugin.zoomFactor
             scale *= customScale
-            debug_log(f"應用自定義縮放後的比例 scale: {scale}")
+            debug_log(f"套用自訂縮放後的比例 scale: {scale}")
             
             # 更新網格尺寸
             cellWidth *= scale
@@ -205,7 +213,7 @@ class NineBoxPreviewView(NSView):
             
             # === 計算繪製起始位置（固定的佈局）===
             startX = rect.size.width / 2 - gridWidth / 2
-            offsetY = rect.size.height * 0.05  # 向上偏移 5%
+            offsetY = rect.size.height * 0.02  # 向上偏移 2%
             startY = (rect.size.height + gridHeight) / 2 + offsetY
             
             # 回傳穩定的網格度量
@@ -223,9 +231,7 @@ class NineBoxPreviewView(NSView):
             return metrics
         
         except Exception as e:
-            debug_log(f"計算網格度量時發生錯誤：{e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("計算網格度量時發生錯誤", e)
             return None
 
     def _draw_character_at_position(self, layer, centerX, centerY, cellWidth, cellHeight, scale, is_black):
@@ -291,9 +297,7 @@ class NineBoxPreviewView(NSView):
             debug_log(f"完成繪製 - 縮放: {glyphScale:.3f}, 位置: ({x:.1f}, {y:.1f})")
                 
         except Exception as e:
-            debug_log(f"繪製字符時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("繪製字符時發生錯誤", e)
 
     def drawRect_(self, rect):
         """繪製畫面內容（穩定佈局版）"""
@@ -323,10 +327,32 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
-            # === 修正：當currentArrangement非空時使用它，無論selectedChars是否為空 ===
-            # 使用目前的排列
-            display_chars = self.plugin.currentArrangement if (self.plugin.selectedChars or self.plugin.currentArrangement) else []
-            debug_log(f"使用排列: {display_chars}")
+            # === 改進：考慮鎖定狀態和currentArrangement的優先級 ===
+            display_chars = []
+            
+            # 檢查目前模式和排列狀態
+            is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, '_get_lock_state') else False
+            has_current_arrangement = bool(self.plugin.currentArrangement)
+            has_selected_chars = bool(self.plugin.selectedChars)
+            has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))
+            
+            # 決定要顯示的字符
+            if has_current_arrangement:
+                # 優先使用現有排列
+                display_chars = self.plugin.currentArrangement
+                debug_log(f"使用現有排列: {display_chars}")
+            elif not is_in_clear_mode and has_locked_chars:
+                # 上鎖狀態下，如果有鎖定字符但沒有排列，重新生成
+                if hasattr(self.plugin, 'generateNewArrangement'):
+                    self.plugin.generateNewArrangement()
+                    display_chars = self.plugin.currentArrangement
+                    debug_log(f"上鎖狀態：重新生成排列: {display_chars}")
+            elif has_selected_chars:
+                # 如果有選擇的字符，使用它們
+                display_chars = self.plugin.selectedChars[:8]
+                debug_log(f"使用選擇的字符: {display_chars}")
+            
+            debug_log(f"最終使用排列: {display_chars}")
             
             # 計算網格度量
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
@@ -370,12 +396,10 @@ class NineBoxPreviewView(NSView):
                     )
                     
         except Exception as e:
-            print(f"繪製預覽畫面時發生錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("繪製預覽畫面時發生錯誤", e)
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         try:
             NSNotificationCenter.defaultCenter().removeObserver_(self)
         except:

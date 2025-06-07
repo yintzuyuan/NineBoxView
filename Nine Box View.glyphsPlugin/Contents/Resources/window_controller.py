@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 視窗控制器（優化版）
+九宮格預覽外掛 - 視窗控制器（最佳化版）
 Nine Box Preview Plugin - Window Controller (Optimized)
 """
 
@@ -13,39 +13,40 @@ from AppKit import (
     NSWindow, NSNotificationCenter, NSWindowWillCloseNotification,
     NSWindowDidResizeNotification, NSWindowDidMoveNotification,
     NSTitledWindowMask, NSClosableWindowMask, NSResizableWindowMask,
-    NSMiniaturizableWindowMask, NSFloatingWindowLevel,
+    NSMiniaturizableWindowMask, NSFloatingWindowLevel, NSFullSizeContentViewWindowMask,
     NSBackingStoreBuffered, NSTitlebarAccessoryViewController,
     NSView, NSViewMaxYMargin, NSLayoutAttributeRight,
-    NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn,
+    NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSFont,
+    NSAttributedString, NSFontAttributeName, NSForegroundColorAttributeName,
     NSBezelStyleRounded, NSTexturedRoundedBezelStyle,
     NSFocusRingTypeNone, NSWindowCloseButton,
-    NSWindowMiniaturizeButton, NSWindowZoomButton
+    NSWindowMiniaturizeButton, NSWindowZoomButton, NSUserDefaults
 )
-from Foundation import NSObject
+from Foundation import NSObject, NSUserDefaultsDidChangeNotification
 
 from constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
     CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT, CONTROLS_PANEL_SPACING,
     CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
 )
-from utils import debug_log
+from utils import debug_log, error_log
 
 
 class NineBoxWindow(NSWindowController):
     """
-    九宮格預覽視窗控制器（優化版）
+    九宮格預覽視窗控制器（最佳化版）
     Nine Box Window Controller (Optimized)
     """
     
     def initWithPlugin_(self, plugin):
         """初始化視窗控制器（階段1.2：加入控制面板）"""
         try:
-            # 動態導入以避免循環依賴
+            # 動態匯入以避免反覆依賴
             from preview_view import NineBoxPreviewView
             from controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
             self.ControlsPanelView = ControlsPanelView
-            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
+            # 不再需要 NSArray，因為我們統一使用 Python list
             
             # 確保偏好設定已載入
             plugin.loadPreferences()
@@ -59,8 +60,8 @@ class NineBoxWindow(NSWindowController):
             
             # 建立主視窗
             windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
-            styleMask = (NSTitledWindowMask | NSClosableWindowMask | 
-                        NSResizableWindowMask | NSMiniaturizableWindowMask)
+            styleMask = (NSTitledWindowMask | NSClosableWindowMask |
+                        NSResizableWindowMask | NSMiniaturizableWindowMask | NSFullSizeContentViewWindowMask)
             
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 windowRect, styleMask, NSBackingStoreBuffered, False
@@ -71,11 +72,14 @@ class NineBoxWindow(NSWindowController):
             panel.setLevel_(NSFloatingWindowLevel)
             panel.setReleasedWhenClosed_(False)
             
-            # 初始化父類
+            # 設定標題列透明以移除背景bar
+            panel.setTitlebarAppearsTransparent_(True)
+            
+            # 初始化父類別
             self = objc.super(NineBoxWindow, self).init()
             
             if self:
-                # 設置屬性
+                # 設定屬性
                 self.setWindow_(panel)
                 self.plugin = plugin
                 self.previewView = None
@@ -102,26 +106,28 @@ class NineBoxWindow(NSWindowController):
                     
                 # 設定視窗位置
                 debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
-                if savedPosition and isinstance(savedPosition, (list, tuple, NSArray)) and len(savedPosition) >= 2:
+                if savedPosition:
+                    # 處理 NSArray、list 或 tuple
                     try:
-                        x = float(savedPosition[0])
-                        y = float(savedPosition[1])
-                        debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
-                        panel.setFrameOrigin_(NSMakePoint(x, y))
-                        debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
-                    except (ValueError, TypeError) as e:
+                        if len(savedPosition) >= 2:
+                            x = float(savedPosition[0])
+                            y = float(savedPosition[1])
+                            debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
+                            panel.setFrameOrigin_(NSMakePoint(x, y))
+                            debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
+                        else:
+                            debug_log(f"window_controller.initWithPlugin_: savedPosition 長度不足: {len(savedPosition)}")
+                    except (ValueError, TypeError, IndexError) as e:
                         debug_log(f"window_controller.initWithPlugin_: Error setting panel origin: {e}. savedPosition was: {savedPosition}")
                 else:
-                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition (value or type/length invalid). Value: {savedPosition}")
+                    debug_log(f"window_controller.initWithPlugin_: Not applying savedPosition. Value: {savedPosition}")
 
                 debug_log("window_controller.initWithPlugin_: 主視窗和控制面板初始化完成")
             
             return self
             
         except Exception as e:
-            debug_log(f"window_controller.initWithPlugin_: 初始化視窗控制器錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("window_controller.initWithPlugin_: 初始化視窗控制器錯誤", e)
             return None
     
     def _setup_main_window_ui(self, panel):
@@ -141,16 +147,19 @@ class NineBoxWindow(NSWindowController):
         # 建立控制面板按鈕
         self._create_controls_panel_button(panel)
         
-        debug_log(f"[階段1.2] 預覽視圖和控制按鈕初始化完成，尺寸：{actualContentSize.width}x{actualContentSize.height}")
+        debug_log(f"[階段1.2] 預覽畫面和控制按鈕初始化完成，尺寸：{actualContentSize.width}x{actualContentSize.height}")
     
     def _create_controls_panel_button(self, panel):
-        """創建控制面板按鈕"""
+        """建立控制面板按鈕"""
         self.controlsPanelButton = NSButton.alloc().init()
         self.controlsPanelButton.setTitle_("⚙")
         self.controlsPanelButton.setTarget_(self)
         self.controlsPanelButton.setAction_("controlsPanelAction:")
         self.controlsPanelButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
         self.controlsPanelButton.setButtonType_(NSButtonTypeToggle)
+        
+        # 設定按鈕圖示顏色，使其能隨 Glyphs 預覽主題自動調整
+        self._update_settings_button_color()
         
         # 設定提示
         controlsPanelTooltip = Glyphs.localize({
@@ -165,17 +174,17 @@ class NineBoxWindow(NSWindowController):
         # 設定按鈕狀態
         self.controlsPanelButton.setState_(1 if self.controlsPanelVisible else 0)
         
-        # 創建容器視圖
+        # 建立容器畫面
         buttonView = NSView.alloc().initWithFrame_(NSMakeRect(0, 0, 30, 24))
         buttonView.addSubview_(self.controlsPanelButton)
         self.controlsPanelButton.setFrame_(NSMakeRect(0, 0, 30, 24))
         
-        # 創建標題列附件控制器
+        # 建立標題列附件控制器
         accessoryController = NSTitlebarAccessoryViewController.alloc().init()
         accessoryController.setView_(buttonView)
         accessoryController.setLayoutAttribute_(NSLayoutAttributeRight)
         
-        # 添加到視窗
+        # 新增到視窗
         panel.addTitlebarAccessoryViewController_(accessoryController)
     
     def _setup_controls_panel(self):
@@ -200,9 +209,14 @@ class NineBoxWindow(NSWindowController):
         notificationCenter.addObserver_selector_name_object_(
             self, "windowWillClose:", NSWindowWillCloseNotification, panel
         )
+        
+        # 監聽用戶偏好設定變更（用於更新按鈕顏色以配對 Glyphs 預覽主題）
+        notificationCenter.addObserver_selector_name_object_(
+            self, "_handleUserDefaultsChange:", NSUserDefaultsDidChangeNotification, None
+        )
     
     def createControlsPanelWindow(self):
-        """創建控制面板子視窗"""
+        """建立控制面板子視窗"""
         try:
             # 計算位置和大小
             mainFrame = self.window().frame()
@@ -212,7 +226,7 @@ class NineBoxWindow(NSWindowController):
             
             panelRect = NSMakeRect(panelX, panelY, CONTROLS_PANEL_WIDTH, panelHeight)
             
-            # 創建面板
+            # 建立面板
             self.controlsPanelWindow = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 panelRect,
                 NSTitledWindowMask | NSClosableWindowMask,
@@ -223,13 +237,13 @@ class NineBoxWindow(NSWindowController):
             # 設定面板屬性
             self._configure_controls_panel_window()
             
-            # 創建控制面板視圖
+            # 建立控制面板畫面
             contentRect = NSMakeRect(0, 0, CONTROLS_PANEL_WIDTH, panelHeight)
             self.controlsPanelView = self.ControlsPanelView.alloc().initWithFrame_plugin_(
                 contentRect, self.plugin
             )
             
-            # 設定內容視圖
+            # 設定內容畫面
             self.controlsPanelWindow.setContentView_(self.controlsPanelView)
             
             # === 階段2.2：初始化時載入已儲存的鎖定字符 ===
@@ -238,12 +252,10 @@ class NineBoxWindow(NSWindowController):
                 debug_log("[階段2.2] 控制面板初始化後載入已儲存的資料")
             
         except Exception as e:
-            print(f"創建控制面板視窗錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("建立控制面板視窗錯誤", e)
     
     def _configure_controls_panel_window(self):
-        """配置控制面板視窗屬性"""
+        """設定控制面板視窗屬性"""
         panel = self.controlsPanelWindow
         
         panel.setTitle_("Controls")
@@ -276,14 +288,14 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelVisible = True
                 self.controlsPanelButton.setState_(1)
                 
-                # 更新插件對象屬性
+                # 更新外掛程式對象屬性
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = True
                 
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
                 
         except Exception as e:
-            debug_log(f"顯示控制面板錯誤: {e}")
+            error_log("顯示控制面板錯誤", e)
     
     def hideControlsPanel(self):
         """隱藏控制面板"""
@@ -294,14 +306,14 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelVisible = False
                 self.controlsPanelButton.setState_(0)
                 
-                # 更新插件對象屬性
+                # 更新外掛程式對象屬性
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = False
                 
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
                 
         except Exception as e:
-            debug_log(f"隱藏控制面板錯誤: {e}")
+            error_log("隱藏控制面板錯誤", e)
     
     def updateControlsPanelPosition(self):
         """更新控制面板位置（階段1.3：考慮最小高度）"""
@@ -329,9 +341,9 @@ class NineBoxWindow(NSWindowController):
                     panelFrame.size.height != newFrame.size.height or
                     panelFrame.origin.x != newFrame.origin.x or
                     panelFrame.origin.y != newFrame.origin.y):
-                    self.controlsPanelWindow.setFrame_display_animate_(newFrame, True, True)
+                    self.controlsPanelWindow.setFrame_display_animate_(newFrame, True, False) # 修改此處，將動畫關閉
                     
-                    # 同時更新內容視圖大小
+                    # 同時更新內容畫面大小
                     self.controlsPanelView.setFrame_(NSMakeRect(
                         0, 0, CONTROLS_PANEL_WIDTH, panelHeight
                     ))
@@ -339,9 +351,7 @@ class NineBoxWindow(NSWindowController):
                     debug_log(f"[階段1.3] 更新控制面板位置：({panelX}, {panelY}) 大小：{CONTROLS_PANEL_WIDTH}x{panelHeight}")
                 
         except Exception as e:
-            debug_log(f"[階段1.3] 更新控制面板位置錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[階段1.3] 更新控制面板位置錯誤", e)
     
     def controlsPanelAction_(self, sender):
         """控制面板按鈕動作"""
@@ -352,10 +362,10 @@ class NineBoxWindow(NSWindowController):
                 self.showControlsPanel()
                 
         except Exception as e:
-            debug_log(f"控制面板按鈕動作錯誤: {e}")
+            error_log("控制面板按鈕動作錯誤", e)
     
     def windowDidResize_(self, notification):
-        """視窗大小調整處理（階段1.3：優化版）"""
+        """視窗大小調整處理（階段1.3：最佳化版）"""
         try:
             if notification.object() == self.window():
                 frame = self.window().frame()
@@ -366,7 +376,7 @@ class NineBoxWindow(NSWindowController):
                 
                 # 調整預覽畫面 - 確保完全填滿內容區域
                 if hasattr(self, 'previewView') and self.previewView:
-                    # 使用內容視圖的實際邊界
+                    # 使用內容畫面的實際邊界
                     newFrame = contentView.bounds()
                     self.previewView.setFrame_(newFrame)
                     
@@ -376,7 +386,7 @@ class NineBoxWindow(NSWindowController):
                     else:
                         self.previewView.setNeedsDisplay_(True)
                     
-                    debug_log(f"[階段1.3] 已調整預覽視圖框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
+                    debug_log(f"[階段1.3] 已調整預覽畫面框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
                 
                 # 更新控制面板位置和大小
                 if self.controlsPanelVisible and self.controlsPanelWindow:
@@ -390,18 +400,16 @@ class NineBoxWindow(NSWindowController):
                     debug_log(f"[階段1.3] 已儲存視窗大小偏好設定：{newSize}")
                 
         except Exception as e:
-            debug_log(f"[階段1.3] 處理視窗調整錯誤: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("[階段1.3] 處理視窗調整錯誤", e)
     
     def windowDidMove_(self, notification):
-        """視窗移動處理（階段1.3：優化版）"""
+        """視窗移動處理（階段1.3：最佳化版）"""
         try:
             if notification.object() == self.window():
                 mainFrame = self.window().frame()
                 current_origin_x = mainFrame.origin.x
                 current_origin_y = mainFrame.origin.y
-                # debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})") # 可選的更詳細日誌
+                # debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})") # 可選的更詳細記錄
                 
                 # 儲存視窗位置
                 if hasattr(self, 'plugin'):
@@ -424,19 +432,17 @@ class NineBoxWindow(NSWindowController):
                         # === 修正：確保控制面板始終在主視窗之下 ===
                         self.controlsPanelWindow.orderBack_(None)  # 確保在背景顯示
                     
-                    # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細日誌
+                    # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細記錄
                     
         except Exception as e:
-            debug_log(f"window_controller.windowDidMove_: Error in windowDidMove: {e}")
-            if DEBUG_MODE:
-                print(traceback.format_exc())
+            error_log("window_controller.windowDidMove_: Error in windowDidMove", e)
     
     def windowWillClose_(self, notification):
         """視窗關閉處理（階段1.3：完整資源釋放）"""
         try:
             debug_log("[階段1.3] 主視窗即將關閉")
             
-            # 保存狀態到插件對象
+            # 儲存狀態到外掛程式對象
             if hasattr(self, 'plugin'):
                 self.plugin.controlsPanelVisible = self.controlsPanelVisible
                 Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
@@ -450,22 +456,22 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelWindow.close()
                 self.controlsPanelWindow = None
             
-            # 保存偏好設定
+            # 儲存偏好設定
             if hasattr(self, 'plugin'):
                 self.plugin.savePreferences()
             
             # 移除通知觀察者
             NSNotificationCenter.defaultCenter().removeObserver_(self)
             
-            # 清除窗口控制器引用
+            # 清除視窗控制器引用
             if hasattr(self, 'plugin') and hasattr(self.plugin, 'windowController'):
                 self.plugin.windowController = None
             
         except Exception as e:
-            debug_log(f"[階段1.3] 處理視窗關閉錯誤: {e}")
+            error_log("[階段1.3] 處理視窗關閉錯誤", e)
     
     def request_main_redraw(self):
-        """請求主預覽視圖重繪"""
+        """請求主預覽畫面重繪"""
         try:
             if hasattr(self, 'previewView') and self.previewView:
                 # 使用強制重繪機制（如果存在）
@@ -474,7 +480,7 @@ class NineBoxWindow(NSWindowController):
                 else:
                     self.previewView.setNeedsDisplay_(True)
         except Exception as e:
-            debug_log(f"請求主預覽重繪錯誤: {e}")
+            error_log("請求主預覽重繪錯誤", e)
     
     def request_controls_panel_ui_update(self, update_lock_fields=True):
         """請求控制面板UI更新
@@ -488,7 +494,7 @@ class NineBoxWindow(NSWindowController):
                 debug_log(f"已更新控制面板 UI，update_lock_fields={update_lock_fields}")
                     
         except Exception as e:
-            debug_log(f"請求控制面板UI更新錯誤: {e}")
+            error_log("請求控制面板UI更新錯誤", e)
     
     def redraw(self):
         """重繪介面（向後相容）"""
@@ -502,19 +508,24 @@ class NineBoxWindow(NSWindowController):
         """顯示並激活視窗（階段1.3：視窗重建機制）"""
         try:
             debug_log("window_controller.makeKeyAndOrderFront: Starting.")
-            NSArray = objc.lookUpClass("NSArray") # 獲取 NSArray 類
-            
             # 如果有記錄的位置，先設定
             position_to_apply = None
             plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
             current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
             debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition: {current_plugin_pos} (type: {type(current_plugin_pos)})")
 
-            if plugin_has_pos_attr and current_plugin_pos and isinstance(current_plugin_pos, (list, tuple, NSArray)) and len(current_plugin_pos) >= 2:
-                position_to_apply = current_plugin_pos
-                debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
+            if plugin_has_pos_attr and current_plugin_pos:
+                # 處理 NSArray、list 或 tuple
+                try:
+                    if len(current_plugin_pos) >= 2:
+                        position_to_apply = current_plugin_pos
+                        debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
+                    else:
+                        debug_log(f"window_controller.makeKeyAndOrderFront: Position 長度不足: {len(current_plugin_pos)}")
+                except (TypeError, AttributeError):
+                    debug_log(f"window_controller.makeKeyAndOrderFront: Invalid position type: {type(current_plugin_pos)}. Value: {current_plugin_pos}")
             else:
-                debug_log(f"window_controller.makeKeyAndOrderFront: No valid position in plugin.windowPosition to apply. Value: {current_plugin_pos}")
+                debug_log(f"window_controller.makeKeyAndOrderFront: No position in plugin.windowPosition. Value: {current_plugin_pos}")
 
             if position_to_apply:
                 try:
@@ -549,10 +560,10 @@ class NineBoxWindow(NSWindowController):
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                     0.1, self, "delayedForceRedraw:", None, False
                 )
-                # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細日誌
+                # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細記錄
                 
         except Exception as e:
-            debug_log(f"window_controller.makeKeyAndOrderFront: Error: {e}")
+            error_log("window_controller.makeKeyAndOrderFront: Error", e)
     
     def delayedForceRedraw_(self, timer):
         """延遲強制重繪（階段1.3）"""
@@ -564,10 +575,44 @@ class NineBoxWindow(NSWindowController):
                     self.previewView.setNeedsDisplay_(True)
                 debug_log("[階段1.3] 完成延遲重繪")
         except Exception as e:
-            debug_log(f"[階段1.3] 延遲重繪錯誤: {e}")
+            error_log("[階段1.3] 延遲重繪錯誤", e)
+            
+    def _update_settings_button_color(self):
+        """根據 Glyphs 預覽區域的背景色更新設定按鈕的圖示顏色"""
+        if not self.controlsPanelButton:
+            return
+        
+        try:
+            is_preview_dark = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
+            text_color = None
+            if is_preview_dark:
+                # 預覽區為暗色，按鈕圖示應為亮色
+                text_color = NSColor.whiteColor()
+            else:
+                # 預覽區為亮色，按鈕圖示應為暗色
+                text_color = NSColor.blackColor()
+
+            # 為 "⚙" 符號設定合適的字型大小
+            symbol_font = NSFont.systemFontOfSize_(15.0) # 您可以微調此大小
+
+            attributes = {
+                NSForegroundColorAttributeName: text_color,
+                NSFontAttributeName: symbol_font
+            }
+            
+            attributed_title = NSAttributedString.alloc().initWithString_attributes_("⚙", attributes)
+            self.controlsPanelButton.setAttributedTitle_(attributed_title)
+            debug_log(f"設定按鈕圖示顏色已更新 (attributed title)。預覽區暗色: {is_preview_dark}, 顏色: {text_color.description() if text_color else 'None'}")
+        except Exception as e:
+            error_log("更新設定按鈕圖示顏色時發生錯誤 (attributed title)", e)
+
+    def _handleUserDefaultsChange_(self, notification):
+        """處理用戶偏好設定變更通知"""
+        self._update_settings_button_color()
     
     def dealloc(self):
-        """析構函數"""
+        """解構式"""
         try:
             NSNotificationCenter.defaultCenter().removeObserver_(self)
             
