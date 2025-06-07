@@ -36,7 +36,7 @@ CONTROLS_PANEL_MIN_HEIGHT = 220  # 減少最小高度，確保主視窗最小尺
 CONTROLS_PANEL_SPACING = 15  # 控制面板與主視窗之間的間距，用於避免陰影干擾
 
 # 繪圖相關參數
-MARGIN_RATIO = 0.07
+MARGIN_RATIO = 0.08 # 邊距比例
 SPACING_RATIO = 0.0
 MIN_ZOOM = 0.5
 MAX_ZOOM = 2.0

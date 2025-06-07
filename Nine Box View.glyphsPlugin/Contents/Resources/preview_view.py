@@ -213,7 +213,7 @@ class NineBoxPreviewView(NSView):
             
             # === 計算繪製起始位置（固定的佈局）===
             startX = rect.size.width / 2 - gridWidth / 2
-            offsetY = rect.size.height * 0.05  # 向上偏移 5%
+            offsetY = rect.size.height * 0.02  # 向上偏移 2%
             startY = (rect.size.height + gridHeight) / 2 + offsetY
             
             # 回傳穩定的網格度量
