@@ -329,7 +329,7 @@ class NineBoxWindow(NSWindowController):
                     panelFrame.size.height != newFrame.size.height or
                     panelFrame.origin.x != newFrame.origin.x or
                     panelFrame.origin.y != newFrame.origin.y):
-                    self.controlsPanelWindow.setFrame_display_animate_(newFrame, True, True)
+                    self.controlsPanelWindow.setFrame_display_animate_(newFrame, True, False) # 修改此處，將動畫關閉
                     
                     # 同時更新內容視圖大小
                     self.controlsPanelView.setFrame_(NSMakeRect(
