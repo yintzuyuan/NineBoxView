@@ -13,15 +13,16 @@ from AppKit import (
     NSWindow, NSNotificationCenter, NSWindowWillCloseNotification,
     NSWindowDidResizeNotification, NSWindowDidMoveNotification,
     NSTitledWindowMask, NSClosableWindowMask, NSResizableWindowMask,
-    NSMiniaturizableWindowMask, NSFloatingWindowLevel,
+    NSMiniaturizableWindowMask, NSFloatingWindowLevel, NSFullSizeContentViewWindowMask,
     NSBackingStoreBuffered, NSTitlebarAccessoryViewController,
     NSView, NSViewMaxYMargin, NSLayoutAttributeRight,
-    NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn,
+    NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSFont,
+    NSAttributedString, NSFontAttributeName, NSForegroundColorAttributeName,
     NSBezelStyleRounded, NSTexturedRoundedBezelStyle,
     NSFocusRingTypeNone, NSWindowCloseButton,
-    NSWindowMiniaturizeButton, NSWindowZoomButton
+    NSWindowMiniaturizeButton, NSWindowZoomButton, NSUserDefaults
 )
-from Foundation import NSObject
+from Foundation import NSObject, NSUserDefaultsDidChangeNotification
 
 from constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
@@ -59,8 +60,8 @@ class NineBoxWindow(NSWindowController):
             
             # 建立主視窗
             windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
-            styleMask = (NSTitledWindowMask | NSClosableWindowMask | 
-                        NSResizableWindowMask | NSMiniaturizableWindowMask)
+            styleMask = (NSTitledWindowMask | NSClosableWindowMask |
+                        NSResizableWindowMask | NSMiniaturizableWindowMask | NSFullSizeContentViewWindowMask)
             
             panel = NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(
                 windowRect, styleMask, NSBackingStoreBuffered, False
@@ -70,6 +71,9 @@ class NineBoxWindow(NSWindowController):
             panel.setMinSize_(NSMakeSize(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1]))
             panel.setLevel_(NSFloatingWindowLevel)
             panel.setReleasedWhenClosed_(False)
+            
+            # 設定標題列透明以移除背景bar
+            panel.setTitlebarAppearsTransparent_(True)
             
             # 初始化父類
             self = objc.super(NineBoxWindow, self).init()
@@ -154,6 +158,9 @@ class NineBoxWindow(NSWindowController):
         self.controlsPanelButton.setBezelStyle_(NSTexturedRoundedBezelStyle)
         self.controlsPanelButton.setButtonType_(NSButtonTypeToggle)
         
+        # 設定按鈕圖示顏色，使其能隨 Glyphs 預覽主題自動調整
+        self._update_settings_button_color()
+        
         # 設定提示
         controlsPanelTooltip = Glyphs.localize({
             'en': u'Show/hide controls panel',
@@ -201,6 +208,11 @@ class NineBoxWindow(NSWindowController):
         # 視窗關閉
         notificationCenter.addObserver_selector_name_object_(
             self, "windowWillClose:", NSWindowWillCloseNotification, panel
+        )
+        
+        # 監聽用戶偏好設定變更（用於更新按鈕顏色以匹配 Glyphs 預覽主題）
+        notificationCenter.addObserver_selector_name_object_(
+            self, "_handleUserDefaultsChange:", NSUserDefaultsDidChangeNotification, None
         )
     
     def createControlsPanelWindow(self):
@@ -564,6 +576,40 @@ class NineBoxWindow(NSWindowController):
                 debug_log("[階段1.3] 完成延遲重繪")
         except Exception as e:
             error_log("[階段1.3] 延遲重繪錯誤", e)
+            
+    def _update_settings_button_color(self):
+        """根據 Glyphs 預覽區域的背景色更新設定按鈕的圖示顏色"""
+        if not self.controlsPanelButton:
+            return
+        
+        try:
+            is_preview_dark = NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")
+            
+            text_color = None
+            if is_preview_dark:
+                # 預覽區為暗色，按鈕圖示應為亮色
+                text_color = NSColor.whiteColor()
+            else:
+                # 預覽區為亮色，按鈕圖示應為暗色
+                text_color = NSColor.blackColor()
+
+            # 為 "⚙" 符號設定合適的字體大小
+            symbol_font = NSFont.systemFontOfSize_(15.0) # 您可以微調此大小
+
+            attributes = {
+                NSForegroundColorAttributeName: text_color,
+                NSFontAttributeName: symbol_font
+            }
+            
+            attributed_title = NSAttributedString.alloc().initWithString_attributes_("⚙", attributes)
+            self.controlsPanelButton.setAttributedTitle_(attributed_title)
+            debug_log(f"設定按鈕圖示顏色已更新 (attributed title)。預覽區暗色: {is_preview_dark}, 顏色: {text_color.description() if text_color else 'None'}")
+        except Exception as e:
+            error_log("更新設定按鈕圖示顏色時發生錯誤 (attributed title)", e)
+
+    def _handleUserDefaultsChange_(self, notification):
+        """處理用戶偏好設定變更通知"""
+        self._update_settings_button_color()
     
     def dealloc(self):
         """析構函數"""
