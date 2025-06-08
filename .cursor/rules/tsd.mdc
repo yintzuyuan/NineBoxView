@@ -22,6 +22,12 @@ alwaysApply: true
 9. **偏好設定管理**：`utils.py` 中集中處理偏好設定的載入與儲存，針對鎖定字符等字典類型的資料使用 JSON 格式儲存。
 10. **程式碼整理**：改進除錯記錄系統，統一使用 `debug_log` 和 `error_log`。
 11. **視窗焦點同步**：控制面板現在作為主視窗的子視窗（child window），確保兩者共享焦點狀態，提升使用者體驗。
+12. **字符填充機制改進**：
+    - 修正了當搜尋框中包含字型檔案中不存在的字符時，主視窗用空白填充的問題。
+    - 改進 `generate_new_arrangement` 方法的字符驗證和填充邏輯，確保始終使用有效字符填充預覽。
+    - 優化填充優先順序：優先使用搜尋框中的有效字符，其次使用當前編輯字符，最後使用備用字符。
+    - 確保視窗初次顯示時即正確生成字符排列。
+    - **鎖定輸入框字符驗證**：當鎖定輸入框中輸入的字符不存在於字型檔案中時，不更新主視窗的預覽內容，保持原有顯示。
 
 
 ### 1. 系統架構 (System Architecture)
@@ -29,7 +35,8 @@ alwaysApply: true
 本外掛採用模組化設計，`plugin.py` 作為核心控制器，負責狀態管理與主要邏輯分派。`event_handlers.py` 集中處理大部分事件回呼。系統包含兩個主要視窗：
 
 * **主預覽視窗 (`NineBoxPreviewWindow`):** 由 `window_controller.py` (主視窗控制器) 管理，負責顯示九宮格預覽。
-* **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，且無標題列。此視窗的生命週期與顯示狀態由主視窗控制器管理。
+* **主預覽視窗 (`NineBoxWindow`):** 由 `window_controller.py` (主視窗控制器，類別名稱為 `NineBoxWindow`) 管理，負責顯示九宮格預覽。
+* **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，其標題列被設定為透明且內容隱藏，使其外觀簡潔。此視窗的生命週期與顯示狀態由主視窗控制器管理。
 
 UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search_panel.py`（搜尋功能面板）和 `lock_fields_panel.py`（鎖定功能面板）。繪圖模組 (`preview_view.py`) 負責預覽渲染。輔助模組 (`utils.py` 和 `constants.py`) 提供全域常數和共用功能。
 
@@ -81,7 +88,6 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
     * **職責:** (新增)
         * `LockCharacterField`: 繼承 `NSTextField`，用於九宮格中的 8 個鎖定位置的單字符輸入。文字變更時觸發 `plugin.smartLockCharacterCallback`。
         * `LockFieldsPanel`: 繼承 `NSView`，管理 8 個 `LockCharacterField`、中央的鎖頭按鈕和底部的「清空鎖定」按鈕。
-        * 處理搜尋文字變更事件，轉發給 `plugin.py` 的 `searchFieldCallback`。
         * `toggleLockMode_`: 處理鎖頭按鈕點擊事件。切換 `plugin.isInClearMode` 狀態。儲存/回復 `plugin.originalArrangement`。同步輸入框內容到 `plugin.lockedChars` (使用 `_sync_input_fields_to_locked_chars_without_regenerate`)。透過 `_update_arrangement_for_lock_toggle` 更新預覽排列，並強制重繪。
         * `clearAllFields_`: 處理「清空鎖定」按鈕點擊事件。清除 UI 欄位和 `plugin.lockedChars`。在鎖定模式下，嘗試回復 `plugin.originalArrangement` 或用 `plugin.selectedChars` 中的隨機字符替換被清除的位置。強制重繪預覽。
         * `update_lock_fields`: 根據 `plugin.lockedChars` 更新鎖定輸入框的顯示內容。
@@ -92,7 +98,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
         * `update_interface`: 處理 Glyphs 的 `UPDATEINTERFACE` 等回呼，觸發主視窗和控制面板的重繪/更新。
         * `search_field_callback`: 處理搜尋框文字變更。更新 `plugin.lastInput` 和 `plugin.selectedChars`。若有需要則呼叫 `generate_new_arrangement`。
         * `smart_lock_character_callback`: 處理單一鎖定框文字變更。更新 `plugin.lockedChars`。若在鎖定模式，則呼叫 `_update_single_position` 更新 `plugin.currentArrangement` 的對應位置並強制重繪。
-        * `clear_all_lock_fields_callback`: 處理來自 `LockFieldsPanel` 的清空請求，更新 `plugin.lockedChars` 並重新生成排列。
+        * `clear_all_lock_fields_callback`: (可由 `plugin.clearAllLockFieldsCallback` 觸發) 清空所有鎖定UI欄位 (透過 `plugin.windowController`)、`plugin.lockedChars`，並呼叫 `generate_new_arrangement` 重新生成排列。
         * `pick_glyph_callback`: 使用官方 `PickGlyphs()` API 選擇字符，並將結果附加到搜尋框。
         * `randomize_callback`: 處理預覽區點擊事件。清除 `plugin.originalArrangement`，呼叫 `generate_new_arrangement`，並強制重繪預覽。
         * `generate_new_arrangement`: 核心排列生成邏輯。根據 `plugin.isInClearMode` (鎖頭狀態)、`plugin.selectedChars` 和 `plugin.lockedChars` 計算 `plugin.currentArrangement`。
@@ -108,7 +114,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 * **`utils.py` (工具函數 - 最佳化版):**
     * **職責:**
         * 提供字符處理 (`parse_input_text`, `get_cached_glyph`, `get_cached_width`) 和排列生成 (`generate_arrangement`, `apply_locked_chars`) 函數。
-        * 實作統一的除錯記錄系統 (`debug_log`, `log_to_macro_window`)。
+        * 實作統一的除錯記錄系統 (`debug_log`, `error_log`, `log_to_macro_window`)。
         * 提供快取管理功能 (`_glyph_cache`, `_width_cache`, `clear_cache`)。`get_cached_glyph` 使用 Glyphs 內建 API 最佳化查找。
         * 實作改進後的 `get_base_width` 函數，更可靠地取得基準寬度。
         * 集中處理偏好設定的載入 (`load_preferences`) 與儲存 (`save_preferences`)，包括對字典使用 JSON 格式和對視窗位置使用 list 格式。
@@ -148,14 +154,13 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 * `plugin.zoomFactor (float)`: 縮放係數。
 * `plugin.isInClearMode (bool)`: 鎖頭狀態，`True` 為解鎖模式，`False` 為上鎖模式 (對應 `LOCK_MODE_KEY`)。
 * `plugin.controlsPanelVisible (bool)`: 控制面板子視窗的顯示狀態。
-* `plugin.windowPosition (list)`: 主視窗位置 `[x, y]`。
+* `plugin.windowPosition (list)`: 主視窗位置 `[x, y]` (透過 `utils.py` 載入/儲存)。
 * `plugin.previousLockedChars (dict)`: 備份的鎖定字符 (目前主要在 `clearAllLockFieldsCallback` 中用於記錄被清除的項目，而非完整的復原功能)。
 * `plugin._update_scheduled (bool)`: 最佳化新增，防止重複更新的標記。
 
 ### 5. 視窗管理細節 (Window Management Details)
-
 * **控制面板建立與管理:**
-    * 使用 `NSPanel` 實例，設定適當的 `styleMask` 移除標題列。
+    * 使用 `NSPanel` 實例，透過設定標題列透明 (`setTitlebarAppearsTransparent_`) 和隱藏標題內容 (`setTitleVisibility_`) 來達到簡潔的外觀，而非僅依賴 `styleMask` 移除標題列。
     * 使用 `addChildWindow_ordered_` 將控制面板設為主視窗的子視窗，確保兩者共享焦點狀態。
     * 設定 `NSWindowCollectionBehaviorMoveToActiveSpace` 和 `NSWindowCollectionBehaviorTransient` 行為，使控制面板與主視窗作為一個整體移動。
     * 使用 `CONTROLS_PANEL_SPACING` 常數設定控制面板與主視窗間距。

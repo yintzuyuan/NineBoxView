@@ -154,15 +154,17 @@ try:
         def toggleWindow_(self, sender):
             """切換視窗顯示狀態"""
             try:
+                # 確保每次開啟時都重新載入最新的偏好設定
                 self.loadPreferences()
+                self.debug_log("[切換視窗] 已重新載入偏好設定")
+                self.debug_log(f"  - lastInput: '{self.lastInput}'")
+                self.debug_log(f"  - selectedChars: {self.selectedChars}")
+                self.debug_log(f"  - lockedChars: {self.lockedChars}")
+                self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
                 
                 if self.windowController is None:
-                    if self.selectedChars and not self.currentArrangement:
-                        self.debug_log("初始化視窗前產生排列")
-                        self.generateNewArrangement()
-                    
-                    # 嘗試初始化視窗控制器
-                    self.debug_log("嘗試初始化視窗控制器")
+                    # 初次開啟視窗
+                    self.debug_log("[切換視窗] 初始化新視窗控制器")
                     self.windowController = self.NineBoxWindow.alloc().initWithPlugin_(self)
                     
                     # 檢查初始化是否成功
@@ -173,6 +175,20 @@ try:
                             "初始化視窗失敗，請檢查控制台記錄"
                         )
                         return
+                else:
+                    # 視窗已存在，但可能需要重新載入狀態
+                    self.debug_log("[切換視窗] 使用現有視窗控制器")
+                    
+                    # 強制更新控制面板 UI
+                    if (hasattr(self.windowController, 'controlsPanelView') and 
+                        self.windowController.controlsPanelView):
+                        self.debug_log("[切換視窗] 強制更新控制面板 UI")
+                        self.windowController.controlsPanelView.update_ui(self, update_lock_fields=True)
+                    
+                    # 重新生成排列以確保一致性
+                    if hasattr(self, 'event_handlers') and hasattr(self.event_handlers, 'generate_new_arrangement'):
+                        self.debug_log("[切換視窗] 重新生成字符排列")
+                        self.event_handlers.generate_new_arrangement()
                 
                 # 確保視窗控制器有效後再顯示視窗
                 if self.windowController is not None:

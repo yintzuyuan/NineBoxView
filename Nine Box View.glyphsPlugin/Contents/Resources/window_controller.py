@@ -519,57 +519,99 @@ class NineBoxWindow(NSWindowController):
         self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
-        """顯示並激活視窗（階段1.3：視窗重建機制）"""
+        """顯示並激活視窗（完整初始化版本）"""
         try:
-            debug_log("window_controller.makeKeyAndOrderFront: Starting.")
-            # 如果有記錄的位置，先設定
+            debug_log("[makeKeyAndOrderFront] 開始完整初始化")
+            
+            # 確保偏好設定已載入
+            if hasattr(self, 'plugin'):
+                self.plugin.loadPreferences()
+                debug_log(f"[初始化] 載入的偏好設定:")
+                debug_log(f"  - lastInput: '{getattr(self.plugin, 'lastInput', '')}'") 
+                debug_log(f"  - selectedChars: {getattr(self.plugin, 'selectedChars', [])}")
+                debug_log(f"  - lockedChars: {getattr(self.plugin, 'lockedChars', {})}")
+                debug_log(f"  - currentArrangement: {getattr(self.plugin, 'currentArrangement', [])}")
+                debug_log(f"  - isInClearMode: {getattr(self.plugin, 'isInClearMode', False)}")
+            
+            # 設定視窗位置
             position_to_apply = None
             plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
             current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
-            debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition: {current_plugin_pos} (type: {type(current_plugin_pos)})")
-
+            
             if plugin_has_pos_attr and current_plugin_pos:
-                # 處理 NSArray、list 或 tuple
                 try:
                     if len(current_plugin_pos) >= 2:
                         position_to_apply = current_plugin_pos
-                        debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
-                    else:
-                        debug_log(f"window_controller.makeKeyAndOrderFront: Position 長度不足: {len(current_plugin_pos)}")
+                        debug_log(f"[初始化] 將套用視窗位置: {position_to_apply}")
                 except (TypeError, AttributeError):
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Invalid position type: {type(current_plugin_pos)}. Value: {current_plugin_pos}")
-            else:
-                debug_log(f"window_controller.makeKeyAndOrderFront: No position in plugin.windowPosition. Value: {current_plugin_pos}")
-
+                    debug_log(f"[初始化] 無效的位置類型: {type(current_plugin_pos)}")
+            
             if position_to_apply:
                 try:
                     x = float(position_to_apply[0])
                     y = float(position_to_apply[1])
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Attempting to set window origin to ({x}, {y})")
                     self.window().setFrameOrigin_(NSMakePoint(x, y))
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Window origin set to {self.window().frame().origin.x}, {self.window().frame().origin.y}")
+                    debug_log(f"[初始化] 視窗位置已設定為 ({x}, {y})")
                 except (ValueError, TypeError) as e:
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Error setting window origin: {e}. position_to_apply was: {position_to_apply}")
+                    debug_log(f"[初始化] 設定視窗位置錯誤: {e}")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)
             
-            # 檢查並重建控制面板（統一子視窗模式）
+            # 檢查並重建控制面板
             self.rebuildControlsPanelIfNeeded()
             
-            # 更新介面
+            # === 完整初始化：根據載入的狀態生成正確排列 ===
             if hasattr(self, 'plugin'):
+                # 先確保控制面板 UI 顯示正確的載入值
+                if self.controlsPanelView:
+                    debug_log("[初始化] 更新控制面板 UI")
+                    self.controlsPanelView.update_ui(self.plugin, update_lock_fields=True)
+                
+                # 檢查是否有載入的 lastInput
+                if hasattr(self.plugin, 'lastInput') and self.plugin.lastInput:
+                    debug_log(f"[初始化] 處理載入的 lastInput: '{self.plugin.lastInput}'")
+                    # 解析 lastInput 以更新 selectedChars
+                    if hasattr(self.plugin, 'parse_input_text'):
+                        parsed_chars = self.plugin.parse_input_text(self.plugin.lastInput)
+                        if parsed_chars:
+                            self.plugin.selectedChars = parsed_chars
+                            debug_log(f"[初始化] 解析後的 selectedChars: {self.plugin.selectedChars}")
+                
+                # 無論是否有現有排列，都重新生成以確保一致性
+                if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
+                    debug_log("[初始化] 重新生成字符排列")
+                    
+                    # 設定一個標記來表示這是初始化
+                    self.plugin._is_initializing = True
+                    
+                    # 生成新排列
+                    self.plugin.event_handlers.generate_new_arrangement()
+                    
+                    # 清除標記
+                    self.plugin._is_initializing = False
+                    
+                    debug_log(f"[初始化] 生成的排列: {self.plugin.currentArrangement}")
+                
+                # 更新介面
                 self.plugin.updateInterface(None)
             
             # 強制重繪確保初次顯示
             if hasattr(self, 'previewView') and self.previewView:
+                # 立即強制重繪
+                if hasattr(self.previewView, 'force_redraw'):
+                    self.previewView.force_redraw()
+                
+                # 也安排一個延遲重繪以確保
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                     0.1, self, "delayedForceRedraw:", None, False
                 )
-                # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細記錄
+                debug_log("[初始化] 已安排強制重繪")
+            
+            debug_log("[初始化] 完成")
                 
         except Exception as e:
-            error_log("window_controller.makeKeyAndOrderFront: Error", e)
+            error_log("[makeKeyAndOrderFront] 初始化錯誤", e)
     
     def delayedForceRedraw_(self, timer):
         """延遲強制重繪（階段1.3）"""
