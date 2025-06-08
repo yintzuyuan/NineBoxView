@@ -21,6 +21,7 @@ alwaysApply: true
 8. **視窗位置記憶**：統一使用 Python list 格式 `[x, y]` 儲存和載入視窗位置，並相容舊的字典格式。
 9. **偏好設定管理**：`utils.py` 中集中處理偏好設定的載入與儲存，針對鎖定字符等字典類型的資料使用 JSON 格式儲存。
 10. **程式碼整理**：改進除錯記錄系統，統一使用 `debug_log` 和 `error_log`。
+11. **視窗焦點同步**：控制面板現在作為主視窗的子視窗（child window），確保兩者共享焦點狀態，提升使用者體驗。
 
 
 ### 1. 系統架構 (System Architecture)
@@ -155,10 +156,11 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 
 * **控制面板建立與管理:**
     * 使用 `NSPanel` 實例，設定適當的 `styleMask` 移除標題列。
-    * 設定 `level` 為 `NSFloatingWindowLevel`，並使用 `orderBack_()` 確保控制面板顯示在主視窗之下。
+    * 使用 `addChildWindow_ordered_` 將控制面板設為主視窗的子視窗，確保兩者共享焦點狀態。
+    * 設定 `NSWindowCollectionBehaviorMoveToActiveSpace` 和 `NSWindowCollectionBehaviorTransient` 行為，使控制面板與主視窗作為一個整體移動。
     * 使用 `CONTROLS_PANEL_SPACING` 常數設定控制面板與主視窗間距。
     * 控制面板的標題列按鈕 (`NSWindowCloseButton` 等) 被隱藏，標題列設為透明。
-    * 主視窗關閉時，`windowWillClose_` 方法會釋放控制面板資源。
+    * 主視窗關閉時，`windowWillClose_` 方法會先使用 `removeChildWindow_` 解除子視窗關係，再釋放控制面板資源。
 
 * **視窗關閉與重新開啟:**
     * 當主視窗關閉時，完整釋放控制面板資源。

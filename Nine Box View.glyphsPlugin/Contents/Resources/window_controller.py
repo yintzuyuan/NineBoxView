@@ -259,7 +259,8 @@ class NineBoxWindow(NSWindowController):
         panel = self.controlsPanelWindow
         
         panel.setTitle_("Controls")
-        panel.setLevel_(NSFloatingWindowLevel)
+        # 不設定 level，讓它作為子視窗跟隨主視窗
+        # panel.setLevel_(NSFloatingWindowLevel)
         panel.setReleasedWhenClosed_(False)
         
         panel.setBackgroundColor_(NSColor.controlBackgroundColor())
@@ -272,6 +273,14 @@ class NineBoxWindow(NSWindowController):
         # 透明標題列
         panel.setTitlebarAppearsTransparent_(True)
         panel.setTitleVisibility_(1)  # NSWindowTitleHidden
+        
+        # 設定視窗行為，使其與主視窗一起移動和管理焦點
+        # NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1
+        # NSWindowCollectionBehaviorTransient = 1 << 3
+        panel.setCollectionBehavior_(1 << 1 | 1 << 3)
+        
+        # 將控制面板設為主視窗的子視窗，這樣它們會共享焦點狀態
+        self.window().addChildWindow_ordered_(panel, 1)  # NSWindowAbove = 1
     
     def showControlsPanel(self):
         """顯示控制面板"""
@@ -279,8 +288,8 @@ class NineBoxWindow(NSWindowController):
             if self.controlsPanelWindow:
                 self.updateControlsPanelPosition()
                 
-                # === 修正：使用 orderBack_ 確保控制面板顯示在主視窗之下 ===
-                self.controlsPanelWindow.orderBack_(None)  # 在背景顯示，避免陰影干擾主視窗
+                # 顯示控制面板（作為子視窗會自動跟隨主視窗）
+                self.controlsPanelWindow.orderFront_(None)
                 
                 if self.controlsPanelView:
                     self.controlsPanelView.update_ui(self.plugin)
@@ -427,12 +436,7 @@ class NineBoxWindow(NSWindowController):
                 
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    
-                    if self.controlsPanelWindow.isVisible():
-                        # === 修正：確保控制面板始終在主視窗之下 ===
-                        self.controlsPanelWindow.orderBack_(None)  # 確保在背景顯示
-                    
-                    # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細記錄
+                    # 作為子視窗，不需要手動管理顯示順序
                     
         except Exception as e:
             error_log("window_controller.windowDidMove_: Error in windowDidMove", e)
@@ -450,6 +454,8 @@ class NineBoxWindow(NSWindowController):
             # 完整釋放控制面板資源
             if self.controlsPanelWindow:
                 debug_log("[階段1.3] 釋放控制面板資源")
+                # 先從主視窗移除子視窗關係
+                self.window().removeChildWindow_(self.controlsPanelWindow)
                 self.controlsPanelWindow.orderOut_(None)
                 if self.controlsPanelView:
                     self.controlsPanelView = None
