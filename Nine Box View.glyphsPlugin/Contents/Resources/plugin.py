@@ -30,15 +30,6 @@ try:
                 'zh-Hans': u'九宫格预览',
                 'ja': u'九宮格プレビュー',
                 'ko': u'구궁격 미리보기',
-                'ar': u'معاينة المربعات التسعة',
-                'cs': u'Náhled devíti polí',
-                'de': u'Neun-Felder-Vorschau',
-                'es': u'Vista previa de nueve cuadros',
-                'fr': u'Aperçu en neuf cases',
-                'it': u'Anteprima a nove caselle',
-                'pt': u'Visualização em nove caixas',
-                'ru': u'Предпросмотр девяти ячеек',
-                'tr': u'Dokuz Kutu Önizleme'
             })
             
             # 匯入模組（延遲匯入以避免反覆依賴）
