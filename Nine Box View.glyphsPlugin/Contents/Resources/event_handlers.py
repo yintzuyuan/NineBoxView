@@ -9,7 +9,7 @@ import traceback
 from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
 from constants import DEBUG_MODE, DEFAULT_ZOOM
-from utils import debug_log, error_log, parse_input_text, generate_arrangement, apply_locked_chars, validate_locked_positions, get_cached_glyph
+from utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph
 
 
 class EventHandlers:
@@ -368,13 +368,11 @@ class EventHandlers:
     
     def generate_new_arrangement(self):
         """生成新的字符排列（強化版）"""
-        import random  # 確保在函數開頭就匯入 random 模組
-        
         try:
             debug_log("開始生成新排列")
             
             # 檢查字型和主版
-            if not Glyphs.font or not Glyphs.font.selectedFontMaster:
+            if not Glyphs.font: # selectedFontMaster is not strictly needed for arrangement generation itself
                 debug_log("警告：沒有開啟字型或選擇主版")
                 return
             
@@ -382,7 +380,7 @@ class EventHandlers:
             is_in_clear_mode = self._get_lock_state()
             should_apply_locks = not is_in_clear_mode
             
-            # 確保 selectedChars 是可變列表
+            # 準備 source_chars: 確保 selectedChars 是可變列表
             if hasattr(self.plugin, 'selectedChars'):
                 self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
             else:
@@ -400,76 +398,44 @@ class EventHandlers:
                     debug_log(f"generate_new_arrangement: Validated selectedChars. Original: {self.plugin.selectedChars}, Valid: {valid_selected_chars}")
                     self.plugin.selectedChars = valid_selected_chars
             # === END MODIFICATION ===
-            
-            has_selected_chars = bool(self.plugin.selectedChars)
-            
-            # 確保 lockedChars 是字典
-            if not hasattr(self.plugin, 'lockedChars'):
-                self.plugin.lockedChars = {}
-                
-            has_locked_chars = bool(self.plugin.lockedChars)
-            
-            debug_log(f"目前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
-            debug_log(f"已選擇字符數量：{len(self.plugin.selectedChars)}")
-            debug_log(f"已鎖定字符：{self.plugin.lockedChars}")
-            
-            # 處理沒有選擇字符的情況 - 使用目前編輯字符替代
-            if not has_selected_chars:
+
+            source_chars_for_arrangement = list(self.plugin.selectedChars) # Use a copy
+            if not source_chars_for_arrangement:
                 current_char = self._get_current_editing_char()
                 if current_char:
                     debug_log(f"沒有選擇字符，使用目前編輯字符 '{current_char}' 填充")
-                    self.plugin.selectedChars = [current_char]
-                    has_selected_chars = True
-            
-            # 驗證鎖定字符
-            if has_locked_chars:
-                self.plugin.lockedChars = validate_locked_positions(self.plugin.lockedChars, Glyphs.font)
-            
-            # 處理解鎖狀態
-            if is_in_clear_mode:
-                if not has_selected_chars:
-                    debug_log("解鎖狀態且無選擇字符：清空排列")
-                    self.plugin.currentArrangement = []
+                    source_chars_for_arrangement = [current_char]
+                    # Optionally, update plugin.selectedChars if this is the desired behavior
+                    # self.plugin.selectedChars = [current_char]
+                else:
+                    # This case should ideally be handled by _get_current_editing_char returning a default
+                    debug_log("警告: 無法取得目前編輯字符，且無選擇字符。")
+                    self.plugin.currentArrangement = [None] * 8 # Default to empty/None arrangement
                     self.plugin.savePreferences()
                     return
-                else:
-                    debug_log(f"解鎖狀態：使用所有 {len(self.plugin.selectedChars)} 個選擇字符生成基本排列")
-                    # 使用列表複本確保可變性
-                    selected_chars = list(self.plugin.selectedChars)
-                    self.plugin.currentArrangement = generate_arrangement(selected_chars, 8)
-                    debug_log(f"生成的排列：{self.plugin.currentArrangement}")
-            
-            # 處理上鎖狀態
-            else:
-                if has_selected_chars:
-                    # 有選擇字符：生成基礎排列並套用鎖定
-                    # 使用列表複本確保可變性
-                    selected_chars = list(self.plugin.selectedChars)
-                    debug_log(f"上鎖狀態：使用所有 {len(selected_chars)} 個選擇字符生成基礎排列")
-                    base_arrangement = generate_arrangement(selected_chars, 8)
-                    debug_log(f"生成基礎排列：{base_arrangement}")
-                    
-                    if has_locked_chars:
-                        # 套用鎖定並確保結果是可變列表
-                        debug_log(f"套用 {len(self.plugin.lockedChars)} 個鎖定字符")
-                        result_arrangement = apply_locked_chars(
-                            base_arrangement,
-                            self.plugin.lockedChars,
-                            selected_chars
-                        )
-                        self.plugin.currentArrangement = list(result_arrangement)
-                        debug_log(f"套用鎖定後的排列：{self.plugin.currentArrangement}")
-                    else:
-                        self.plugin.currentArrangement = list(base_arrangement)
-                        debug_log(f"沒有鎖定字符，保持基礎排列")
-                else:
-                    # 無選擇字符：使用預設排列或目前字符
-                    debug_log(f"上鎖狀態但無選擇字符：使用預設排列")
-                    self._generate_default_arrangement(should_apply_locks)
-                    # 確保結果是可變列表
-                    if hasattr(self.plugin, 'currentArrangement'):
-                        self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
-            
+
+            # 準備 locked_map
+            if not hasattr(self.plugin, 'lockedChars'):
+                self.plugin.lockedChars = {}
+
+            current_locked_map_for_arrangement = {}
+            if should_apply_locks and self.plugin.lockedChars:
+                self.plugin.lockedChars = validate_locked_positions(self.plugin.lockedChars, Glyphs.font)
+                current_locked_map_for_arrangement = self.plugin.lockedChars
+
+            debug_log(f"目前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
+            debug_log(f"用於排列的源字符：{source_chars_for_arrangement}")
+            debug_log(f"用於排列的鎖定映射：{current_locked_map_for_arrangement}")
+
+            # 調用 utils.py 中的 generate_arrangement
+            new_arrangement = generate_arrangement(
+                source_chars_for_arrangement,
+                current_locked_map_for_arrangement,
+                8  # total_slots
+            )
+            self.plugin.currentArrangement = list(new_arrangement) # 確保是 Python list
+            debug_log(f"生成的新排列: {self.plugin.currentArrangement}")
+
             # 確保結果是可變列表
             if hasattr(self.plugin, 'currentArrangement'):
                 self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
@@ -501,14 +467,20 @@ class EventHandlers:
         
         try:
             # 確保有 currentArrangement
-            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement or len(self.plugin.currentArrangement) != 8:
                 # 如果沒有目前排列，需要生成一個基礎排列
-                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                    self.plugin.currentArrangement = generate_arrangement(self.plugin.selectedChars, 8)
-                else:
-                    # 使用目前編輯字符填充
-                    current_char = self._get_current_editing_char()
-                    self.plugin.currentArrangement = [current_char] * 8
+                debug_log("[單一更新] currentArrangement 不存在或長度不對，重新生成。")
+                source_for_init = list(self.plugin.selectedChars) if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars else []
+                if not source_for_init:
+                    source_for_init = [self._get_current_editing_char()]
+                
+                # smart_lock_character_callback 應該已經更新了 self.plugin.lockedChars
+                locked_map_for_init = self.plugin.lockedChars if hasattr(self.plugin, 'lockedChars') else {}
+                
+                self.plugin.currentArrangement = generate_arrangement(
+                    source_for_init,
+                    locked_map_for_init, 8
+                )
             
             # 建立 currentArrangement 的可變複本
             # 處理可能是不可變 NSArray 的情況
@@ -643,81 +615,3 @@ class EventHandlers:
         
         # 7. 絕對保底：回傳 "A"
         return "A"
-    
-    def _generate_default_arrangement(self, should_apply_locks):
-        """生成預設排列"""
-        import random  # 確保在函數開頭就匯入 random 模組
-        
-        # 如果是上鎖狀態且有鎖定字符，使用目前編輯的字符作為基礎排列
-        if should_apply_locks and hasattr(self.plugin, 'lockedChars') and self.plugin.lockedChars:
-            current_layer = None
-            if Glyphs.font and Glyphs.font.selectedLayers:
-                current_layer = Glyphs.font.selectedLayers[0]
-            
-            if current_layer and current_layer.parent:
-                # 使用目前字符的名稱或Unicode值建立基礎排列
-                current_glyph = current_layer.parent
-                current_char = None
-                if current_glyph.unicode:
-                    try:
-                        current_char = chr(int(current_glyph.unicode, 16))
-                    except:
-                        pass
-                
-                if not current_char and current_glyph.name:
-                    current_char = current_glyph.name
-                
-                if current_char:
-                    # 建立一個全是目前字符的基礎排列
-                    base_arrangement = [current_char] * 8
-                    
-                    # 套用鎖定字符
-                    # 確保回傳的是可變列表
-                    applied_arrangement = apply_locked_chars(
-                        base_arrangement, self.plugin.lockedChars, []
-                    )
-                    self.plugin.currentArrangement = list(applied_arrangement) if applied_arrangement else []
-                    self.plugin.savePreferences()
-                    return
-        
-        # 使用目前編輯的字符
-        current_layer = None
-        if Glyphs.font and Glyphs.font.selectedLayers:
-            current_layer = Glyphs.font.selectedLayers[0]
-        
-        if current_layer and current_layer.parent:
-            current_glyph = current_layer.parent
-            current_char = None
-            if current_glyph.unicode:
-                try:
-                    current_char = chr(int(current_glyph.unicode, 16))
-                except:
-                    pass
-            
-            if not current_char and current_glyph.name:
-                current_char = current_glyph.name
-            
-            if current_char:
-                self.plugin.currentArrangement = [current_char] * 8
-                self.plugin.savePreferences()
-                return
-        
-        # 如果找不到目前字符，使用字型中的第一個有效字符
-        if Glyphs.font and Glyphs.font.glyphs:
-            for glyph in Glyphs.font.glyphs:
-                if glyph.unicode:
-                    try:
-                        char = chr(int(glyph.unicode, 16))
-                        self.plugin.currentArrangement = [char] * 8
-                        self.plugin.savePreferences()
-                        return
-                    except:
-                        continue
-                elif glyph.name:
-                    self.plugin.currentArrangement = [glyph.name] * 8
-                    self.plugin.savePreferences()
-                    return
-        
-        # 極端情況下，使用預設值
-        self.plugin.currentArrangement = ["A"] * 8
-        self.plugin.savePreferences()

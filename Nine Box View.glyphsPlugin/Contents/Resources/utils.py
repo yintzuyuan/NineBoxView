@@ -409,69 +409,71 @@ def parse_input_text(text):
     
     return chars
 
-def generate_arrangement(chars, count=8):
-    """生成隨機字符排列
+def generate_arrangement(source_chars, locked_map, total_slots=8):
+    """
+    生成考慮到鎖定字符的最終字符排列。
     
     Args:
-        chars: 可用字符列表
-        count: 需要的字符數量
+        source_chars: 用於填充未鎖定位置的可用字符列表（通常來自搜尋框）。
+        locked_map: 一個字典，鍵是位置索引 (0-7)，值是鎖定的字符。
+        total_slots: 排列中的總位置數量（預設為 8）。
         
     Returns:
-        隨機排列的字符列表
+        一個包含 total_slots 個字符的列表，代表最終的排列。
     """
-    import random  # 確保在函數開頭就匯入 random 模組
+    import random
     
-    if not chars:
-        return []
-    
-    # 如果字符數量不足，重複使用
-    if len(chars) < count:
-        arrangement = chars * (count // len(chars) + 1)
-        arrangement = arrangement[:count]
-    else:
-        # 不再只取前 count 個字符，而是從所有字符中隨機選擇
-        arrangement = random.sample(chars, min(count, len(chars)))
-        # 如果還不夠，填充剩餘的位置
-        while len(arrangement) < count:
-            arrangement.append(random.choice(chars))
-    
-    # 隨機打亂
-    random.shuffle(arrangement)
-    
-    return arrangement
+    final_arrangement = [None] * total_slots
+    unlocked_indices = []
+    current_locked_map = locked_map or {}
 
-def apply_locked_chars(arrangement, locked_chars, available_chars):
-    """套用鎖定字符到排列中
-    
-    Args:
-        arrangement: 基礎排列
-        locked_chars: 鎖定字符字典
-        available_chars: 可用字符列表（用於填充空位）
-        
-    Returns:
-        套用鎖定後的排列
-    """
-    if not locked_chars:
-        # 確保回傳可變列表
-        return list(arrangement) if arrangement else []
-    
-    # 複製排列以避免修改原始資料
-    # 確保結果是可變列表
-    result = list(arrangement) if arrangement else []
-    
-    # 確保結果有足夠的長度
-    while len(result) < 8:
-        if available_chars:
-            result.append(random.choice(available_chars))
+    # 1. 填入鎖定的字符並找出未鎖定的索引
+    for i in range(total_slots):
+        if i in current_locked_map:
+            final_arrangement[i] = current_locked_map[i]
         else:
-            result.append("A")  # 預設字符
+            unlocked_indices.append(i)
+            
+    num_unlocked_to_fill = len(unlocked_indices)
     
-    # 套用鎖定字符
-    for position, char_or_name in locked_chars.items():
-        if 0 <= position < 8:
-            result[position] = char_or_name
-    
-    return result
+    # 2. 為未鎖定的位置準備填充字符
+    chars_for_filling_unlocked = []
+    if num_unlocked_to_fill > 0:
+        # 調用者 (event_handlers.py) 應確保 source_chars 在需要填充時至少包含一個字符
+        # (例如，如果搜尋框為空，則使用目前編輯的字符)。
+        if source_chars:
+            unique_source_chars = list(dict.fromkeys(source_chars))
+
+            if len(unique_source_chars) >= num_unlocked_to_fill:
+                # 如果唯一字符足夠，則從中隨機選取不重複的字符。
+                chars_for_filling_unlocked = random.sample(unique_source_chars, num_unlocked_to_fill)
+            else:
+                # 唯一字符不足，先全部選入，再從原始列表（允許重複）中補充。
+                chars_for_filling_unlocked = list(unique_source_chars) # 複製
+                
+                num_still_to_fill_with_duplicates = num_unlocked_to_fill - len(chars_for_filling_unlocked)
+                
+                for _ in range(num_still_to_fill_with_duplicates):
+                    chars_for_filling_unlocked.append(random.choice(source_chars))
+            
+            random.shuffle(chars_for_filling_unlocked) # 打亂將用於填充的字符順序
+        else:
+            # 如果 source_chars 為空但仍有未鎖定位置需要填充，
+            # 這裡可以留空（None），依賴預覽畫面的後備邏輯，
+            # 或者使用一個預設字符。目前行為是留空。
+            debug_log("警告: source_chars 為空，但有未鎖定的位置需要填充。")
+
+    # 3. 將準備好的字符填入未鎖定的位置
+    fill_iter = iter(chars_for_filling_unlocked)
+    for index_to_fill in unlocked_indices:
+        try:
+            final_arrangement[index_to_fill] = next(fill_iter)
+        except StopIteration:
+            # 如果 chars_for_filling_unlocked 比未鎖定位置少（例如 source_chars 為空時），
+            # 則剩餘的未鎖定位置將保持為 None。
+            break 
+            
+    return final_arrangement
 
 def validate_locked_positions(locked_chars, font):
     """驗證鎖定字符的有效性
