@@ -189,11 +189,8 @@ def load_preferences(plugin):
                 error_log(f"解析 previousLockedChars JSON 時出錯: {e}")
         
         plugin.isInClearMode = Glyphs.defaults[LOCK_MODE_KEY] or False
-        # 同步兩個屬性（如果需要）
-        plugin.isLockModeActive = plugin.isInClearMode
         
         # 額外除錯：記錄所有載入的屬性
-        debug_log(f"plugin.isLockModeActive = {getattr(plugin, 'isLockModeActive', 'Not set')}")
         debug_log(f"plugin.isInClearMode = {plugin.isInClearMode}")
         
         debug_log(f"載入偏好設定：lastInput='{plugin.lastInput}', "

@@ -342,8 +342,6 @@ class EventHandlers:
             self.plugin.originalArrangement = []
             debug_log("已清除原始排列，將生成全新的隨機排列")
         
-        # 設定強制重排標記
-        self.plugin.force_randomize = True
         self.generate_new_arrangement()
         
         # 直接呼叫重繪，避免觸發控制面板UI更新
@@ -358,7 +356,6 @@ class EventHandlers:
             debug_log("無法找到視窗控制器，使用通用更新")
             self.update_interface(None)
         
-        self.plugin.force_randomize = False
         debug_log("隨機排列完成")
     
     def reset_zoom(self, sender):

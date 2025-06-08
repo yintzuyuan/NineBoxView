@@ -27,16 +27,15 @@ alwaysApply: true
     - 改進 `generate_new_arrangement` 方法的字符驗證和填充邏輯，確保始終使用有效字符填充預覽。
     - 優化填充優先順序：優先使用搜尋框中的有效字符，其次使用當前編輯字符，最後使用備用字符。
     - 確保視窗初次顯示時即正確生成字符排列。
-    - **鎖定輸入框字符驗證**：當鎖定輸入框中輸入的字符不存在於字型檔案中時，不更新主視窗的預覽內容，保持原有顯示。
+    - **鎖定輸入框字符驗證**：輸入的字符會先經過 `_recognize_character` 處理（可能回傳備用字符）。只有當辨識後的字符與該位置原鎖定的字符不同，且處於鎖定模式時，主視窗的預覽內容才會更新為此辨識後的字符。
 
 
 ### 1. 系統架構 (System Architecture)
 
 本外掛採用模組化設計，`plugin.py` 作為核心控制器，負責狀態管理與主要邏輯分派。`event_handlers.py` 集中處理大部分事件回呼。系統包含兩個主要視窗：
 
-* **主預覽視窗 (`NineBoxPreviewWindow`):** 由 `window_controller.py` (主視窗控制器) 管理，負責顯示九宮格預覽。
 * **主預覽視窗 (`NineBoxWindow`):** 由 `window_controller.py` (主視窗控制器，類別名稱為 `NineBoxWindow`) 管理，負責顯示九宮格預覽。
-* **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度與主預覽視窗同步，其標題列被設定為透明且內容隱藏，使其外觀簡潔。此視窗的生命週期與顯示狀態由主視窗控制器管理。
+* **控制面板子視窗 (`ControlsPanelWindow`):** 一個獨立的 `NSPanel`，用於放置所有控制項。其寬度固定，高度嘗試與主預覽視窗同步（但有最小高度限制），其標題列被設定為透明且內容隱藏，使其外觀簡潔。此視窗的生命週期與顯示狀態由主視窗控制器管理。
 
 UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search_panel.py`（搜尋功能面板）和 `lock_fields_panel.py`（鎖定功能面板）。繪圖模組 (`preview_view.py`) 負責預覽渲染。輔助模組 (`utils.py` 和 `constants.py`) 提供全域常數和共用功能。
 
@@ -63,7 +62,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 
 * **`preview_view.py` (繪圖器 - `NineBoxPreviewView`):**
     * **職責:** (功能不變，程式碼已最佳化)
-        * 根據 `plugin.currentArrangement` (或 `plugin.selectedChars`) 和 `Glyphs.font.selectedLayers[0]` 繪製九宮格預覽。
+        * 根據 `plugin.currentArrangement` (若無則根據 `plugin.selectedChars` 或其他備用邏輯) 和 `Glyphs.font.selectedLayers[0]` (中央字符) 繪製九宮格預覽。若排列中的字符無效，則使用備用字符（如當前編輯字符）繪製。
         * 自動檢測並適應 Glyphs 預覽區域的明暗主題。
         * 監聽主題變更通知，即時調整顯示風格。
         * 實現基於字身寬度 (`layer.width`) 的穩定佈局計算邏輯。
@@ -97,7 +96,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
         * 集中管理所有事件處理邏輯。
         * `update_interface`: 處理 Glyphs 的 `UPDATEINTERFACE` 等回呼，觸發主視窗和控制面板的重繪/更新。
         * `search_field_callback`: 處理搜尋框文字變更。更新 `plugin.lastInput` 和 `plugin.selectedChars`。若有需要則呼叫 `generate_new_arrangement`。
-        * `smart_lock_character_callback`: 處理單一鎖定框文字變更。更新 `plugin.lockedChars`。若在鎖定模式，則呼叫 `_update_single_position` 更新 `plugin.currentArrangement` 的對應位置並強制重繪。
+        * `smart_lock_character_callback`: 處理單一鎖定框文字變更。輸入的字符會被 `_recognize_character` 處理。更新 `plugin.lockedChars`。若在鎖定模式且辨識後的字符與原鎖定字符不同，則呼叫 `_update_single_position` 更新 `plugin.currentArrangement` 的對應位置並強制重繪。
         * `clear_all_lock_fields_callback`: (可由 `plugin.clearAllLockFieldsCallback` 觸發) 清空所有鎖定UI欄位 (透過 `plugin.windowController`)、`plugin.lockedChars`，並呼叫 `generate_new_arrangement` 重新生成排列。
         * `pick_glyph_callback`: 使用官方 `PickGlyphs()` API 選擇字符，並將結果附加到搜尋框。
         * `randomize_callback`: 處理預覽區點擊事件。清除 `plugin.originalArrangement`，呼叫 `generate_new_arrangement`，並強制重繪預覽。
@@ -157,7 +156,6 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 * `plugin.windowPosition (list)`: 主視窗位置 `[x, y]` (透過 `utils.py` 載入/儲存)。
 * `plugin.previousLockedChars (dict)`: 備份的鎖定字符 (目前主要在 `clearAllLockFieldsCallback` 中用於記錄被清除的項目，而非完整的復原功能)。
 * `plugin._update_scheduled (bool)`: 最佳化新增，防止重複更新的標記。
-
 ### 5. 視窗管理細節 (Window Management Details)
 * **控制面板建立與管理:**
     * 使用 `NSPanel` 實例，透過設定標題列透明 (`setTitlebarAppearsTransparent_`) 和隱藏標題內容 (`setTitleVisibility_`) 來達到簡潔的外觀，而非僅依賴 `styleMask` 移除標題列。

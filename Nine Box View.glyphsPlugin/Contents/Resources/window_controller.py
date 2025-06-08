@@ -443,8 +443,8 @@ class NineBoxWindow(NSWindowController):
                         new_position_to_store = [x, y]
                         self.plugin.windowPosition = new_position_to_store
                         self.plugin.savePreferences() # 即時儲存狀態
-                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")
-                        debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
+                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")                        
+                        debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(self.plugin.WINDOW_POSITION_KEY if hasattr(self.plugin, 'WINDOW_POSITION_KEY') else 'UNKNOWN_KEY')}")
                     except Exception as e:
                         debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
                 
