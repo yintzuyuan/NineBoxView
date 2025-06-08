@@ -27,22 +27,6 @@ PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
 ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 儲存原始隨機排列
 
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lastInput"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.selectedChars"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.currentArrangement"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.testMode"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.search"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.zoomFactor"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.showNumbers"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowSize"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.windowPosition"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.sidebarVisible"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.controlsPanelVisible"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockedChars"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.previousLockedChars"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.lockMode"]
-del Glyphs.defaults["com.YinTzuYuan.NineBoxView.originalArrangement"]
-
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
 MIN_WINDOW_SIZE = (270, 300)
