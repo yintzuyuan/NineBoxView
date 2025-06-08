@@ -155,38 +155,28 @@ class EventHandlers:
             position = sender.position
             input_text = sender.stringValue()
             arrangement_changed = False
-            valid_char_for_preview = False
             
             if not input_text:
                 # 清除鎖定
                 if position in self.plugin.lockedChars:
                     del self.plugin.lockedChars[position]
                     arrangement_changed = True
-                    valid_char_for_preview = True  # 清除操作總是有效的
             else:
                 # 智慧辨識
                 recognized_char = self._recognize_character(input_text)
                 
-                # === 新增：驗證字符是否有效 ===
-                if recognized_char and get_cached_glyph(Glyphs.font, recognized_char):
-                    valid_char_for_preview = True
-                    # 檢查是否有變更
-                    if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
-                        self.plugin.lockedChars[position] = recognized_char
-                        arrangement_changed = True
-                else:
-                    # 字符不存在於字型中
-                    debug_log(f"[智慧鎖定] 字符 '{recognized_char}' 不存在於字型中，不更新預覽")
-                    valid_char_for_preview = False
-                    # 不更新 lockedChars，保持原有值
+                # 檢查是否有變更
+                if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
+                    self.plugin.lockedChars[position] = recognized_char
+                    arrangement_changed = True
             
             # 有變更時更新
             if arrangement_changed:
                 self.plugin.savePreferences()
                 
-            # 處理鎖定狀態更新 - 只在字符有效時更新預覽
-            if not is_in_clear_mode and arrangement_changed and valid_char_for_preview:
-                debug_log("[智慧鎖定] 上鎖狀態且字符有效 - 開始更新預覽")
+            # 處理鎖定狀態更新
+            if not is_in_clear_mode and arrangement_changed:
+                debug_log("[智慧鎖定] 上鎖狀態 - 開始更新預覽")
                 try:
                     # 修改：只更新特定位置，而不是重新生成整個排列
                     self._update_single_position(position, input_text)
@@ -204,10 +194,7 @@ class EventHandlers:
                 except Exception as e:
                     error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
             else:
-                if not is_in_clear_mode and not valid_char_for_preview:
-                    debug_log("[智慧鎖定] 字符無效，不更新預覽")
-                else:
-                    debug_log("[智慧鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
+                debug_log("[智慧鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
         
         except Exception as e:
             error_log("智慧鎖定字符處理錯誤", e)
@@ -407,47 +394,14 @@ class EventHandlers:
             # === BEGIN MODIFICATION ===
             # 驗證 selectedChars 是否在目前字型中有效
             # Validate selectedChars against the current font
-            original_selected_chars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
-            valid_selected_chars = []
-            
             if Glyphs.font and self.plugin.selectedChars:
-                # 收集有效字符
                 valid_selected_chars = [
                     char_or_name for char_or_name in self.plugin.selectedChars 
                     if get_cached_glyph(Glyphs.font, char_or_name)
                 ]
-                
                 if len(valid_selected_chars) != len(self.plugin.selectedChars):
-                    debug_log(f"generate_new_arrangement: 驗證 selectedChars。原始: {self.plugin.selectedChars}, 有效: {valid_selected_chars}")
-            
-            # 決定要使用的字符來源
-            chars_to_use = []
-            
-            if valid_selected_chars:
-                # 優先使用搜尋框中的有效字符
-                chars_to_use = valid_selected_chars
-                debug_log(f"使用搜尋框中的有效字符: {chars_to_use}")
-            else:
-                # 沒有有效字符時的處理
-                # 1. 嘗試使用當前編輯字符
-                current_char = self._get_current_editing_char()
-                if current_char and get_cached_glyph(Glyphs.font, current_char):
-                    chars_to_use = [current_char]
-                    debug_log(f"使用當前編輯字符填充: {current_char}")
-                else:
-                    # 2. 使用備用字符
-                    fallback_chars = self._get_fallback_chars()
-                    if fallback_chars:
-                        # 只取前幾個字符，避免太多重複
-                        chars_to_use = fallback_chars[:min(10, len(fallback_chars))]
-                        debug_log(f"使用備用字符填充: {chars_to_use}")
-                    else:
-                        # 3. 極端情況：至少保證有一個字符
-                        chars_to_use = ["A"]
-                        debug_log("使用預設字符 'A' 填充")
-            
-            # 更新 selectedChars 為實際要使用的字符
-            self.plugin.selectedChars = chars_to_use
+                    debug_log(f"generate_new_arrangement: Validated selectedChars. Original: {self.plugin.selectedChars}, Valid: {valid_selected_chars}")
+                    self.plugin.selectedChars = valid_selected_chars
             # === END MODIFICATION ===
             
             has_selected_chars = bool(self.plugin.selectedChars)
@@ -578,15 +532,8 @@ class EventHandlers:
                 if input_text:
                     # 有輸入：更新為識別的字符
                     recognized_char = self._recognize_character(input_text)
-                    
-                    # === 新增：驗證字符是否有效 ===
-                    if recognized_char and get_cached_glyph(Glyphs.font, recognized_char):
-                        current_arr[position] = recognized_char
-                        debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
-                    else:
-                        debug_log(f"[單一更新] 字符 '{recognized_char}' 不存在於字型中，保持原有字符")
-                        # 不更新這個位置，保持原有值
-                        return
+                    current_arr[position] = recognized_char
+                    debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
                 else:
                     # 清空輸入：優先使用原始排列的字符
                     if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement and position < len(self.plugin.originalArrangement):
@@ -633,44 +580,6 @@ class EventHandlers:
             pass
         return "A"  # 預設值
     
-    def _get_fallback_chars(self):
-        """獲取字型中的備用字符列表"""
-        fallback_chars = []
-        
-        if not Glyphs.font or not Glyphs.font.glyphs:
-            return fallback_chars
-        
-        # 優先嘗試常用的拉丁字母
-        common_chars = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
-                       'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-                       'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
-                       'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-                       '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-        
-        # 收集字型中存在的常用字符
-        for char in common_chars:
-            if get_cached_glyph(Glyphs.font, char):
-                fallback_chars.append(char)
-        
-        # 如果常用字符不足，從字型中收集更多字符
-        if len(fallback_chars) < 10:
-            for glyph in Glyphs.font.glyphs:
-                if glyph.unicode:
-                    try:
-                        char = chr(int(glyph.unicode, 16))
-                        if char not in fallback_chars:
-                            fallback_chars.append(char)
-                    except:
-                        pass
-                elif glyph.name and glyph.name not in fallback_chars:
-                    fallback_chars.append(glyph.name)
-                
-                # 收集足夠的字符即可
-                if len(fallback_chars) >= 50:
-                    break
-        
-        return fallback_chars
-    
     def _get_lock_state(self):
         """取得鎖頭狀態"""
         # 優先從控制面板讀取
@@ -685,7 +594,7 @@ class EventHandlers:
         return getattr(self.plugin, 'isInClearMode', False)  # 預設為上鎖
     
     def _recognize_character(self, input_text):
-        """辨識字符，優先考慮完整輸入、區分大小寫，並確保返回有效字符"""
+        """辨識字符，優先考慮完整輸入、區分大小寫"""
         # 1. 嘗試完整輸入（區分大小寫）
         glyph = get_cached_glyph(Glyphs.font, input_text)
         if glyph:
@@ -701,10 +610,7 @@ class EventHandlers:
         # 3. 解析輸入
         parsed_chars = parse_input_text(input_text)
         if parsed_chars:
-            # 驗證解析後的第一個字符
-            for char in parsed_chars:
-                if get_cached_glyph(Glyphs.font, char):
-                    return char
+            return parsed_chars[0]
         
         # 4. 使用搜尋欄位的有效字符
         if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
@@ -713,9 +619,18 @@ class EventHandlers:
                     return char
         
         # 5. 使用目前正在編輯的字符
-        current_char = self._get_current_editing_char()
-        if current_char and get_cached_glyph(Glyphs.font, current_char):
-            return current_char
+        if Glyphs.font and Glyphs.font.selectedLayers:
+            current_layer = Glyphs.font.selectedLayers[0]
+            if current_layer and current_layer.parent:
+                current_glyph = current_layer.parent
+                if current_glyph.unicode:
+                    try:
+                        char = chr(int(current_glyph.unicode, 16))
+                        return char
+                    except:
+                        pass
+                if current_glyph.name:
+                    return current_glyph.name
         
         # 6. 使用字型中的第一個有效字符
         if Glyphs.font and Glyphs.font.glyphs:
@@ -729,12 +644,8 @@ class EventHandlers:
                 elif glyph.name:
                     return glyph.name
         
-        # 7. 絕對保底：回傳 "A" （但先驗證它存在）
-        if get_cached_glyph(Glyphs.font, "A"):
-            return "A"
-        
-        # 8. 極端情況：返回 None，讓呼叫者處理
-        return None
+        # 7. 絕對保底：回傳 "A"
+        return "A"
     
     def _generate_default_arrangement(self, should_apply_locks):
         """生成預設排列"""
