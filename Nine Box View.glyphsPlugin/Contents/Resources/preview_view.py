@@ -382,7 +382,22 @@ class NineBoxPreviewView(NSView):
                         char_index = i if i < 4 else i - 1
                         if char_index < len(display_chars):
                             glyph = Glyphs.font.glyphs[display_chars[char_index]]
-                            layer = glyph.layers[currentMaster.id] if glyph else None
+                            if glyph:
+                                layer = glyph.layers[currentMaster.id]
+                            else:
+                                # 字符不存在於字型中，使用備用字符
+                                debug_log(f"字符 '{display_chars[char_index]}' 不存在於字型中")
+                                # 優先使用目前編輯的字符
+                                if Glyphs.font.selectedLayers:
+                                    layer = Glyphs.font.selectedLayers[0]
+                                    debug_log(f"使用目前編輯字符作為替代")
+                                else:
+                                    # 使用字型中的第一個有效字符
+                                    for fallback_glyph in Glyphs.font.glyphs:
+                                        if fallback_glyph.layers[currentMaster.id]:
+                                            layer = fallback_glyph.layers[currentMaster.id]
+                                            debug_log(f"使用備用字符 '{fallback_glyph.name}' 作為替代")
+                                            break
                 
                 if layer:
                     # 計算單元格高度

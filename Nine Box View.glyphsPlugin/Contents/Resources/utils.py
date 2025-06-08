@@ -7,12 +7,12 @@ Nine Box Preview Plugin - Utility Functions (Optimized)
 from __future__ import division, print_function, unicode_literals
 import traceback
 import random
-from GlyphsApp import Glyphs
+from GlyphsApp import Glyphs, objc
 
 # 匯入常數
 from constants import (
     CACHE_ENABLED, DEFAULT_UPM, MAX_LOCKED_POSITIONS,
-    LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
+    LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY, WINDOW_SIZE_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
     ORIGINAL_ARRANGEMENT_KEY,
@@ -81,6 +81,7 @@ def load_preferences(plugin):
         plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
         plugin.originalArrangement = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
+        plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
         
         # 處理視窗位置 - 統一使用 list 格式
         window_pos = Glyphs.defaults[WINDOW_POSITION_KEY]
@@ -108,8 +109,26 @@ def load_preferences(plugin):
             plugin.windowPosition = None
             debug_log("沒有儲存的視窗位置")
             
-        plugin.controlsPanelVisible = Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY]
-        
+        # 處理控制面板可見性
+        # 使用 .get() 以安全處理鍵值不存在的情況，並明確檢查 NSNull
+        debug_log(f"load_preferences: Attempting to read key '{CONTROLS_PANEL_VISIBLE_KEY}'")
+        saved_controls_visible = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY)
+        debug_log(f"load_preferences: Raw value for '{CONTROLS_PANEL_VISIBLE_KEY}' from Glyphs.defaults = {saved_controls_visible} (type: {type(saved_controls_visible)})")
+
+        default_controls_visible = False # 預設為關閉
+
+        if saved_controls_visible is None or isinstance(saved_controls_visible, objc.lookUpClass("NSNull")):
+            plugin.controlsPanelVisible = default_controls_visible
+            debug_log(f"load_preferences: '{CONTROLS_PANEL_VISIBLE_KEY}' set to default: {plugin.controlsPanelVisible} (reason: None or NSNull)")
+        elif isinstance(saved_controls_visible, (int, bool)): # int for 0/1 from NSUserDefaults
+            plugin.controlsPanelVisible = bool(saved_controls_visible)
+            debug_log(f"load_preferences: '{CONTROLS_PANEL_VISIBLE_KEY}' set to: {plugin.controlsPanelVisible} (reason: int or bool, raw value was {saved_controls_visible})")
+        else:
+            # 處理非預期類型，使用預設值並記錄錯誤
+            plugin.controlsPanelVisible = default_controls_visible
+            error_log(f"'{CONTROLS_PANEL_VISIBLE_KEY}' has unexpected type: {type(saved_controls_visible)}. Using default: {default_controls_visible}")
+            debug_log(f"load_preferences: '{CONTROLS_PANEL_VISIBLE_KEY}' set to default: {plugin.controlsPanelVisible} (reason: unexpected type)")
+
         # 使用 JSON 解碼載入 lockedChars
         import json
         
@@ -170,15 +189,8 @@ def load_preferences(plugin):
                 error_log(f"解析 previousLockedChars JSON 時出錯: {e}")
         
         plugin.isInClearMode = Glyphs.defaults[LOCK_MODE_KEY] or False
-        # 同步兩個屬性（如果需要）
-        plugin.isLockModeActive = plugin.isInClearMode
-        
-        # 確保 controlsPanelVisible 有預設值
-        if plugin.controlsPanelVisible is None:
-            plugin.controlsPanelVisible = True
         
         # 額外除錯：記錄所有載入的屬性
-        debug_log(f"plugin.isLockModeActive = {getattr(plugin, 'isLockModeActive', 'Not set')}")
         debug_log(f"plugin.isInClearMode = {plugin.isInClearMode}")
         
         debug_log(f"載入偏好設定：lastInput='{plugin.lastInput}', "
@@ -210,18 +222,22 @@ def save_preferences(plugin):
         Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
         Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = getattr(plugin, 'originalArrangement', [])
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
+        Glyphs.defaults[WINDOW_SIZE_KEY] = plugin.windowSize
         
         # 處理視窗位置 - 統一使用 list 格式
-        if hasattr(plugin, 'windowController') and plugin.windowController:
-            if hasattr(plugin.windowController, 'window') and plugin.windowController.window():
-                frame_origin = plugin.windowController.window().frame().origin
-                # 儲存為 list 格式，確保一致性
-                window_pos_list = [float(frame_origin.x), float(frame_origin.y)]
-                Glyphs.defaults[WINDOW_POSITION_KEY] = window_pos_list
-                debug_log(f"已儲存視窗位置：{window_pos_list}")
-                debug_log(f"WINDOW_POSITION_KEY = '{WINDOW_POSITION_KEY}'")
-                debug_log(f"驗證儲存：Glyphs.defaults[WINDOW_POSITION_KEY] = {Glyphs.defaults.get(WINDOW_POSITION_KEY)}")
-        
+        if plugin.windowPosition:
+            try:
+                # 確保儲存的是 Python list of floats
+                pos_list = [float(plugin.windowPosition[0]), float(plugin.windowPosition[1])]
+                Glyphs.defaults[WINDOW_POSITION_KEY] = pos_list
+                debug_log(f"已儲存視窗位置 (from plugin.windowPosition)：{pos_list}")
+            except (TypeError, IndexError, ValueError) as e:
+                error_log(f"儲存 plugin.windowPosition 錯誤, value: {plugin.windowPosition}, error: {e}")
+                Glyphs.defaults[WINDOW_POSITION_KEY] = None # 儲存無效值時清除
+        else:
+            Glyphs.defaults[WINDOW_POSITION_KEY] = None # 如果 plugin.windowPosition 是 None，則儲存 None
+            debug_log(f"plugin.windowPosition is None, setting preference to None.")
+            
         Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = plugin.controlsPanelVisible
         
         # 使用 JSON 編碼安全處理 lockedChars 和 previousLockedChars

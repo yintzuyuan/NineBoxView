@@ -29,14 +29,14 @@ ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 儲存�
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)
-MIN_WINDOW_SIZE = (270, 300)
+MIN_WINDOW_SIZE = (200, 240)
 SIDEBAR_WIDTH = 180  # 保留向後相容性
 CONTROLS_PANEL_WIDTH = 160
 CONTROLS_PANEL_MIN_HEIGHT = 220  # 減少最小高度，確保主視窗最小尺寸時也能完整顯示控制面板
 CONTROLS_PANEL_SPACING = 15  # 控制面板與主視窗之間的間距，用於避免陰影干擾
 
 # 繪圖相關參數
-MARGIN_RATIO = 0.08 # 邊距比例
+MARGIN_RATIO = 0.01 # 邊距比例
 SPACING_RATIO = 0.0
 MIN_ZOOM = 0.5
 MAX_ZOOM = 2.0

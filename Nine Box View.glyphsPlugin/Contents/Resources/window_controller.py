@@ -22,7 +22,7 @@ from AppKit import (
     NSFocusRingTypeNone, NSWindowCloseButton,
     NSWindowMiniaturizeButton, NSWindowZoomButton, NSUserDefaults
 )
-from Foundation import NSObject, NSUserDefaultsDidChangeNotification
+from Foundation import NSObject, NSUserDefaultsDidChangeNotification, NSTimer
 
 from constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
@@ -48,14 +48,17 @@ class NineBoxWindow(NSWindowController):
             self.ControlsPanelView = ControlsPanelView
             # 不再需要 NSArray，因為我們統一使用 Python list
             
-            # 確保偏好設定已載入
-            plugin.loadPreferences()
+            # 確保偏好設定已載入 (由 NineBoxView.toggleWindow_ 處理)
+            # plugin.loadPreferences() # Removed: Preferences should be loaded by the caller (NineBoxView)
+            debug_log(f"WC initWithPlugin_: plugin.controlsPanelVisible BEFORE assignment = {plugin.controlsPanelVisible} (type: {type(plugin.controlsPanelVisible)})")
+            self.controlsPanelVisible = plugin.controlsPanelVisible # plugin.loadPreferences() 已經載入
+            debug_log(f"WC initWithPlugin_: self.controlsPanelVisible AFTER assignment = {self.controlsPanelVisible} (type: {type(self.controlsPanelVisible)})")
             
             # 載入視窗大小
-            savedSize = Glyphs.defaults.get(WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE)
+            savedSize = plugin.windowSize
             
             # 載入視窗位置
-            savedPosition = plugin.windowPosition
+            savedPosition = plugin.windowPosition # plugin.loadPreferences() 已經載入
             debug_log(f"window_controller.initWithPlugin_: Received savedPosition from plugin: {savedPosition} (type: {type(savedPosition)})")
             
             # 建立主視窗
@@ -89,9 +92,6 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelWindow = None
                 self.controlsPanelView = None
                 
-                # 載入控制面板狀態偏好設定
-                self.controlsPanelVisible = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY, True)
-                
                 # 初始化UI（僅設定主視窗）
                 self._setup_main_window_ui(panel)
                 
@@ -101,8 +101,13 @@ class NineBoxWindow(NSWindowController):
                 self._register_notifications(panel)
                 
                 # 根據偏好設定顯示控制面板
-                if self.controlsPanelVisible:
+                if self.controlsPanelVisible: # 根據記錄，重置後此處為 False
                     self.showControlsPanel()
+                else:
+                    # 明確隱藏控制面板，因為子視窗預設會隨父視窗顯示
+                    if self.controlsPanelWindow:
+                        self.controlsPanelWindow.orderOut_(None)
+                        debug_log("WC initWithPlugin_: Explicitly ordered out controlsPanelWindow as controlsPanelVisible is False.")
                     
                 # 設定視窗位置
                 debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
@@ -255,11 +260,11 @@ class NineBoxWindow(NSWindowController):
             error_log("建立控制面板視窗錯誤", e)
     
     def _configure_controls_panel_window(self):
-        """設定控制面板視窗屬性"""
+        """設定控制面板視窗屬性（統一子視窗模式）"""
         panel = self.controlsPanelWindow
         
         panel.setTitle_("Controls")
-        panel.setLevel_(NSFloatingWindowLevel)
+        # 完全移除舊的浮動視窗模式，統一使用子視窗模式
         panel.setReleasedWhenClosed_(False)
         
         panel.setBackgroundColor_(NSColor.controlBackgroundColor())
@@ -272,15 +277,26 @@ class NineBoxWindow(NSWindowController):
         # 透明標題列
         panel.setTitlebarAppearsTransparent_(True)
         panel.setTitleVisibility_(1)  # NSWindowTitleHidden
+        
+        # 設定視窗行為，使其與主視窗一起移動和管理焦點
+        # NSWindowCollectionBehaviorMoveToActiveSpace = 1 << 1
+        # NSWindowCollectionBehaviorTransient = 1 << 3
+        panel.setCollectionBehavior_(1 << 1 | 1 << 3)
+        
+        # 確保建立子視窗關係（核心改進）
+        self._ensure_child_window_relationship()
     
     def showControlsPanel(self):
-        """顯示控制面板"""
+        """顯示控制面板（統一子視窗模式）"""
         try:
             if self.controlsPanelWindow:
                 self.updateControlsPanelPosition()
                 
-                # === 修正：使用 orderBack_ 確保控制面板顯示在主視窗之下 ===
-                self.controlsPanelWindow.orderBack_(None)  # 在背景顯示，避免陰影干擾主視窗
+                # 確保子視窗關係正確（核心改進）
+                self._ensure_child_window_relationship()
+                
+                # 顯示控制面板（作為子視窗會自動跟隨主視窗）
+                self.controlsPanelWindow.orderFront_(None)
                 
                 if self.controlsPanelView:
                     self.controlsPanelView.update_ui(self.plugin)
@@ -292,7 +308,9 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = True
                 
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True # 由 plugin.savePreferences() 處理
+                self.plugin.savePreferences() # 即時儲存狀態
+                debug_log("控制面板已顯示，子視窗關係已確保")
                 
         except Exception as e:
             error_log("顯示控制面板錯誤", e)
@@ -310,7 +328,8 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = False
                 
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False # 由 plugin.savePreferences() 處理
+                self.plugin.savePreferences() # 即時儲存狀態
                 
         except Exception as e:
             error_log("隱藏控制面板錯誤", e)
@@ -354,11 +373,14 @@ class NineBoxWindow(NSWindowController):
             error_log("[階段1.3] 更新控制面板位置錯誤", e)
     
     def controlsPanelAction_(self, sender):
-        """控制面板按鈕動作"""
+        """控制面板按鈕動作（統一子視窗模式）"""
         try:
             if self.controlsPanelVisible:
                 self.hideControlsPanel()
             else:
+                # 確保重建並正確建立子視窗關係
+                if not self.controlsPanelWindow:
+                    self._setup_controls_panel()
                 self.showControlsPanel()
                 
         except Exception as e:
@@ -391,25 +413,27 @@ class NineBoxWindow(NSWindowController):
                 # 更新控制面板位置和大小
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    debug_log("[階段1.3] 已更新控制面板位置和大小")
+                    # 確保子視窗關係（核心改進）
+                    self._ensure_child_window_relationship()
+                    debug_log("已更新控制面板位置和大小，確保子視窗關係")
                 
                 # 儲存視窗大小
                 if hasattr(self, 'plugin'):
                     newSize = [frame.size.width, frame.size.height]
-                    Glyphs.defaults[WINDOW_SIZE_KEY] = newSize
-                    debug_log(f"[階段1.3] 已儲存視窗大小偏好設定：{newSize}")
+                    self.plugin.windowSize = newSize
+                    self.plugin.savePreferences() # 即時儲存狀態
+                    debug_log(f"[階段1.3] 已更新外掛程式 windowSize 屬性並儲存：{newSize}")
                 
         except Exception as e:
             error_log("[階段1.3] 處理視窗調整錯誤", e)
     
     def windowDidMove_(self, notification):
-        """視窗移動處理（階段1.3：最佳化版）"""
+        """視窗移動處理（統一子視窗模式）"""
         try:
             if notification.object() == self.window():
                 mainFrame = self.window().frame()
                 current_origin_x = mainFrame.origin.x
                 current_origin_y = mainFrame.origin.y
-                # debug_log(f"window_controller.windowDidMove_: Detected move. Main window origin: ({current_origin_x}, {current_origin_y})") # 可選的更詳細記錄
                 
                 # 儲存視窗位置
                 if hasattr(self, 'plugin'):
@@ -418,21 +442,16 @@ class NineBoxWindow(NSWindowController):
                         y = float(current_origin_y)
                         new_position_to_store = [x, y]
                         self.plugin.windowPosition = new_position_to_store
-                        
-                        key_to_save_pos = self.plugin.WINDOW_POSITION_KEY
-                        Glyphs.defaults[key_to_save_pos] = new_position_to_store
-                        debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
+                        self.plugin.savePreferences() # 即時儲存狀態
+                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")                        
+                        debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(self.plugin.WINDOW_POSITION_KEY if hasattr(self.plugin, 'WINDOW_POSITION_KEY') else 'UNKNOWN_KEY')}")
                     except Exception as e:
                         debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
                 
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
-                    
-                    if self.controlsPanelWindow.isVisible():
-                        # === 修正：確保控制面板始終在主視窗之下 ===
-                        self.controlsPanelWindow.orderBack_(None)  # 確保在背景顯示
-                    
-                    # debug_log("window_controller.windowDidMove_: Updated controls panel position and ensured visibility.") # 可選的更詳細記錄
+                    # 確保子視窗關係（核心改進）
+                    self._ensure_child_window_relationship()
                     
         except Exception as e:
             error_log("window_controller.windowDidMove_: Error in windowDidMove", e)
@@ -445,11 +464,13 @@ class NineBoxWindow(NSWindowController):
             # 儲存狀態到外掛程式對象
             if hasattr(self, 'plugin'):
                 self.plugin.controlsPanelVisible = self.controlsPanelVisible
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible # 由下面的 savePreferences 處理
             
             # 完整釋放控制面板資源
             if self.controlsPanelWindow:
                 debug_log("[階段1.3] 釋放控制面板資源")
+                # 先從主視窗移除子視窗關係
+                self.window().removeChildWindow_(self.controlsPanelWindow)
                 self.controlsPanelWindow.orderOut_(None)
                 if self.controlsPanelView:
                     self.controlsPanelView = None
@@ -505,65 +526,99 @@ class NineBoxWindow(NSWindowController):
         self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
-        """顯示並激活視窗（階段1.3：視窗重建機制）"""
+        """顯示並激活視窗（完整初始化版本）"""
         try:
-            debug_log("window_controller.makeKeyAndOrderFront: Starting.")
-            # 如果有記錄的位置，先設定
+            debug_log("[makeKeyAndOrderFront] 開始完整初始化")
+            
+            if hasattr(self, 'plugin'):
+                # 確保偏好設定已載入 (由 NineBoxView.toggleWindow_ 處理)
+                # self.plugin.loadPreferences() # Removed: Preferences should be loaded by the caller (NineBoxView)
+                debug_log(f"[初始化] 載入的偏好設定:")
+                debug_log(f"  - lastInput: '{getattr(self.plugin, 'lastInput', '')}'") 
+                debug_log(f"  - selectedChars: {getattr(self.plugin, 'selectedChars', [])}")
+                debug_log(f"  - lockedChars: {getattr(self.plugin, 'lockedChars', {})}")
+                debug_log(f"  - currentArrangement: {getattr(self.plugin, 'currentArrangement', [])}")
+                debug_log(f"  - isInClearMode: {getattr(self.plugin, 'isInClearMode', False)}")
+            
+            # 設定視窗位置
             position_to_apply = None
             plugin_has_pos_attr = hasattr(self, 'plugin') and hasattr(self.plugin, 'windowPosition')
             current_plugin_pos = self.plugin.windowPosition if plugin_has_pos_attr else None
-            debug_log(f"window_controller.makeKeyAndOrderFront: Checking plugin.windowPosition: {current_plugin_pos} (type: {type(current_plugin_pos)})")
-
+            
             if plugin_has_pos_attr and current_plugin_pos:
-                # 處理 NSArray、list 或 tuple
                 try:
                     if len(current_plugin_pos) >= 2:
                         position_to_apply = current_plugin_pos
-                        debug_log(f"window_controller.makeKeyAndOrderFront: Will apply position from plugin.windowPosition: {position_to_apply}")
-                    else:
-                        debug_log(f"window_controller.makeKeyAndOrderFront: Position 長度不足: {len(current_plugin_pos)}")
+                        debug_log(f"[初始化] 將套用視窗位置: {position_to_apply}")
                 except (TypeError, AttributeError):
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Invalid position type: {type(current_plugin_pos)}. Value: {current_plugin_pos}")
-            else:
-                debug_log(f"window_controller.makeKeyAndOrderFront: No position in plugin.windowPosition. Value: {current_plugin_pos}")
-
+                    debug_log(f"[初始化] 無效的位置類型: {type(current_plugin_pos)}")
+            
             if position_to_apply:
                 try:
                     x = float(position_to_apply[0])
                     y = float(position_to_apply[1])
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Attempting to set window origin to ({x}, {y})")
                     self.window().setFrameOrigin_(NSMakePoint(x, y))
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Window origin set to {self.window().frame().origin.x}, {self.window().frame().origin.y}")
+                    debug_log(f"[初始化] 視窗位置已設定為 ({x}, {y})")
                 except (ValueError, TypeError) as e:
-                    debug_log(f"window_controller.makeKeyAndOrderFront: Error setting window origin: {e}. position_to_apply was: {position_to_apply}")
+                    debug_log(f"[初始化] 設定視窗位置錯誤: {e}")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)
             
-            # 檢查並重建控制面板（如果需要）
-            if self.controlsPanelVisible:
-                if not self.controlsPanelWindow or not self.controlsPanelWindow.isVisible():
-                    debug_log("window_controller.makeKeyAndOrderFront: Rebuilding controls panel.")
-                    self._setup_controls_panel()
-                
-                self.showControlsPanel()
-                if self.controlsPanelView:
-                    self.controlsPanelView.update_ui(self.plugin)
+            # 檢查並重建控制面板
+            self.rebuildControlsPanelIfNeeded()
             
-            # 更新介面
+            # === 完整初始化：根據載入的狀態生成正確排列 ===
             if hasattr(self, 'plugin'):
+                # 先確保控制面板 UI 顯示正確的載入值
+                if self.controlsPanelView:
+                    debug_log("[初始化] 更新控制面板 UI")
+                    self.controlsPanelView.update_ui(self.plugin, update_lock_fields=True)
+                
+                # 檢查是否有載入的 lastInput
+                if hasattr(self.plugin, 'lastInput') and self.plugin.lastInput:
+                    debug_log(f"[初始化] 處理載入的 lastInput: '{self.plugin.lastInput}'")
+                    # 解析 lastInput 以更新 selectedChars
+                    if hasattr(self.plugin, 'parse_input_text'):
+                        parsed_chars = self.plugin.parse_input_text(self.plugin.lastInput)
+                        if parsed_chars:
+                            self.plugin.selectedChars = parsed_chars
+                            debug_log(f"[初始化] 解析後的 selectedChars: {self.plugin.selectedChars}")
+                
+                # 無論是否有現有排列，都重新生成以確保一致性
+                if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
+                    debug_log("[初始化] 重新生成字符排列")
+                    
+                    # 設定一個標記來表示這是初始化
+                    self.plugin._is_initializing = True
+                    
+                    # 生成新排列
+                    self.plugin.event_handlers.generate_new_arrangement()
+                    
+                    # 清除標記
+                    self.plugin._is_initializing = False
+                    
+                    debug_log(f"[初始化] 生成的排列: {self.plugin.currentArrangement}")
+                
+                # 更新介面
                 self.plugin.updateInterface(None)
             
             # 強制重繪確保初次顯示
             if hasattr(self, 'previewView') and self.previewView:
-                from Foundation import NSObject, NSTimer
+                # 立即強制重繪
+                if hasattr(self.previewView, 'force_redraw'):
+                    self.previewView.force_redraw()
+                
+                # 也安排一個延遲重繪以確保
                 NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
                     0.1, self, "delayedForceRedraw:", None, False
                 )
-                # debug_log("window_controller.makeKeyAndOrderFront: Scheduled delayed redraw.") # 可選的更詳細記錄
+                debug_log("[初始化] 已安排強制重繪")
+            
+            debug_log("[初始化] 完成")
                 
         except Exception as e:
-            error_log("window_controller.makeKeyAndOrderFront: Error", e)
+            error_log("[makeKeyAndOrderFront] 初始化錯誤", e)
     
     def delayedForceRedraw_(self, timer):
         """延遲強制重繪（階段1.3）"""
@@ -622,3 +677,45 @@ class NineBoxWindow(NSWindowController):
         except:
             pass
         objc.super(NineBoxWindow, self).dealloc()
+    
+    def _ensure_child_window_relationship(self):
+        """確保控制面板與主視窗建立正確的子視窗關係"""
+        try:
+            if self.controlsPanelWindow and self.window():
+                # 先移除現有的子視窗關係（如果存在）
+                try:
+                    self.window().removeChildWindow_(self.controlsPanelWindow)
+                except:
+                    # 如果沒有現有關係，忽略錯誤
+                    pass
+                
+                # 重新建立子視窗關係
+                self.window().addChildWindow_ordered_(self.controlsPanelWindow, 1)  # NSWindowAbove = 1
+                debug_log("已確保控制面板與主視窗的子視窗關係")
+                
+        except Exception as e:
+            error_log("建立子視窗關係錯誤", e)
+    
+    def rebuildControlsPanelIfNeeded(self):
+        """如需要重建控制面板，確保子視窗關係正確"""
+        try:
+            if self.controlsPanelVisible:
+                # 檢查是否需要重建
+                needs_rebuild = (not self.controlsPanelWindow or 
+                               not self.controlsPanelWindow.isVisible())
+                
+                if needs_rebuild:
+                    debug_log("重建控制面板窗口")
+                    self._setup_controls_panel()
+                
+                # 確保子視窗關係
+                self._ensure_child_window_relationship()
+                
+                # 顯示控制面板
+                if self.controlsPanelWindow:
+                    self.controlsPanelWindow.orderFront_(None)
+                    if self.controlsPanelView:
+                        self.controlsPanelView.update_ui(self.plugin)
+                        
+        except Exception as e:
+            error_log("重建控制面板錯誤", e)

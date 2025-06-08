@@ -342,8 +342,6 @@ class EventHandlers:
             self.plugin.originalArrangement = []
             debug_log("已清除原始排列，將生成全新的隨機排列")
         
-        # 設定強制重排標記
-        self.plugin.force_randomize = True
         self.generate_new_arrangement()
         
         # 直接呼叫重繪，避免觸發控制面板UI更新
@@ -358,7 +356,6 @@ class EventHandlers:
             debug_log("無法找到視窗控制器，使用通用更新")
             self.update_interface(None)
         
-        self.plugin.force_randomize = False
         debug_log("隨機排列完成")
     
     def reset_zoom(self, sender):
@@ -391,6 +388,19 @@ class EventHandlers:
             else:
                 self.plugin.selectedChars = []
                 
+            # === BEGIN MODIFICATION ===
+            # 驗證 selectedChars 是否在目前字型中有效
+            # Validate selectedChars against the current font
+            if Glyphs.font and self.plugin.selectedChars:
+                valid_selected_chars = [
+                    char_or_name for char_or_name in self.plugin.selectedChars 
+                    if get_cached_glyph(Glyphs.font, char_or_name)
+                ]
+                if len(valid_selected_chars) != len(self.plugin.selectedChars):
+                    debug_log(f"generate_new_arrangement: Validated selectedChars. Original: {self.plugin.selectedChars}, Valid: {valid_selected_chars}")
+                    self.plugin.selectedChars = valid_selected_chars
+            # === END MODIFICATION ===
+            
             has_selected_chars = bool(self.plugin.selectedChars)
             
             # 確保 lockedChars 是字典

@@ -30,15 +30,6 @@ try:
                 'zh-Hans': u'九宫格预览',
                 'ja': u'九宮格プレビュー',
                 'ko': u'구궁격 미리보기',
-                'ar': u'معاينة المربعات التسعة',
-                'cs': u'Náhled devíti polí',
-                'de': u'Neun-Felder-Vorschau',
-                'es': u'Vista previa de nueve cuadros',
-                'fr': u'Aperçu en neuf cases',
-                'it': u'Anteprima a nove caselle',
-                'pt': u'Visualização em nove caixas',
-                'ru': u'Предпросмотр девяти ячеек',
-                'tr': u'Dokuz Kutu Önizleme'
             })
             
             # 匯入模組（延遲匯入以避免反覆依賴）
@@ -59,7 +50,7 @@ try:
             from constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
-                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
+                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
                 ORIGINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
                 DEFAULT_ZOOM, DEBUG_MODE
@@ -109,7 +100,9 @@ try:
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.LOCK_MODE_KEY = LOCK_MODE_KEY
             self.ORIGINAL_ARRANGEMENT_KEY = ORIGINAL_ARRANGEMENT_KEY
+            self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
+            self.DEFAULT_WINDOW_SIZE = DEFAULT_WINDOW_SIZE
             self.DEBUG_MODE = DEBUG_MODE
         
         @objc.python_method
@@ -121,7 +114,8 @@ try:
             self.originalArrangement = []  # 儲存原始隨機排列
             self.windowController = None
             self.previousLockedChars = {}
-            self.controlsPanelVisible = True
+            self.controlsPanelVisible = False
+            self.windowSize = self.DEFAULT_WINDOW_SIZE # 初始化 windowSize
             self.windowPosition = None
             self._update_scheduled = False  # 防止重複更新
             
@@ -154,15 +148,17 @@ try:
         def toggleWindow_(self, sender):
             """切換視窗顯示狀態"""
             try:
+                # 確保每次開啟時都重新載入最新的偏好設定
                 self.loadPreferences()
+                self.debug_log("[切換視窗] 已重新載入偏好設定")
+                self.debug_log(f"  - lastInput: '{self.lastInput}'")
+                self.debug_log(f"  - selectedChars: {self.selectedChars}")
+                self.debug_log(f"  - lockedChars: {self.lockedChars}")
+                self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
                 
                 if self.windowController is None:
-                    if self.selectedChars and not self.currentArrangement:
-                        self.debug_log("初始化視窗前產生排列")
-                        self.generateNewArrangement()
-                    
-                    # 嘗試初始化視窗控制器
-                    self.debug_log("嘗試初始化視窗控制器")
+                    # 初次開啟視窗
+                    self.debug_log("[切換視窗] 初始化新視窗控制器")
                     self.windowController = self.NineBoxWindow.alloc().initWithPlugin_(self)
                     
                     # 檢查初始化是否成功
@@ -173,6 +169,20 @@ try:
                             "初始化視窗失敗，請檢查控制台記錄"
                         )
                         return
+                else:
+                    # 視窗已存在，但可能需要重新載入狀態
+                    self.debug_log("[切換視窗] 使用現有視窗控制器")
+                    
+                    # 強制更新控制面板 UI
+                    if (hasattr(self.windowController, 'controlsPanelView') and 
+                        self.windowController.controlsPanelView):
+                        self.debug_log("[切換視窗] 強制更新控制面板 UI")
+                        self.windowController.controlsPanelView.update_ui(self, update_lock_fields=True)
+                    
+                    # 重新生成排列以確保一致性
+                    if hasattr(self, 'event_handlers') and hasattr(self.event_handlers, 'generate_new_arrangement'):
+                        self.debug_log("[切換視窗] 重新生成字符排列")
+                        self.event_handlers.generate_new_arrangement()
                 
                 # 確保視窗控制器有效後再顯示視窗
                 if self.windowController is not None:
