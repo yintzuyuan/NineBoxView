@@ -61,7 +61,7 @@ DEFAULT_PREVIEW_DPI = 72.0
 # 除錯模式開關
 # False = 一般模式（預設）：只顯示錯誤訊息和 traceback，隱藏狀態訊息
 # True = 除錯模式：顯示所有錯誤訊息、traceback 和狀態訊息
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 # 快取設定
 CACHE_ENABLED = True  # 啟用快取機制

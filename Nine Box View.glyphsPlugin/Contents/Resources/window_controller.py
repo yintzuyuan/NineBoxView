@@ -50,12 +50,15 @@ class NineBoxWindow(NSWindowController):
             
             # 確保偏好設定已載入
             plugin.loadPreferences()
+            debug_log(f"WC initWithPlugin_: plugin.controlsPanelVisible BEFORE assignment = {plugin.controlsPanelVisible} (type: {type(plugin.controlsPanelVisible)})")
+            self.controlsPanelVisible = plugin.controlsPanelVisible # plugin.loadPreferences() 已經載入
+            debug_log(f"WC initWithPlugin_: self.controlsPanelVisible AFTER assignment = {self.controlsPanelVisible} (type: {type(self.controlsPanelVisible)})")
             
             # 載入視窗大小
-            savedSize = Glyphs.defaults.get(WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE)
+            savedSize = plugin.windowSize
             
             # 載入視窗位置
-            savedPosition = plugin.windowPosition
+            savedPosition = plugin.windowPosition # plugin.loadPreferences() 已經載入
             debug_log(f"window_controller.initWithPlugin_: Received savedPosition from plugin: {savedPosition} (type: {type(savedPosition)})")
             
             # 建立主視窗
@@ -89,9 +92,6 @@ class NineBoxWindow(NSWindowController):
                 self.controlsPanelWindow = None
                 self.controlsPanelView = None
                 
-                # 載入控制面板狀態偏好設定
-                self.controlsPanelVisible = Glyphs.defaults.get(CONTROLS_PANEL_VISIBLE_KEY, True)
-                
                 # 初始化UI（僅設定主視窗）
                 self._setup_main_window_ui(panel)
                 
@@ -101,8 +101,13 @@ class NineBoxWindow(NSWindowController):
                 self._register_notifications(panel)
                 
                 # 根據偏好設定顯示控制面板
-                if self.controlsPanelVisible:
+                if self.controlsPanelVisible: # 根據記錄，重置後此處為 False
                     self.showControlsPanel()
+                else:
+                    # 明確隱藏控制面板，因為子視窗預設會隨父視窗顯示
+                    if self.controlsPanelWindow:
+                        self.controlsPanelWindow.orderOut_(None)
+                        debug_log("WC initWithPlugin_: Explicitly ordered out controlsPanelWindow as controlsPanelVisible is False.")
                     
                 # 設定視窗位置
                 debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
@@ -303,7 +308,8 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = True
                 
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = True # 由 plugin.savePreferences() 處理
+                self.plugin.savePreferences() # 即時儲存狀態
                 debug_log("控制面板已顯示，子視窗關係已確保")
                 
         except Exception as e:
@@ -322,7 +328,8 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self, 'plugin'):
                     self.plugin.controlsPanelVisible = False
                 
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = False # 由 plugin.savePreferences() 處理
+                self.plugin.savePreferences() # 即時儲存狀態
                 
         except Exception as e:
             error_log("隱藏控制面板錯誤", e)
@@ -413,8 +420,9 @@ class NineBoxWindow(NSWindowController):
                 # 儲存視窗大小
                 if hasattr(self, 'plugin'):
                     newSize = [frame.size.width, frame.size.height]
-                    Glyphs.defaults[WINDOW_SIZE_KEY] = newSize
-                    debug_log(f"[階段1.3] 已儲存視窗大小偏好設定：{newSize}")
+                    self.plugin.windowSize = newSize
+                    self.plugin.savePreferences() # 即時儲存狀態
+                    debug_log(f"[階段1.3] 已更新外掛程式 windowSize 屬性並儲存：{newSize}")
                 
         except Exception as e:
             error_log("[階段1.3] 處理視窗調整錯誤", e)
@@ -434,9 +442,8 @@ class NineBoxWindow(NSWindowController):
                         y = float(current_origin_y)
                         new_position_to_store = [x, y]
                         self.plugin.windowPosition = new_position_to_store
-                        
-                        key_to_save_pos = self.plugin.WINDOW_POSITION_KEY
-                        Glyphs.defaults[key_to_save_pos] = new_position_to_store
+                        self.plugin.savePreferences() # 即時儲存狀態
+                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")
                         debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(key_to_save_pos)}")
                     except Exception as e:
                         debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
@@ -457,7 +464,7 @@ class NineBoxWindow(NSWindowController):
             # 儲存狀態到外掛程式對象
             if hasattr(self, 'plugin'):
                 self.plugin.controlsPanelVisible = self.controlsPanelVisible
-                Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible
+                # Glyphs.defaults[CONTROLS_PANEL_VISIBLE_KEY] = self.controlsPanelVisible # 由下面的 savePreferences 處理
             
             # 完整釋放控制面板資源
             if self.controlsPanelWindow:

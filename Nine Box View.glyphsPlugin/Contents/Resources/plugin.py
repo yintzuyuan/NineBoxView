@@ -50,7 +50,7 @@ try:
             from constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
-                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
+                LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
                 ORIGINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
                 DEFAULT_ZOOM, DEBUG_MODE
@@ -100,7 +100,9 @@ try:
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.LOCK_MODE_KEY = LOCK_MODE_KEY
             self.ORIGINAL_ARRANGEMENT_KEY = ORIGINAL_ARRANGEMENT_KEY
+            self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
+            self.DEFAULT_WINDOW_SIZE = DEFAULT_WINDOW_SIZE
             self.DEBUG_MODE = DEBUG_MODE
         
         @objc.python_method
@@ -112,7 +114,8 @@ try:
             self.originalArrangement = []  # 儲存原始隨機排列
             self.windowController = None
             self.previousLockedChars = {}
-            self.controlsPanelVisible = True
+            self.controlsPanelVisible = False
+            self.windowSize = self.DEFAULT_WINDOW_SIZE # 初始化 windowSize
             self.windowPosition = None
             self._update_scheduled = False  # 防止重複更新
             
