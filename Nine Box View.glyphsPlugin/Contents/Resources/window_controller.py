@@ -48,8 +48,8 @@ class NineBoxWindow(NSWindowController):
             self.ControlsPanelView = ControlsPanelView
             # 不再需要 NSArray，因為我們統一使用 Python list
             
-            # 確保偏好設定已載入
-            plugin.loadPreferences()
+            # 確保偏好設定已載入 (由 NineBoxView.toggleWindow_ 處理)
+            # plugin.loadPreferences() # Removed: Preferences should be loaded by the caller (NineBoxView)
             debug_log(f"WC initWithPlugin_: plugin.controlsPanelVisible BEFORE assignment = {plugin.controlsPanelVisible} (type: {type(plugin.controlsPanelVisible)})")
             self.controlsPanelVisible = plugin.controlsPanelVisible # plugin.loadPreferences() 已經載入
             debug_log(f"WC initWithPlugin_: self.controlsPanelVisible AFTER assignment = {self.controlsPanelVisible} (type: {type(self.controlsPanelVisible)})")
@@ -530,9 +530,9 @@ class NineBoxWindow(NSWindowController):
         try:
             debug_log("[makeKeyAndOrderFront] 開始完整初始化")
             
-            # 確保偏好設定已載入
             if hasattr(self, 'plugin'):
-                self.plugin.loadPreferences()
+                # 確保偏好設定已載入 (由 NineBoxView.toggleWindow_ 處理)
+                # self.plugin.loadPreferences() # Removed: Preferences should be loaded by the caller (NineBoxView)
                 debug_log(f"[初始化] 載入的偏好設定:")
                 debug_log(f"  - lastInput: '{getattr(self.plugin, 'lastInput', '')}'") 
                 debug_log(f"  - selectedChars: {getattr(self.plugin, 'selectedChars', [])}")
