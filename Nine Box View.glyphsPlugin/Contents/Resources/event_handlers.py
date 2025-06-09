@@ -59,6 +59,21 @@ class EventHandlers:
             if hasattr(self.plugin, 'clear_cache'):
                 self.plugin.clear_cache()
             
+            # 新增：檢查搜索框為空時更新所有位置為當前編輯字符
+            if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
+                current_char = self._get_current_editing_char()
+                debug_log(f"搜索框為空，將所有位置更新為當前字符 '{current_char}'")
+                
+                # 更新 currentArrangement
+                self.plugin.currentArrangement = [current_char] * 8
+                self.plugin.savePreferences()  # 保存更改
+                
+                # 強制重繪
+                if (hasattr(self.plugin, 'windowController') and 
+                    self.plugin.windowController and
+                    hasattr(self.plugin.windowController, 'previewView')):
+                    self.plugin.windowController.previewView.force_redraw()
+            
             # 更新介面
             self.update_interface(None)
             
@@ -114,13 +129,17 @@ class EventHandlers:
                 
             self.plugin.selectedChars = []  # 清空selectedChars
             
+            # 修改：當搜索框為空時，使用當前編輯字符填充所有位置
+            current_char = self._get_current_editing_char()
+            debug_log(f"搜索框被清空，使用當前字符 '{current_char}' 填充")
+            
             if not is_in_clear_mode and has_locked_chars:
                 # 上鎖狀態且有鎖定字符，重新生成排列
                 self.generate_new_arrangement()
             else:
-                # 解鎖狀態或沒有鎖定字符，清空currentArrangement
-                # 確保 currentArrangement 是可變列表
-                self.plugin.currentArrangement = []
+                # 解鎖狀態或沒有鎖定字符：直接用當前字符填充
+                self.plugin.currentArrangement = [current_char] * 8
+                self.plugin.savePreferences()
 
         # 更新介面與控制面板
         self.update_interface_for_search_field(None)
@@ -404,9 +423,13 @@ class EventHandlers:
                 current_char = self._get_current_editing_char()
                 if current_char:
                     debug_log(f"沒有選擇字符，使用目前編輯字符 '{current_char}' 填充")
-                    source_chars_for_arrangement = [current_char]
-                    # Optionally, update plugin.selectedChars if this is the desired behavior
-                    # self.plugin.selectedChars = [current_char]
+                    # 直接更新當前排列並返回，除非有鎖定的字符需要考慮
+                    if not should_apply_locks or not self.plugin.lockedChars:
+                        self.plugin.currentArrangement = [current_char] * 8  # 使用 8 個相同的當前字符填充
+                        debug_log(f"直接使用當前字符填充所有位置: {current_char}")
+                        self.plugin.savePreferences()
+                        return
+                    source_chars_for_arrangement = [current_char] * 8  # 使用 8 個相同的當前字符用於生成排列
                 else:
                     # This case should ideally be handled by _get_current_editing_char returning a default
                     debug_log("警告: 無法取得目前編輯字符，且無選擇字符。")

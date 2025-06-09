@@ -135,6 +135,7 @@ try:
                 Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
                 Glyphs.addCallback(self.selectionChanged_, DOCUMENTOPENED)
                 Glyphs.addCallback(self.selectionChanged_, SELECTIONCHANGED)
+                Glyphs.addCallback(self.selectionChanged_, EDITTEXT)  # 新增：監聽文字編輯事件
 
                 # 載入偏好設定
                 self.loadPreferences()
@@ -288,8 +289,13 @@ try:
         def __del__(self):
             """解構式"""
             try:
-                Glyphs.removeCallback(self.updateInterface)
-                Glyphs.removeCallback(self.selectionChanged_)
+                # 移除所有回調
+                for callback in [self.updateInterface, self.selectionChanged_]:
+                    for event in [UPDATEINTERFACE, DOCUMENTACTIVATED, DOCUMENTOPENED, SELECTIONCHANGED, EDITTEXT]:
+                        try:
+                            Glyphs.removeCallback(callback, event)
+                        except:
+                            pass
             except:
                 pass
 

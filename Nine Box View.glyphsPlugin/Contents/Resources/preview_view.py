@@ -371,33 +371,27 @@ class NineBoxPreviewView(NSView):
                 
                 # 選擇要繪製的字符層
                 layer = None
-                if i == 4 and Glyphs.font.selectedLayers:  # 中心位置
-                    layer = Glyphs.font.selectedLayers[0]
+                
+                # 當搜索框為空時，使用目前編輯的字符填充所有位置
+                if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
+                    if Glyphs.font.selectedLayers:
+                        layer = Glyphs.font.selectedLayers[0]
                 else:
-                    # 當沒有其他字符時，使用目前編輯的字符填充
-                    if not display_chars:
+                    # 正常的字符選擇邏輯
+                    if i == 4:  # 中心位置
                         if Glyphs.font.selectedLayers:
                             layer = Glyphs.font.selectedLayers[0]
-                    else:
+                    elif display_chars:
                         char_index = i if i < 4 else i - 1
                         if char_index < len(display_chars):
                             glyph = Glyphs.font.glyphs[display_chars[char_index]]
                             if glyph:
                                 layer = glyph.layers[currentMaster.id]
                             else:
-                                # 字符不存在於字型中，使用備用字符
+                                # 字符不存在時使用目前編輯的字符作為替代
                                 debug_log(f"字符 '{display_chars[char_index]}' 不存在於字型中")
-                                # 優先使用目前編輯的字符
                                 if Glyphs.font.selectedLayers:
                                     layer = Glyphs.font.selectedLayers[0]
-                                    debug_log(f"使用目前編輯字符作為替代")
-                                else:
-                                    # 使用字型中的第一個有效字符
-                                    for fallback_glyph in Glyphs.font.glyphs:
-                                        if fallback_glyph.layers[currentMaster.id]:
-                                            layer = fallback_glyph.layers[currentMaster.id]
-                                            debug_log(f"使用備用字符 '{fallback_glyph.name}' 作為替代")
-                                            break
                 
                 if layer:
                     # 計算單元格高度
