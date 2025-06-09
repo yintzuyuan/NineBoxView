@@ -372,26 +372,44 @@ class NineBoxPreviewView(NSView):
                 # 選擇要繪製的字符層
                 layer = None
                 
-                # 當搜索框為空時，使用目前編輯的字符填充所有位置
-                if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
+                # 決定要使用的層
+                layer = None
+                char_index = i if i < 4 else i - 1  # 計算位置索引
+                
+                # 檢查是否為中心位置
+                if i == 4:
                     if Glyphs.font.selectedLayers:
                         layer = Glyphs.font.selectedLayers[0]
                 else:
-                    # 正常的字符選擇邏輯
-                    if i == 4:  # 中心位置
+                    # 檢查是否有鎖定的字符
+                    is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') else False
+                    has_locked_chars = hasattr(self.plugin, 'lockedChars') and bool(self.plugin.lockedChars)
+                    
+                    if not is_in_clear_mode and has_locked_chars and char_index in self.plugin.lockedChars:
+                        # 使用鎖定的字符
+                        locked_char = self.plugin.lockedChars[char_index]
+                        glyph = Glyphs.font.glyphs[locked_char]
+                        if glyph:
+                            layer = glyph.layers[currentMaster.id]
+                            debug_log(f"使用鎖定字符 '{locked_char}' 於位置 {char_index}")
+                    elif not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
+                        # 搜索框為空且沒有鎖定字符時，使用當前編輯字符
                         if Glyphs.font.selectedLayers:
                             layer = Glyphs.font.selectedLayers[0]
                     elif display_chars:
-                        char_index = i if i < 4 else i - 1
+                        # 使用一般排列中的字符
                         if char_index < len(display_chars):
                             glyph = Glyphs.font.glyphs[display_chars[char_index]]
                             if glyph:
                                 layer = glyph.layers[currentMaster.id]
                             else:
-                                # 字符不存在時使用目前編輯的字符作為替代
                                 debug_log(f"字符 '{display_chars[char_index]}' 不存在於字型中")
                                 if Glyphs.font.selectedLayers:
                                     layer = Glyphs.font.selectedLayers[0]
+                    else:
+                        # 如果沒有其他選項，使用當前編輯字符
+                        if Glyphs.font.selectedLayers:
+                            layer = Glyphs.font.selectedLayers[0]
                 
                 if layer:
                     # 計算單元格高度

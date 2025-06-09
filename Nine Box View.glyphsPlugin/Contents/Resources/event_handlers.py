@@ -165,7 +165,7 @@ class EventHandlers:
             if not Glyphs.font:
                 return
             
-            # 解鎖狀態時，鎖定輸入欄不影響主視窗，但仍然更新 lockedChars
+            # 取得鎖定狀態
             is_in_clear_mode = self._get_lock_state()
             
             if not hasattr(self.plugin, 'lockedChars'):
@@ -180,6 +180,7 @@ class EventHandlers:
                 if position in self.plugin.lockedChars:
                     del self.plugin.lockedChars[position]
                     arrangement_changed = True
+                    debug_log(f"[智慧鎖定] 清除位置 {position} 的鎖定")
             else:
                 # 智慧辨識
                 recognized_char = self._recognize_character(input_text)
@@ -188,32 +189,48 @@ class EventHandlers:
                 if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
                     self.plugin.lockedChars[position] = recognized_char
                     arrangement_changed = True
+                    debug_log(f"[智慧鎖定] 位置 {position} 設定為: {recognized_char}")
             
             # 有變更時更新
             if arrangement_changed:
                 self.plugin.savePreferences()
+                debug_log("[智慧鎖定] 已保存更改到偏好設定")
                 
-            # 處理鎖定狀態更新
-            if not is_in_clear_mode and arrangement_changed:
-                debug_log("[智慧鎖定] 上鎖狀態 - 開始更新預覽")
-                try:
-                    # 修改：只更新特定位置，而不是重新生成整個排列
-                    self._update_single_position(position, input_text)
-                    
-                    # 強制重繪
-                    if (hasattr(self.plugin, 'windowController') and 
-                        self.plugin.windowController and
-                        hasattr(self.plugin.windowController, 'previewView')):
-                        debug_log("[智慧鎖定] 請求強制重繪")
-                        self.plugin.windowController.previewView.force_redraw()
-                    
-                    # 更新介面
-                    self.update_interface(None)
-                    
-                except Exception as e:
-                    error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
+                # 根據當前狀態決定更新方式
+                if not is_in_clear_mode:
+                    debug_log("[智慧鎖定] 🔒 上鎖狀態 - 更新預覽")
+                    try:
+                        # 更新指定位置的字符
+                        self._update_single_position(position, input_text)
+                        
+                        # 強制重繪
+                        if (hasattr(self.plugin, 'windowController') and 
+                            self.plugin.windowController and
+                            hasattr(self.plugin.windowController, 'previewView')):
+                            debug_log("[智慧鎖定] 請求強制重繪")
+                            self.plugin.windowController.previewView.force_redraw()
+                        
+                        # 更新介面
+                        self.update_interface(None)
+                        
+                    except Exception as e:
+                        error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
+                else:
+                    debug_log("[智慧鎖定] 🔓 解鎖狀態")
+                    # 在解鎖狀態下，檢查是否需要更新當前字符排列
+                    if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
+                        debug_log("[智慧鎖定] 搜索框為空，更新當前排列")
+                        current_char = self._get_current_editing_char()
+                        if hasattr(self.plugin, 'currentArrangement'):
+                            self.plugin.currentArrangement = [current_char] * 8
+                            # 強制重繪
+                            if (hasattr(self.plugin, 'windowController') and 
+                                self.plugin.windowController and
+                                hasattr(self.plugin.windowController, 'previewView')):
+                                self.plugin.windowController.previewView.force_redraw()
+                
             else:
-                debug_log("[智慧鎖定] 解鎖狀態或無變更 - 僅儲存輸入，不更新預覽")
+                debug_log("[智慧鎖定] 無變更，跳過更新")
         
         except Exception as e:
             error_log("智慧鎖定字符處理錯誤", e)
