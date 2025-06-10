@@ -62,7 +62,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 
 * **`preview_view.py` (繪圖器 - `NineBoxPreviewView`):**
     * **職責:** (功能不變，程式碼已最佳化)
-        * 根據 `plugin.currentArrangement` (若無則根據 `plugin.selectedChars` 或其他備用邏輯) 和 `Glyphs.font.selectedLayers[0]` (中央字符) 繪製九宮格預覽。若排列中的字符無效，則使用備用字符（如當前編輯字符）繪製。
+        * 根據 `plugin.currentArrangement` (由 `generate_new_arrangement` 計算得出的周圍八格字符) 和由 `generate_new_arrangement` 同時確定的中心字符來繪製九宮格預覽。若排列中的字符（包括中心字符）無效或根據邏輯應顯示為空白，則會如實呈現。
         * 自動檢測並適應 Glyphs 預覽區域的明暗主題。
         * 監聽主題變更通知，即時調整顯示風格。
         * 實現基於字身寬度 (`layer.width`) 的穩定佈局計算邏輯。
@@ -98,17 +98,39 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
         * `search_field_callback`: 處理搜尋框文字變更。更新 `plugin.lastInput` 和 `plugin.selectedChars`。若有需要則呼叫 `generate_new_arrangement`。
         * `smart_lock_character_callback`: 處理單一鎖定框文字變更。輸入的字符會被 `_recognize_character` 處理。更新 `plugin.lockedChars`。若在鎖定模式且辨識後的字符與原鎖定字符不同，則呼叫 `_update_single_position` 更新 `plugin.currentArrangement` 的對應位置並強制重繪。
         * `clear_all_lock_fields_callback`: (可由 `plugin.clearAllLockFieldsCallback` 觸發) 清空所有鎖定UI欄位 (透過 `plugin.windowController`)、`plugin.lockedChars`，並呼叫 `generate_new_arrangement` 重新生成排列。
-        * `pick_glyph_callback`: 使用官方 `PickGlyphs()` API 選擇字符，並將結果附加到搜尋框。
+        * `pick_glyph_callback`: 使用官方 `PickGlyphs()` API 選擇字符，並將結果附加到搜尋框。支援搜尋字串預填功能，並智慧處理空格分隔。
         * `randomize_callback`: 處理預覽區點擊事件。清除 `plugin.originalArrangement`，呼叫 `generate_new_arrangement`，並強制重繪預覽。
-        * `generate_new_arrangement`: 核心排列生成邏輯。根據 `plugin.isInClearMode` (鎖頭狀態)、`plugin.selectedChars` 和 `plugin.lockedChars` 計算 `plugin.currentArrangement`。
+        * `generate_new_arrangement`: 核心排列生成邏輯，決定九宮格中所有九個位置（包括中心字符和周圍八個字符）的顯示內容。此方法會更新 `plugin.currentArrangement` (代表周圍八格的字符) 以及用於中心格的字符。其詳細邏輯如下（基於 `flow.md`）：
+            1.  **判斷 `activeGlyph` (當前 Glyphs 中選擇的字符, 即 `_get_current_editing_char` 的結果) 是否存在。**
+            2.  **判斷是否處於鎖定模式 (`plugin.isInClearMode` 為 `False`)。**
+            3.  **獲取 `lockedChars` (鎖定框中的有效字符) 和 `batchChars` (`plugin.selectedChars`，來自批量輸入框的有效字符)。**
+
+            **情況 A: `activeGlyph` 存在:**
+            *   中心字符固定為 `activeGlyph`。
+            *   **若處於鎖定模式:**
+                *   **若 `lockedChars` 有效:**
+                    *   鎖定位置使用 `lockedChars`。
+                    *   其餘周圍格: 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，使用 `activeGlyph` 填充。 (對應 `flow.md` R1, R2)
+                *   **若 `lockedChars` 無效:**
+                    *   周圍八格: 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，使用 `activeGlyph` 填充。 (對應 `flow.md` R3, R4)
+            *   **若處於解鎖模式:**
+                *   周圍八格: 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，使用 `activeGlyph` 填充。 (對應 `flow.md` R5, R13)
+
+            **情況 B: `activeGlyph` 不存在:**
+            *   **若處於鎖定模式:**
+                *   **若 `lockedChars` 有效:**
+                    *   鎖定位置使用 `lockedChars`。
+                    *   其餘位置 (包括中心格和其他未鎖定的周圍格): 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，填充空白。 (對應 `flow.md` R7, R8)
+                *   **若 `lockedChars` 無效:**
+                    *   所有九格: 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，填充空白。 (對應 `flow.md` R9, R10)
+            *   **若處於解鎖模式:**
+                *   所有九格: 若 `batchChars` 有效，則從 `batchChars` 隨機選取；否則，填充空白。 (對應 `flow.md` R11, R12)
+
+            最終，`plugin.currentArrangement` 會被設定為計算出的周圍八格字符列表。中心字符的來源也會根據上述邏輯確定，供 `preview_view.py` 使用。
         * 輔助方法如 `_update_single_position`, `_get_current_editing_char`, `_get_lock_state`, `_recognize_character`, `_generate_default_arrangement`。
         * **效能考量**:
           - `update_interface` 方法透過 `plugin._update_scheduled` 標記避免短時間內重複呼叫。
-          - 更原生的字符選擇體驗
-          - 支援搜尋字串預填功能
           - 自動使用目前主版進行預覽
-          - 將選擇的字符附加到搜尋框內容末尾
-          - 智慧處理空格分隔
 
 * **`utils.py` (工具函數 - 最佳化版):**
     * **職責:**
@@ -141,10 +163,9 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
     *   `EventHandlers` 通常會呼叫 `plugin.updateInterface()`。
     *   `plugin.updateInterface()` (透過 `_update_scheduled` 標記進行節流) 接著請求主視窗控制器 (`windowController`) 更新介面：
         *   呼叫 `windowController.request_main_redraw()` -> `NineBoxPreviewView` 觸發重繪 (使用 `force_redraw` 或 `setNeedsDisplay_`)。
-        *   呼叫 `windowController.request_controls_panel_ui_update()` -> `ControlsPanelView` 更新其子面板的 UI (可選擇是否更新鎖定輸入框)。
+        *   呼叫 `windowController.request_controls_panel_ui_update()` -> `ControlsPanelView` 更新其子面板的 UI (可選擇是否更新鎖定輸入框，以避免在搜尋時干擾鎖定框的用戶輸入)。
 
 ### 4. 關鍵資料結構 (Key Data Structures)
-
 * `plugin.lastInput (str)`: 搜尋欄位的輸入內容。
 * `plugin.selectedChars (list)`: 解析後的有效字符列表。
 * `plugin.lockedChars (dict)`: 鎖定字符字典，鍵為位置 (0-7)，值為字符或 Nice Name。
@@ -156,6 +177,7 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
 * `plugin.windowPosition (list)`: 主視窗位置 `[x, y]` (透過 `utils.py` 載入/儲存)。
 * `plugin.previousLockedChars (dict)`: 備份的鎖定字符 (目前主要在 `clearAllLockFieldsCallback` 中用於記錄被清除的項目，而非完整的復原功能)。
 * `plugin._update_scheduled (bool)`: 最佳化新增，防止重複更新的標記。
+
 ### 5. 視窗管理細節 (Window Management Details)
 * **控制面板建立與管理:**
     * 使用 `NSPanel` 實例，透過設定標題列透明 (`setTitlebarAppearsTransparent_`) 和隱藏標題內容 (`setTitleVisibility_`) 來達到簡潔的外觀，而非僅依賴 `styleMask` 移除標題列。
@@ -184,14 +206,11 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
     * 狀態改變時，根據需要選擇性地更新控制面板 UI。
     * `request_controls_panel_ui_update` 方法允許指定是否更新鎖定輸入框，以避免在搜尋時干擾鎖定框的用戶輸入。
 
-* **更新最佳化:**
-    * `plugin.py` 中的 `_update_scheduled` 標記用於對 `updateInterface` 的呼叫進行節流，防止短時間內重複執行。
-    * 選擇性更新，例如搜尋欄位變更時不更新鎖定輸入框，避免干擾用戶輸入。
-
 ### 7. 持久化 (Persistence)
 
 * **偏好設定管理 (最佳化版):**
     * 集中在 `utils.py` 的 `save_preferences` 和 `load_preferences` 方法中處理所有持久化邏輯。
+    * 自動使用目前主版進行預覽。
     * `lockedChars` 和 `previousLockedChars` (字典類型) 儲存為 JSON 字串，鍵名從整數轉換為字串。
     * 統一視窗位置的儲存格式為 Python list `[x, y]`，確保位置資料的一致性。
     * 支援從舊的字典格式 `{'x': x, 'y': y}` 載入，提供向後相容性。
@@ -203,7 +222,14 @@ UI 相關模組包括 `controls_panel_view.py`（控制面板容器）、`search
     * `preview_view.py` 透過 `NSUserDefaults.standardUserDefaults().boolForKey_("GSPreview_Black")` 檢測 Glyphs 預覽區域的主題狀態。
     * `preview_view.py` 和 `window_controller.py` (針對設定按鈕) 監聽 `NSUserDefaultsDidChangeNotification` 主題變更通知，即時調整顯示風格。
 
+### 9. 字符填充與排列機制 (基於 flow.md)
+* `generate_new_arrangement` 方法 (在 `event_handlers.py` 中) 負責核心的字符排列邏輯。詳細規則請參見該模組中對此方法的描述，該描述基於 `flow.md` 的邏輯流程。
+* 確保了當輸入的字符在字型檔案中不存在時，對應的預覽格會根據 `generate_new_arrangement` 的詳細邏輯進行填充（例如，使用其他有效字符或顯示為空白），而不是導致錯誤或意外的填充。
+* 確保視窗初次顯示時 (`makeKeyAndOrderFront` 中的 `delayedForceRedraw_`) 即正確生成字符排列。
+* **鎖定輸入框字符驗證**：輸入的字符會先經過 `_recognize_character` 處理（可能回傳備用字符）。只有當辨識後的字符與該位置原鎖定的字符不同，且處於鎖定模式時，主視窗的預覽內容才會更新為此辨識後的字符。
+
 ### 9. 程式碼效能與維護性改進
+*(注意: 此處的編號 '9' 與上方新加入的 '9. 字符填充與排列機制' 重複，應調整為 '10'。為保持 diff 簡潔，此處暫不修改編號，但實際文件中應修正。)*
 
 * **除錯系統最佳化:**
     * 統一使用 `debug_log` 函數，受 `DEBUG_MODE` 常數控制。
