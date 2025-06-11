@@ -53,7 +53,7 @@ try:
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
                 ORIGINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
-                DEFAULT_ZOOM, DEBUG_MODE
+                DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
             )
             
             # 匯入工具函數
@@ -130,12 +130,16 @@ try:
                 newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
                 Glyphs.menu[WINDOW_MENU].append(newMenuItem)
 
-                # 新增回呼函數
+                # 新增回呼函數 - 使用正確的 Glyphs API 事件
                 Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
                 Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
                 Glyphs.addCallback(self.selectionChanged_, DOCUMENTOPENED)
                 Glyphs.addCallback(self.selectionChanged_, SELECTIONCHANGED)
-                Glyphs.addCallback(self.selectionChanged_, EDITTEXT)  # 新增：監聽文字編輯事件
+                Glyphs.addCallback(self.selectionChanged_, CURRENTGLYPHCHANGED)  # 當前字符變更
+                Glyphs.addCallback(self.selectionChanged_, TABDIDOPEN)  # 分頁開啟
+                Glyphs.addCallback(self.selectionChanged_, TABWILLCLOSE)  # 分頁關閉
+                Glyphs.addCallback(self.selectionChanged_, DOCUMENTWASOPENED)  # 文檔開啟
+                Glyphs.addCallback(self.selectionChanged_, DOCUMENTWILLCLOSE)  # 文檔關閉
 
                 # 載入偏好設定
                 self.loadPreferences()
@@ -290,8 +294,14 @@ try:
             """解構式"""
             try:
                 # 移除所有回調
+                events_list = [
+                    UPDATEINTERFACE, DOCUMENTACTIVATED, DOCUMENTOPENED, 
+                    SELECTIONCHANGED, CURRENTGLYPHCHANGED, TABDIDOPEN, 
+                    TABWILLCLOSE, DOCUMENTWASOPENED, DOCUMENTWILLCLOSE
+                ]
+                
                 for callback in [self.updateInterface, self.selectionChanged_]:
-                    for event in [UPDATEINTERFACE, DOCUMENTACTIVATED, DOCUMENTOPENED, SELECTIONCHANGED, EDITTEXT]:
+                    for event in events_list:
                         try:
                             Glyphs.removeCallback(callback, event)
                         except:

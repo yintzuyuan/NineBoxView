@@ -168,28 +168,32 @@ class LockFieldsPanel(NSView):
         # 從頂部開始（清除按鈕上方）
         current_y = button_height + spacing
         
-        # 建立3x3網格
-        position = 0
+        # 建立3x3網格，8個鎖定框 + 1個中央鎖頭按鈕
+        # 九宮格位置映射：0,1,2,3,4,5,6,7,8 → 鎖定框映射：0,1,2,3,skip,5,6,7,8
         for row in range(3):
             for col in range(3):
+                # 計算九宮格位置索引（0-8）
+                grid_position = row * 3 + col
+                
                 # 計算每個單元格的位置（從底部向上）
                 x = col * (cell_width + grid_spacing)
                 y = current_y + (2 - row) * (cell_height + grid_spacing)
                 
-                if row == 1 and col == 1:  # 中央位置：放置鎖頭按鈕
+                if grid_position == 4:  # 中央位置（九宮格位置4）：放置鎖頭按鈕
                     self._create_lock_button(x, y, cell_width, cell_height)
                 else:
-                    # 其他位置：鎖定輸入框
+                    # 其他位置：鎖定輸入框，使用九宮格位置作為 lockField 的鍵
                     fieldRect = NSMakeRect(x, y, cell_width, cell_height)
                     lockField = LockCharacterField.alloc().initWithFrame_position_plugin_(
-                        fieldRect, position, self.plugin
+                        fieldRect, grid_position, self.plugin
                     )
                     lockField.setAutoresizingMask_(NSViewWidthSizable | NSViewMaxYMargin)
                     lockField.setFont_(NSFont.systemFontOfSize_(16.0))
                     
-                    self.lockFields[position] = lockField
+                    # 使用九宮格位置索引 (0,1,2,3,5,6,7,8) 作為鍵
+                    self.lockFields[grid_position] = lockField
                     self.addSubview_(lockField)
-                    position += 1
+                    debug_log(f"創建鎖定框：九宮格位置 {grid_position}")
     
     def _create_lock_button(self, x, y, width, height):
         """建立鎖頭按鈕"""
@@ -336,20 +340,20 @@ class LockFieldsPanel(NSView):
                     should_force_redraw = False
                     debug_log("[鎖頭切換] 輸入框全部清空，從鎖定切換到解鎖，跳過強制重繪")
                 
-                # 根據判斷結果決定是否強制重繪
+                # 根據判斷結果決定是否更新
                 if should_force_redraw:
-                    # 強制重繪預覽 - 確保切換能看到更新
+                    # 官方模式：更新 preview view 屬性設定器
                     if (hasattr(self.plugin, 'windowController') and 
                         self.plugin.windowController and
                         hasattr(self.plugin.windowController, 'previewView')):
-                        debug_log("[鎖頭切換] 強制重繪預覽")
-                        self.plugin.windowController.previewView.force_redraw()
+                        debug_log("[鎖頭切換] 更新 currentArrangement 屬性")
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
                     else:
                         debug_log("[鎖頭切換] 警告：無法取得 previewView，嘗試通過 updateInterface 更新")
                         # 如果無法直接重繪，則通過 updateInterface 更新
                         self.plugin.updateInterface(None)
                 else:
-                    debug_log("[鎖頭切換] 跳過強制重繪，保持預覽不變")
+                    debug_log("[鎖頭切換] 跳過更新，保持預覽不變")
                 
                 # 儲存偏好設定
                 self.plugin.savePreferences()
@@ -804,12 +808,12 @@ class LockFieldsPanel(NSView):
                     # 儲存偏好設定
                     self.plugin.savePreferences()
                     
-                    # 無論什麼狀態都強制重繪預覽
+                    # 無論什麼狀態都更新預覽
                     if (hasattr(self.plugin, 'windowController') and 
                         self.plugin.windowController and
                         hasattr(self.plugin.windowController, 'previewView')):
-                        debug_log("[清除所有] 強制重繪預覽")
-                        self.plugin.windowController.previewView.force_redraw()
+                        debug_log("[清除所有] 更新 currentArrangement 屬性")
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
             
             debug_log("完成清空所有輸入框")
             

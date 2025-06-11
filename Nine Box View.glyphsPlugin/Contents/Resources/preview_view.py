@@ -1,14 +1,13 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 預覽畫面（穩定佈局版）
-Nine Box Preview Plugin - Preview View (Stable Layout Version)
-基於字身寬度的穩定佈局設計
+九宮格預覽外掛 - 預覽畫面（官方模式版）
+Nine Box Preview Plugin - Preview View (Official Mode Version)
+基於字身寬度的穩定佈局設計，採用官方 Glyphs UI 重繪模式
 """
 
 from __future__ import division, print_function, unicode_literals
 import traceback
 import objc
-import time
 import random
 from GlyphsApp import Glyphs
 from AppKit import (
@@ -23,19 +22,20 @@ from AppKit import (
 # 匯入常數和工具函數
 from constants import (
     MARGIN_RATIO, SPACING_RATIO, MIN_ZOOM, MAX_ZOOM, DEBUG_MODE,
-    GRID_SIZE, GRID_TOTAL, CENTER_POSITION, REDRAW_THRESHOLD
+    GRID_SIZE, GRID_TOTAL, CENTER_POSITION
 )
 from utils import debug_log, error_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """
-    九宮格預覽畫面類別（穩定佈局版）
-    Nine Box Preview View Class (Stable Layout Version)
+    九宮格預覽畫面類別（官方模式版）
+    Nine Box Preview View Class (Official Mode Version)
     
     設計原則：
     - 佈局計算完全基於 layer.width（字身寬度）
     - 不使用 LSB、RSB 或路徑邊界等動態資訊
     - 提供穩定的預覽框架，不受路徑編輯影響
+    - 採用官方 Glyphs UI 重繪模式，使用屬性設定器自動觸發重繪
     """
 
     def initWithFrame_plugin_(self, frame, plugin):
@@ -50,10 +50,13 @@ class NineBoxPreviewView(NSView):
             self.panOffset = (0, 0)
             
             # 效能最佳化：快取常用值
-            self._last_redraw_time = 0
             self._cached_theme_is_black = None
             self._cached_master = None
             self._cached_grid_metrics = None
+            
+            # 初始化屬性設定器的內部值
+            self._currentArrangement = []
+            self._zoomFactor = 1.0
             
             # 監聽主題變更
             NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
@@ -66,7 +69,7 @@ class NineBoxPreviewView(NSView):
         return self
     
     def glyphsPreviewThemeChanged_(self, notification):
-        """處理主題變更"""
+        """處理主題變更（官方模式）"""
         try:
             # 清除主題快取
             self._cached_theme_is_black = None
@@ -81,30 +84,39 @@ class NineBoxPreviewView(NSView):
         self.window().makeFirstResponder_(self)
         self.plugin.randomizeCallback(self)
 
-    def _should_redraw(self):
-        """檢查是否應該重繪（節流）"""
-        # 檢查是否為強制重繪
-        if getattr(self, '_force_redraw', False):
-            self._force_redraw = False
-            debug_log("強制重繪")
-            return True
-            
-        # 正常的節流邏輯
-        current_time = time.time()
-        if current_time - self._last_redraw_time < REDRAW_THRESHOLD:
-            return False
-        self._last_redraw_time = current_time
-        return True
-
-    def force_redraw(self):
-        """設定強制重繪標記"""
-        self._force_redraw = True
-        self._last_redraw_time = 0  # 重置節流計時器
+    # === 官方模式：屬性設定器（參照 GlyphView 模式）===
+    
+    def _get_currentArrangement(self):
+        """取得目前排列"""
+        return getattr(self, '_currentArrangement', [])
+    
+    def _set_currentArrangement(self, arrangement):
+        """設定目前排列（自動觸發重繪）"""
+        self._currentArrangement = arrangement if arrangement else []
+        self.setNeedsDisplay_(True)  # 官方模式：屬性變更時立即重繪
+        debug_log(f"currentArrangement 已更新，觸發重繪: {arrangement}")
+    
+    currentArrangement = property(_get_currentArrangement, _set_currentArrangement)
+    
+    def _get_zoomFactor(self):
+        """取得縮放係數"""
+        return getattr(self, '_zoomFactor', 1.0)
+    
+    def _set_zoomFactor(self, factor):
+        """設定縮放係數（自動觸發重繪）"""
+        self._zoomFactor = factor if factor else 1.0
+        self.setNeedsDisplay_(True)  # 縮放變更時立即重繪
+        debug_log(f"zoomFactor 已更新，觸發重繪: {factor}")
+    
+    zoomFactor = property(_get_zoomFactor, _set_zoomFactor)
+    
+    def update(self):
+        """標準更新方法（遵循官方 CanvasView 模式）"""
         self.setNeedsDisplay_(True)
-        debug_log("已請求強制重繪，重置節流計時器")
+        debug_log("呼叫 update() 方法，觸發重繪")
     
     def setFrame_(self, frame):
-        """覆寫 setFrame_ 方法"""
+        """覆寫 setFrame_ 方法（官方模式）"""
         # 記錄舊框架
         oldFrame = self.frame()
         
@@ -119,8 +131,8 @@ class NineBoxPreviewView(NSView):
             # 清除網格度量快取
             self._cached_grid_metrics = None
             
-            # 強制重繪
-            self.force_redraw()
+            # 官方模式：直接觸發重繪
+            self.setNeedsDisplay_(True)
 
     def _get_theme_is_black(self):
         """檢查目前主題是否為深色模式"""
@@ -198,8 +210,8 @@ class NineBoxPreviewView(NSView):
             debug_log(f"可用寬度 availableWidth: {availableWidth}, 可用高度 availableHeight: {availableHeight}")
             debug_log(f"計算的縮放比例 scale: {scale}")
             
-            # 套用自訂縮放
-            customScale = self.plugin.zoomFactor
+            # 套用自訂縮放（使用屬性設定器）
+            customScale = self.zoomFactor
             scale *= customScale
             debug_log(f"套用自訂縮放後的比例 scale: {scale}")
             
@@ -300,12 +312,8 @@ class NineBoxPreviewView(NSView):
             error_log("繪製字符時發生錯誤", e)
 
     def drawRect_(self, rect):
-        """繪製畫面內容（穩定佈局版）"""
+        """繪製畫面內容（官方模式）"""
         try:
-            # 檢查是否需要重繪（節流）
-            if not self._should_redraw() and not DEBUG_MODE:
-                return
-            
             debug_log(f"預覽重繪：{rect.size.width}x{rect.size.height}")
             
             # === 確保在任何情況下都先繪製背景 ===
@@ -327,34 +335,53 @@ class NineBoxPreviewView(NSView):
                 debug_log("沒有選擇主板，中止繪製")
                 return
             
-            # === 改進：考慮鎖定狀態和currentArrangement的優先級 ===
-            display_chars = []
+            # === 使用屬性設定器的值優先，然後是 plugin 的值 ===
+            arrangement = self.currentArrangement
             
-            # 檢查目前模式和排列狀態
-            is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, '_get_lock_state') else False
-            has_current_arrangement = bool(self.plugin.currentArrangement)
-            has_selected_chars = bool(self.plugin.selectedChars)
-            has_locked_chars = bool(getattr(self.plugin, 'lockedChars', {}))
+            # 如果 view 的排列為空，嘗試從 plugin 取得
+            if not arrangement and hasattr(self.plugin, 'currentArrangement'):
+                arrangement = self.plugin.currentArrangement
+                # 同時更新 view 的屬性（但不觸發重繪，避免遞迴）
+                self._currentArrangement = arrangement
             
-            # 決定要顯示的字符
-            if has_current_arrangement:
-                # 優先使用現有排列
-                display_chars = self.plugin.currentArrangement
-                debug_log(f"使用現有排列: {display_chars}")
-            elif not is_in_clear_mode and has_locked_chars:
-                # 上鎖狀態下，如果有鎖定字符但沒有排列，重新生成
-                if hasattr(self.plugin, 'generateNewArrangement'):
-                    self.plugin.generateNewArrangement()
-                    display_chars = self.plugin.currentArrangement
-                    debug_log(f"上鎖狀態：重新生成排列: {display_chars}")
-            elif has_selected_chars:
-                # 如果有選擇的字符，使用它們
-                display_chars = self.plugin.selectedChars[:8]
-                debug_log(f"使用選擇的字符: {display_chars}")
+            # 如果仍然沒有排列，生成後備排列
+            if not arrangement or len(arrangement) != 9:
+                debug_log("沒有有效的9格排列，生成後備排列")
+                if hasattr(self.plugin, 'event_handlers'):
+                    self.plugin.event_handlers.generate_new_arrangement()
+                    if (hasattr(self.plugin, 'currentArrangement') and 
+                        len(self.plugin.currentArrangement) == 9):
+                        arrangement = self.plugin.currentArrangement
+                        # 更新 view 的屬性
+                        self._currentArrangement = arrangement
+                
+                # 如果仍然沒有有效排列，使用當前編輯字符填充
+                if not arrangement:
+                    current_char = None
+                    if Glyphs.font and Glyphs.font.selectedLayers:
+                        current_layer = Glyphs.font.selectedLayers[0]
+                        if current_layer and current_layer.parent:
+                            current_glyph = current_layer.parent
+                            if current_glyph.unicode:
+                                try:
+                                    current_char = chr(int(current_glyph.unicode, 16))
+                                except:
+                                    current_char = current_glyph.name
+                            elif current_glyph.name:
+                                current_char = current_glyph.name
+                    
+                    if not current_char:
+                        current_char = "A"  # 最終後備
+                    
+                    arrangement = [current_char] * 9
+                    debug_log(f"使用後備排列：{arrangement}")
+                    # 更新 view 的屬性
+                    self._currentArrangement = arrangement
             
-            debug_log(f"最終使用排列: {display_chars}")
+            debug_log(f"最終使用排列: {arrangement}")
             
-            # 計算網格度量
+            # 計算網格度量（使用前8個字符作為參考）
+            display_chars = arrangement[:8] if len(arrangement) >= 8 else arrangement
             metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
             if not metrics:
                 debug_log("無法計算網格度量")
@@ -369,48 +396,22 @@ class NineBoxPreviewView(NSView):
                 centerX = metrics['startX'] + (col + 0.5) * metrics['cellWidth'] + col * metrics['SPACING']
                 centerY = metrics['startY'] - (row + 0.5) * (metrics['gridHeight'] / 3)
                 
-                # 選擇要繪製的字符層
-                layer = None
+                # 從排列中取得字符
+                char_or_name = arrangement[i] if i < len(arrangement) else None
                 
-                # 決定要使用的層
                 layer = None
-                char_index = i if i < 4 else i - 1  # 計算位置索引
-                
-                # 檢查是否為中心位置
-                if i == 4:
-                    if Glyphs.font.selectedLayers:
-                        layer = Glyphs.font.selectedLayers[0]
-                else:
-                    # 檢查是否有鎖定的字符
-                    is_in_clear_mode = self.plugin.event_handlers._get_lock_state() if hasattr(self.plugin, 'event_handlers') else False
-                    has_locked_chars = hasattr(self.plugin, 'lockedChars') and bool(self.plugin.lockedChars)
-                    
-                    if not is_in_clear_mode and has_locked_chars and char_index in self.plugin.lockedChars:
-                        # 使用鎖定的字符
-                        locked_char = self.plugin.lockedChars[char_index]
-                        glyph = Glyphs.font.glyphs[locked_char]
-                        if glyph:
-                            layer = glyph.layers[currentMaster.id]
-                            debug_log(f"使用鎖定字符 '{locked_char}' 於位置 {char_index}")
-                    elif not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
-                        # 搜索框為空且沒有鎖定字符時，使用當前編輯字符
-                        if Glyphs.font.selectedLayers:
-                            layer = Glyphs.font.selectedLayers[0]
-                    elif display_chars:
-                        # 使用一般排列中的字符
-                        if char_index < len(display_chars):
-                            glyph = Glyphs.font.glyphs[display_chars[char_index]]
-                            if glyph:
-                                layer = glyph.layers[currentMaster.id]
-                            else:
-                                debug_log(f"字符 '{display_chars[char_index]}' 不存在於字型中")
-                                if Glyphs.font.selectedLayers:
-                                    layer = Glyphs.font.selectedLayers[0]
+                if char_or_name is not None:  # 不是空白
+                    # 嘗試取得字符的圖層
+                    glyph = get_cached_glyph(Glyphs.font, char_or_name)
+                    if glyph and glyph.layers[currentMaster.id]:
+                        layer = glyph.layers[currentMaster.id]
+                        debug_log(f"位置 {i}: 繪製字符 '{char_or_name}'")
                     else:
-                        # 如果沒有其他選項，使用當前編輯字符
-                        if Glyphs.font.selectedLayers:
-                            layer = Glyphs.font.selectedLayers[0]
+                        debug_log(f"位置 {i}: 字符 '{char_or_name}' 在字型中不存在")
+                else:
+                    debug_log(f"位置 {i}: 空白格")
                 
+                # 繪製字符（如果有）
                 if layer:
                     # 計算單元格高度
                     cellHeight = metrics['gridHeight'] / 3 - metrics['SPACING']

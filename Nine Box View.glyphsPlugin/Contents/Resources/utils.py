@@ -16,7 +16,7 @@ from constants import (
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
     ORIGINAL_ARRANGEMENT_KEY,
-    DEFAULT_ZOOM, DEBUG_MODE
+    DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, LEGACY_ARRANGEMENT_SIZE
 )
 
 # === 快取相關 ===
@@ -78,8 +78,13 @@ def load_preferences(plugin):
         # 載入各項設定
         plugin.lastInput = Glyphs.defaults[LAST_INPUT_KEY] or ""
         plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
-        plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
-        plugin.originalArrangement = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
+        
+        # 載入排列並處理向前相容性
+        loaded_arrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
+        plugin.currentArrangement = _convert_arrangement_to_9_slots(loaded_arrangement)
+        
+        loaded_original = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
+        plugin.originalArrangement = _convert_arrangement_to_9_slots(loaded_original)
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
         
@@ -219,8 +224,16 @@ def save_preferences(plugin):
         # 儲存各項設定
         Glyphs.defaults[LAST_INPUT_KEY] = plugin.lastInput
         Glyphs.defaults[SELECTED_CHARS_KEY] = plugin.selectedChars
-        Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
-        Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = getattr(plugin, 'originalArrangement', [])
+        
+        # 處理 currentArrangement - 將 None 轉換為空字串
+        current_arrangement = getattr(plugin, 'currentArrangement', [])
+        safe_current_arrangement = [item if item is not None else "" for item in current_arrangement]
+        Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = safe_current_arrangement
+        
+        # 處理 originalArrangement - 將 None 轉換為空字串
+        original_arrangement = getattr(plugin, 'originalArrangement', [])
+        safe_original_arrangement = [item if item is not None else "" for item in original_arrangement]
+        Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = safe_original_arrangement
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         Glyphs.defaults[WINDOW_SIZE_KEY] = plugin.windowSize
         
@@ -494,7 +507,7 @@ def validate_locked_positions(locked_chars, font):
         # 驗證位置
         try:
             pos = int(position)
-            if pos < 0 or pos >= MAX_LOCKED_POSITIONS:
+            if pos < 0 or pos >= FULL_ARRANGEMENT_SIZE:
                 continue
         except:
             continue
@@ -522,3 +535,46 @@ def get_base_width():
     except Exception as e:
         error_log("取得基準寬度時發生錯誤", e)
         return DEFAULT_UPM
+
+# === 排列格式轉換 ===
+
+def _convert_arrangement_to_9_slots(arrangement):
+    """將排列轉換為9格格式
+    
+    Args:
+        arrangement: 原始排列（可能是8格或9格）
+        
+    Returns:
+        9格排列列表
+    """
+    if not arrangement:
+        return [None] * FULL_ARRANGEMENT_SIZE
+    
+    arrangement_list = list(arrangement)  # 確保是可變列表
+    
+    # 將空字串轉換回 None（從偏好設定載入時）
+    arrangement_list = [item if item != "" else None for item in arrangement_list]
+    
+    if len(arrangement_list) == LEGACY_ARRANGEMENT_SIZE:
+        # 8格轉9格：在位置4插入None作為中心格
+        debug_log(f"轉換8格排列為9格: {arrangement_list}")
+        new_arrangement = [None] * FULL_ARRANGEMENT_SIZE
+        
+        # 位置映射：0,1,2,3 -> 0,1,2,3，4,5,6,7 -> 5,6,7,8
+        for i in range(4):
+            new_arrangement[i] = arrangement_list[i]
+        # 位置4保持為None（中心格）
+        for i in range(4, 8):
+            new_arrangement[i + 1] = arrangement_list[i]
+            
+        debug_log(f"轉換結果: {new_arrangement}")
+        return new_arrangement
+        
+    elif len(arrangement_list) == FULL_ARRANGEMENT_SIZE:
+        # 已經是9格，直接返回
+        return arrangement_list
+        
+    else:
+        # 其他長度，返回空的9格排列
+        debug_log(f"無法識別的排列長度: {len(arrangement_list)}，返回空排列")
+        return [None] * FULL_ARRANGEMENT_SIZE

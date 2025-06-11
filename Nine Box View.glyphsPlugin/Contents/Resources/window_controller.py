@@ -396,19 +396,14 @@ class NineBoxWindow(NSWindowController):
                 
                 debug_log(f"[階段1.3] 視窗調整：{frame.size.width}x{frame.size.height}，內容區域：{contentSize.width}x{contentSize.height}")
                 
-                # 調整預覽畫面 - 確保完全填滿內容區域
+                # 調整預覽畫面 - 確保完全填滿內容區域（官方模式）
                 if hasattr(self, 'previewView') and self.previewView:
                     # 使用內容畫面的實際邊界
                     newFrame = contentView.bounds()
                     self.previewView.setFrame_(newFrame)
                     
-                    # 立即觸發重繪確保畫面即時更新
-                    if hasattr(self.previewView, 'force_redraw'):
-                        self.previewView.force_redraw()
-                    else:
-                        self.previewView.setNeedsDisplay_(True)
-                    
-                    debug_log(f"[階段1.3] 已調整預覽畫面框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
+                    # 官方模式：框架變更會自動觸發重繪
+                    debug_log(f"[官方模式] 已調整預覽畫面框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
                 
                 # 更新控制面板位置和大小
                 if self.controlsPanelVisible and self.controlsPanelWindow:
@@ -491,17 +486,13 @@ class NineBoxWindow(NSWindowController):
         except Exception as e:
             error_log("[階段1.3] 處理視窗關閉錯誤", e)
     
-    def request_main_redraw(self):
-        """請求主預覽畫面重繪"""
+    def update(self):
+        """標準更新方法（遵循官方 CanvasView 模式）"""
         try:
             if hasattr(self, 'previewView') and self.previewView:
-                # 使用強制重繪機制（如果存在）
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
-                else:
-                    self.previewView.setNeedsDisplay_(True)
+                self.previewView.update()
         except Exception as e:
-            error_log("請求主預覽重繪錯誤", e)
+            error_log("更新主預覽錯誤", e)
     
     def request_controls_panel_ui_update(self, update_lock_fields=True):
         """請求控制面板UI更新
@@ -516,14 +507,6 @@ class NineBoxWindow(NSWindowController):
                     
         except Exception as e:
             error_log("請求控制面板UI更新錯誤", e)
-    
-    def redraw(self):
-        """重繪介面（向後相容）"""
-        self.request_main_redraw()
-    
-    def redrawIgnoreLockState(self):
-        """強制重繪"""
-        self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
         """顯示並激活視窗（完整初始化版本）"""
@@ -603,34 +586,21 @@ class NineBoxWindow(NSWindowController):
                 # 更新介面
                 self.plugin.updateInterface(None)
             
-            # 強制重繪確保初次顯示
+            # 官方模式：設定初始資料到 preview view
             if hasattr(self, 'previewView') and self.previewView:
-                # 立即強制重繪
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
+                # 同步 plugin 的資料到 preview view 的屬性設定器
+                if hasattr(self.plugin, 'currentArrangement'):
+                    self.previewView.currentArrangement = self.plugin.currentArrangement
+                if hasattr(self.plugin, 'zoomFactor'):
+                    self.previewView.zoomFactor = self.plugin.zoomFactor
                 
-                # 也安排一個延遲重繪以確保
-                NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                    0.1, self, "delayedForceRedraw:", None, False
-                )
-                debug_log("[初始化] 已安排強制重繪")
+                debug_log("[官方模式] 已同步資料到預覽畫面的屬性設定器")
             
             debug_log("[初始化] 完成")
                 
         except Exception as e:
             error_log("[makeKeyAndOrderFront] 初始化錯誤", e)
     
-    def delayedForceRedraw_(self, timer):
-        """延遲強制重繪（階段1.3）"""
-        try:
-            if hasattr(self, 'previewView') and self.previewView:
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
-                else:
-                    self.previewView.setNeedsDisplay_(True)
-                debug_log("[階段1.3] 完成延遲重繪")
-        except Exception as e:
-            error_log("[階段1.3] 延遲重繪錯誤", e)
             
     def _update_settings_button_color(self):
         """根據 Glyphs 預覽區域的背景色更新設定按鈕的圖示顏色"""

@@ -6,9 +6,10 @@ Nine Box Preview Plugin - Event Handlers
 
 from __future__ import division, print_function, unicode_literals
 import traceback
+import random
 from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
-from constants import DEBUG_MODE, DEFAULT_ZOOM
+from constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
 from utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph
 
 
@@ -22,7 +23,7 @@ class EventHandlers:
     # === 介面更新 ===
     
     def update_interface(self, sender):
-        """更新介面（最佳化版）"""
+        """更新介面（官方模式）"""
         try:
             # 避免重複更新
             if self.plugin._update_scheduled:
@@ -38,9 +39,9 @@ class EventHandlers:
                     debug_log("沒有選擇字符，但在上鎖狀態下有鎖定字符，重新生成排列")
                     self.generate_new_arrangement()
                 
-                # 觸發重繪
-                if hasattr(self.plugin.windowController, 'redraw'):
-                    self.plugin.windowController.redraw()
+                # 官方模式：觸發重繪
+                if hasattr(self.plugin.windowController, 'update'):
+                    self.plugin.windowController.update()
                 
                 # 更新控制面板 - 一般情況下不更新鎖定輸入框
                 if hasattr(self.plugin.windowController, 'request_controls_panel_ui_update'):
@@ -59,20 +60,9 @@ class EventHandlers:
             if hasattr(self.plugin, 'clear_cache'):
                 self.plugin.clear_cache()
             
-            # 新增：檢查搜索框為空時更新所有位置為當前編輯字符
-            if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
-                current_char = self._get_current_editing_char()
-                debug_log(f"搜索框為空，將所有位置更新為當前字符 '{current_char}'")
-                
-                # 更新 currentArrangement
-                self.plugin.currentArrangement = [current_char] * 8
-                self.plugin.savePreferences()  # 保存更改
-                
-                # 強制重繪
-                if (hasattr(self.plugin, 'windowController') and 
-                    self.plugin.windowController and
-                    hasattr(self.plugin.windowController, 'previewView')):
-                    self.plugin.windowController.previewView.force_redraw()
+            # 重新生成排列以反映當前編輯字符的變更
+            debug_log("字符選擇變更，重新生成排列")
+            self.generate_new_arrangement()
             
             # 更新介面
             self.update_interface(None)
@@ -138,7 +128,7 @@ class EventHandlers:
                 self.generate_new_arrangement()
             else:
                 # 解鎖狀態或沒有鎖定字符：直接用當前字符填充
-                self.plugin.currentArrangement = [current_char] * 8
+                self.plugin.currentArrangement = [current_char] * FULL_ARRANGEMENT_SIZE
                 self.plugin.savePreferences()
 
         # 更新介面與控制面板
@@ -150,10 +140,11 @@ class EventHandlers:
                 self.plugin.windowController.request_controls_panel_ui_update(update_lock_fields=False)
     
     def update_interface_for_search_field(self, sender):
-        """專為搜尋欄位的更新"""
+        """專為搜尋欄位的更新（官方模式）"""
         try:
             if hasattr(self.plugin, 'windowController') and self.plugin.windowController is not None:
-                self.plugin.windowController.redraw()
+                # 官方模式：使用標準更新方法
+                self.plugin.windowController.update()
         except Exception as e:
             error_log("更新搜尋欄位介面錯誤", e)
     
@@ -203,12 +194,12 @@ class EventHandlers:
                         # 更新指定位置的字符
                         self._update_single_position(position, input_text)
                         
-                        # 強制重繪
+                        # 官方模式：更新 preview view 的屬性設定器
                         if (hasattr(self.plugin, 'windowController') and 
                             self.plugin.windowController and
                             hasattr(self.plugin.windowController, 'previewView')):
-                            debug_log("[智慧鎖定] 請求強制重繪")
-                            self.plugin.windowController.previewView.force_redraw()
+                            debug_log("[智慧鎖定] 更新 currentArrangement 屬性")
+                            self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
                         
                         # 更新介面
                         self.update_interface(None)
@@ -222,12 +213,12 @@ class EventHandlers:
                         debug_log("[智慧鎖定] 搜索框為空，更新當前排列")
                         current_char = self._get_current_editing_char()
                         if hasattr(self.plugin, 'currentArrangement'):
-                            self.plugin.currentArrangement = [current_char] * 8
-                            # 強制重繪
+                            self.plugin.currentArrangement = [current_char] * FULL_ARRANGEMENT_SIZE
+                            # 官方模式：更新 preview view 的屬性設定器
                             if (hasattr(self.plugin, 'windowController') and 
                                 self.plugin.windowController and
                                 hasattr(self.plugin.windowController, 'previewView')):
-                                self.plugin.windowController.previewView.force_redraw()
+                                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
                 
             else:
                 debug_log("[智慧鎖定] 無變更，跳過更新")
@@ -380,14 +371,14 @@ class EventHandlers:
         
         self.generate_new_arrangement()
         
-        # 直接呼叫重繪，避免觸發控制面板UI更新
+        # 官方模式：更新預覽畫面
         if hasattr(self.plugin, 'windowController') and self.plugin.windowController:
             if hasattr(self.plugin.windowController, 'previewView') and self.plugin.windowController.previewView:
-                debug_log("強制重繪主預覽畫面")
-                self.plugin.windowController.previewView.force_redraw()
-            elif hasattr(self.plugin.windowController, 'redraw'):
-                debug_log("呼叫標準重繪函數")
-                self.plugin.windowController.redraw()
+                debug_log("更新主預覽畫面的屬性設定器")
+                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+            else:
+                debug_log("呼叫標準更新函數")
+                self.plugin.windowController.update()
         else:
             debug_log("無法找到視窗控制器，使用通用更新")
             self.update_interface(None)
@@ -403,95 +394,179 @@ class EventHandlers:
     # === 字符排列生成 ===
     
     def generate_new_arrangement(self):
-        """生成新的字符排列（強化版）"""
+        """生成新的字符排列（9格版本，遵循 flow.md 邏輯）"""
         try:
-            debug_log("開始生成新排列")
+            debug_log("開始生成新的9格排列")
             
-            # 檢查字型和主版
-            if not Glyphs.font: # selectedFontMaster is not strictly needed for arrangement generation itself
-                debug_log("警告：沒有開啟字型或選擇主版")
+            # 檢查字型
+            if not Glyphs.font:
+                debug_log("警告：沒有開啟字型檔案")
                 return
             
-            # 確認目前狀態
-            is_in_clear_mode = self._get_lock_state()
-            should_apply_locks = not is_in_clear_mode
+            # 1. 取得 activeGlyph（當前編輯字符）
+            activeGlyph = self._get_current_editing_char()
+            has_active = activeGlyph is not None  # None 表示無 activeGlyph
             
-            # 準備 source_chars: 確保 selectedChars 是可變列表
-            if hasattr(self.plugin, 'selectedChars'):
-                self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
-            else:
-                self.plugin.selectedChars = []
-                
-            # === BEGIN MODIFICATION ===
-            # 驗證 selectedChars 是否在目前字型中有效
-            # Validate selectedChars against the current font
-            if Glyphs.font and self.plugin.selectedChars:
-                valid_selected_chars = [
-                    char_or_name for char_or_name in self.plugin.selectedChars 
-                    if get_cached_glyph(Glyphs.font, char_or_name)
+            # 2. 取得鎖定狀態
+            is_in_clear_mode = self._get_lock_state()
+            is_locked = not is_in_clear_mode
+            
+            # 3. 取得批量輸入字符（batchChars）
+            batchChars = list(self.plugin.selectedChars) if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars else []
+            # 驗證 batchChars
+            if Glyphs.font and batchChars:
+                valid_batch_chars = [
+                    char for char in batchChars 
+                    if get_cached_glyph(Glyphs.font, char)
                 ]
-                if len(valid_selected_chars) != len(self.plugin.selectedChars):
-                    debug_log(f"generate_new_arrangement: Validated selectedChars. Original: {self.plugin.selectedChars}, Valid: {valid_selected_chars}")
-                    self.plugin.selectedChars = valid_selected_chars
-            # === END MODIFICATION ===
-
-            source_chars_for_arrangement = list(self.plugin.selectedChars) # Use a copy
-            if not source_chars_for_arrangement:
-                current_char = self._get_current_editing_char()
-                if current_char:
-                    debug_log(f"沒有選擇字符，使用目前編輯字符 '{current_char}' 填充")
-                    # 直接更新當前排列並返回，除非有鎖定的字符需要考慮
-                    if not should_apply_locks or not self.plugin.lockedChars:
-                        self.plugin.currentArrangement = [current_char] * 8  # 使用 8 個相同的當前字符填充
-                        debug_log(f"直接使用當前字符填充所有位置: {current_char}")
-                        self.plugin.savePreferences()
-                        return
-                    source_chars_for_arrangement = [current_char] * 8  # 使用 8 個相同的當前字符用於生成排列
-                else:
-                    # This case should ideally be handled by _get_current_editing_char returning a default
-                    debug_log("警告: 無法取得目前編輯字符，且無選擇字符。")
-                    self.plugin.currentArrangement = [None] * 8 # Default to empty/None arrangement
-                    self.plugin.savePreferences()
-                    return
-
-            # 準備 locked_map
-            if not hasattr(self.plugin, 'lockedChars'):
-                self.plugin.lockedChars = {}
-
-            current_locked_map_for_arrangement = {}
-            if should_apply_locks and self.plugin.lockedChars:
-                self.plugin.lockedChars = validate_locked_positions(self.plugin.lockedChars, Glyphs.font)
-                current_locked_map_for_arrangement = self.plugin.lockedChars
-
-            debug_log(f"目前狀態：鎖定模式 = {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
-            debug_log(f"用於排列的源字符：{source_chars_for_arrangement}")
-            debug_log(f"用於排列的鎖定映射：{current_locked_map_for_arrangement}")
-
-            # 調用 utils.py 中的 generate_arrangement
-            new_arrangement = generate_arrangement(
-                source_chars_for_arrangement,
-                current_locked_map_for_arrangement,
-                8  # total_slots
-            )
-            self.plugin.currentArrangement = list(new_arrangement) # 確保是 Python list
-            debug_log(f"生成的新排列: {self.plugin.currentArrangement}")
-
-            # 確保結果是可變列表
-            if hasattr(self.plugin, 'currentArrangement'):
-                self.plugin.currentArrangement = list(self.plugin.currentArrangement) if self.plugin.currentArrangement else []
+                batchChars = valid_batch_chars
+            has_batch = bool(batchChars)
+            
+            # 4. 取得鎖定字符（lockedChars）
+            lockedChars = getattr(self.plugin, 'lockedChars', {})
+            if lockedChars:
+                lockedChars = validate_locked_positions(lockedChars, Glyphs.font)
+            has_locked = bool(lockedChars)
+            
+            debug_log(f"Flow.md 決策參數:")
+            debug_log(f"  - activeGlyph: {activeGlyph} (has_active: {has_active})")
+            debug_log(f"  - 鎖定模式: {'🔒 上鎖' if is_locked else '🔓 解鎖'}")
+            debug_log(f"  - batchChars: {batchChars} (has_batch: {has_batch})")
+            debug_log(f"  - lockedChars: {lockedChars} (has_locked: {has_locked})")
+            
+            # 5. 根據 flow.md 決策樹生成9格排列
+            if has_active:
+                arrangement = self._handle_with_active_glyph(activeGlyph, is_locked, has_locked, lockedChars, has_batch, batchChars)
+            else:
+                arrangement = self._handle_without_active_glyph(is_locked, has_locked, lockedChars, has_batch, batchChars)
+            
+            # 6. 更新 currentArrangement（9格）
+            self.plugin.currentArrangement = list(arrangement)
+            debug_log(f"生成的9格排列: {self.plugin.currentArrangement}")
             
             # 儲存變更
             self.plugin.savePreferences()
             
-            # 要求強制重繪
+            # 官方模式：更新 preview view 的屬性設定器
             if (hasattr(self.plugin, 'windowController') and 
                 self.plugin.windowController and
                 hasattr(self.plugin.windowController, 'previewView')):
-                debug_log("請求強制重繪")
-                self.plugin.windowController.previewView.force_redraw()
+                debug_log("更新 currentArrangement 屬性")
+                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
             
         except Exception as e:
-            error_log("生成排列時發生錯誤", e)
+            error_log("生成9格排列時發生錯誤", e)
+    
+    def _handle_with_active_glyph(self, activeGlyph, is_locked, has_locked, lockedChars, has_batch, batchChars):
+        """處理有 activeGlyph 的情況"""
+        arrangement = [None] * FULL_ARRANGEMENT_SIZE
+        
+        if is_locked:  # 上鎖模式
+            if has_locked:  # 有鎖定字符
+                if has_batch:  # 有批量輸入
+                    # R1: 中心: activeGlyph, 鎖定格: lockedChars, 其餘格: 從 batchChars 隨機
+                    arrangement[CENTER_POSITION] = activeGlyph
+                    self._apply_locked_chars(arrangement, lockedChars)
+                    self._fill_remaining_with_batch(arrangement, batchChars)
+                    debug_log("R1: activeGlyph + 上鎖 + 有locked + 有batch")
+                else:  # 無批量輸入
+                    # R2: 中心: activeGlyph, 鎖定格: lockedChars, 其餘格: activeGlyph
+                    arrangement[CENTER_POSITION] = activeGlyph
+                    self._apply_locked_chars(arrangement, lockedChars)
+                    self._fill_remaining_with_char(arrangement, activeGlyph)
+                    debug_log("R2: activeGlyph + 上鎖 + 有locked + 無batch")
+            else:  # 無鎖定字符
+                if has_batch:  # 有批量輸入
+                    # R3: 中心: activeGlyph, 周圍格: 從 batchChars 隨機
+                    arrangement[CENTER_POSITION] = activeGlyph
+                    self._fill_surrounding_with_batch(arrangement, batchChars)
+                    debug_log("R3: activeGlyph + 上鎖 + 無locked + 有batch")
+                else:  # 無批量輸入
+                    # R4: 中心: activeGlyph, 周圍格: activeGlyph
+                    arrangement = [activeGlyph] * FULL_ARRANGEMENT_SIZE
+                    debug_log("R4: activeGlyph + 上鎖 + 無locked + 無batch")
+        else:  # 解鎖模式
+            if has_batch:  # 有批量輸入
+                # R5: 中心: activeGlyph, 周圍格: 從 batchChars 隨機
+                arrangement[CENTER_POSITION] = activeGlyph
+                self._fill_surrounding_with_batch(arrangement, batchChars)
+                debug_log("R5: activeGlyph + 解鎖 + 有batch")
+            else:  # 無批量輸入
+                # R13: 中心: activeGlyph, 周圍格: activeGlyph
+                arrangement = [activeGlyph] * FULL_ARRANGEMENT_SIZE
+                debug_log("R13: activeGlyph + 解鎖 + 無batch")
+        
+        return arrangement
+    
+    def _handle_without_active_glyph(self, is_locked, has_locked, lockedChars, has_batch, batchChars):
+        """處理沒有 activeGlyph 的情況"""
+        arrangement = [None] * FULL_ARRANGEMENT_SIZE
+        
+        if is_locked:  # 上鎖模式
+            if has_locked:  # 有鎖定字符
+                if has_batch:  # 有批量輸入
+                    # R7: 中心: 從 batchChars 隨機, 鎖定格: lockedChars, 其餘格: 從 batchChars 隨機
+                    self._apply_locked_chars(arrangement, lockedChars)
+                    self._fill_remaining_with_batch(arrangement, batchChars)
+                    if arrangement[CENTER_POSITION] is None:  # 中心未被鎖定
+                        arrangement[CENTER_POSITION] = random.choice(batchChars)
+                    debug_log("R7: 無activeGlyph + 上鎖 + 有locked + 有batch")
+                else:  # 無批量輸入
+                    # R8: 中心: 空白, 鎖定格: lockedChars, 其餘格: 空白
+                    self._apply_locked_chars(arrangement, lockedChars)
+                    # 其餘位置保持 None（空白）
+                    debug_log("R8: 無activeGlyph + 上鎖 + 有locked + 無batch")
+            else:  # 無鎖定字符
+                if has_batch:  # 有批量輸入
+                    # R9: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
+                    self._fill_all_with_batch(arrangement, batchChars)
+                    debug_log("R9: 無activeGlyph + 上鎖 + 無locked + 有batch")
+                else:  # 無批量輸入
+                    # R10: 所有九格皆為空白
+                    # arrangement 已經全為 None
+                    debug_log("R10: 無activeGlyph + 上鎖 + 無locked + 無batch")
+        else:  # 解鎖模式
+            if has_batch:  # 有批量輸入
+                # R11: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
+                self._fill_all_with_batch(arrangement, batchChars)
+                debug_log("R11: 無activeGlyph + 解鎖 + 有batch")
+            else:  # 無批量輸入
+                # R12: 所有九格皆為空白
+                # arrangement 已經全為 None
+                debug_log("R12: 無activeGlyph + 解鎖 + 無batch")
+        
+        return arrangement
+    
+    # === 9格填充輔助方法 ===
+    
+    def _apply_locked_chars(self, arrangement, lockedChars):
+        """將鎖定字符應用到排列中"""
+        for position, char in lockedChars.items():
+            if 0 <= position < FULL_ARRANGEMENT_SIZE:
+                arrangement[position] = char
+    
+    def _fill_remaining_with_batch(self, arrangement, batchChars):
+        """用批量字符填充剩餘的None位置"""
+        for i in range(FULL_ARRANGEMENT_SIZE):
+            if arrangement[i] is None:
+                arrangement[i] = random.choice(batchChars)
+    
+    def _fill_remaining_with_char(self, arrangement, char):
+        """用指定字符填充剩餘的None位置"""
+        for i in range(FULL_ARRANGEMENT_SIZE):
+            if arrangement[i] is None:
+                arrangement[i] = char
+    
+    def _fill_surrounding_with_batch(self, arrangement, batchChars):
+        """用批量字符填充周圍8格（不包括中心格）"""
+        for i in range(FULL_ARRANGEMENT_SIZE):
+            if i != CENTER_POSITION:
+                arrangement[i] = random.choice(batchChars)
+    
+    def _fill_all_with_batch(self, arrangement, batchChars):
+        """用批量字符填充所有9格"""
+        for i in range(FULL_ARRANGEMENT_SIZE):
+            arrangement[i] = random.choice(batchChars)
     
     # === 輔助方法 ===
     
@@ -572,22 +647,30 @@ class EventHandlers:
             error_log("[單一更新] 更新單個位置時發生錯誤", e)
     
     def _get_current_editing_char(self):
-        """取得目前正在編輯的字符"""
+        """取得目前正在編輯的字符（改進版，返回 None 表示無 activeGlyph）"""
         try:
             if Glyphs.font and Glyphs.font.selectedLayers:
                 current_layer = Glyphs.font.selectedLayers[0]
                 if current_layer and current_layer.parent:
                     current_glyph = current_layer.parent
+                    # 優先返回 Unicode 字符
                     if current_glyph.unicode:
                         try:
-                            return chr(int(current_glyph.unicode, 16))
+                            char = chr(int(current_glyph.unicode, 16))
+                            debug_log(f"取得 activeGlyph (Unicode): '{char}' ({current_glyph.unicode})")
+                            return char
                         except:
                             pass
+                    # 其次返回字符名稱
                     if current_glyph.name:
+                        debug_log(f"取得 activeGlyph (Name): '{current_glyph.name}'")
                         return current_glyph.name
-        except:
-            pass
-        return "A"  # 預設值
+        except Exception as e:
+            debug_log(f"取得 activeGlyph 時發生錯誤: {e}")
+        
+        # 沒有有效的編輯字符時返回 None
+        debug_log("無 activeGlyph")
+        return None
     
     def _get_lock_state(self):
         """取得鎖頭狀態"""
