@@ -166,15 +166,18 @@ class NineBoxPreviewView(NSView):
             # 這是佈局計算的唯一依據，確保穩定性
             maxWidth = 0  # 初始設為 0，不預設為 baseWidth
             
-            # 考慮周圍8個字符的寬度
+            # 考慮周圍字符的寬度（過濾掉 None 值）
             if display_chars:
                 for char in display_chars:
-                    glyph = get_cached_glyph(Glyphs.font, char)
-                    if glyph and glyph.layers[currentMaster.id]:
-                        # 僅使用 layer.width（字身寬度）
-                        layer_width = glyph.layers[currentMaster.id].width
-                        maxWidth = max(maxWidth, layer_width)
-                        debug_log(f"字符 '{char}' 的字身寬度: {layer_width}")
+                    if char is not None:  # 只處理非 None 的字符
+                        glyph = get_cached_glyph(Glyphs.font, char)
+                        if glyph and glyph.layers[currentMaster.id]:
+                            # 僅使用 layer.width（字身寬度）
+                            layer_width = glyph.layers[currentMaster.id].width
+                            maxWidth = max(maxWidth, layer_width)
+                            debug_log(f"字符 '{char}' 的字身寬度: {layer_width}")
+                    else:
+                        debug_log("跳過 None 字符的寬度計算")
             
             # 考慮中央字符的寬度
             if Glyphs.font.selectedLayers:
@@ -187,7 +190,7 @@ class NineBoxPreviewView(NSView):
             # 如果沒有有效字符或所有字符寬度為0，則使用 baseWidth
             if maxWidth == 0:
                 maxWidth = baseWidth
-                debug_log(f"無有效字符寬度，使用基準寬度: {baseWidth}")
+                debug_log(f"無有效字符寬度（可能全為空白），使用基準寬度: {baseWidth}")
             
             debug_log(f"計算後的最大寬度 maxWidth: {maxWidth}")
             
@@ -340,14 +343,16 @@ class NineBoxPreviewView(NSView):
                 if hasattr(self, 'plugin') and self.plugin:
                     if hasattr(self.plugin, 'event_handlers') and self.plugin.event_handlers:
                         current_char = self.plugin.event_handlers._get_current_editing_char()
-                        # 如果中心位置不同步，嘗試更新
-                        if (current_char and hasattr(self.plugin, 'currentArrangement') and 
-                            len(self.plugin.currentArrangement) >= 9 and 
-                            self.plugin.currentArrangement[4] != current_char):
-                            debug_log(f"檢測到字符變更: {self.plugin.currentArrangement[4]} -> {current_char}")
-                            # 主動觸發重新生成排列
-                            if hasattr(self.plugin.event_handlers, 'selection_changed'):
-                                self.plugin.event_handlers.selection_changed(None)
+                        # 正確處理 None 值的字符變更檢測
+                        if (hasattr(self.plugin, 'currentArrangement') and 
+                            len(self.plugin.currentArrangement) >= 9):
+                            current_center = self.plugin.currentArrangement[4]
+                            # 只有當字符確實不同時才觸發更新，正確處理 None 值
+                            if current_center != current_char:
+                                debug_log(f"檢測到字符變更: {current_center} -> {current_char}")
+                                # 主動觸發重新生成排列
+                                if hasattr(self.plugin.event_handlers, 'selection_changed'):
+                                    self.plugin.event_handlers.selection_changed(None)
             except Exception as e:
                 debug_log(f"檢查字符變更時出錯: {e}")
                 # 繼續繪製，不中斷流程
@@ -361,7 +366,7 @@ class NineBoxPreviewView(NSView):
                 # 同時更新 view 的屬性（但不觸發重繪，避免遞迴）
                 self._currentArrangement = arrangement
             
-            # 如果仍然沒有排列，生成後備排列
+            # 檢查排列是否有效（長度為9）
             if not arrangement or len(arrangement) != 9:
                 debug_log("沒有有效的9格排列，生成後備排列")
                 if hasattr(self.plugin, 'event_handlers'):
@@ -372,8 +377,8 @@ class NineBoxPreviewView(NSView):
                         # 更新 view 的屬性
                         self._currentArrangement = arrangement
                 
-                # 如果仍然沒有有效排列，使用當前編輯字符填充
-                if not arrangement:
+                # 如果仍然沒有有效排列，才使用後備邏輯
+                if not arrangement or len(arrangement) != 9:
                     current_char = None
                     if Glyphs.font and Glyphs.font.selectedLayers:
                         current_layer = Glyphs.font.selectedLayers[0]
@@ -391,9 +396,18 @@ class NineBoxPreviewView(NSView):
                         current_char = "A"  # 最終後備
                     
                     arrangement = [current_char] * 9
-                    debug_log(f"使用後備排列：{arrangement}")
+                    debug_log(f"使用最終後備排列：{arrangement}")
                     # 更新 view 的屬性
                     self._currentArrangement = arrangement
+            
+            # 檢查是否為有效的空白排列（根據 flow.md 規則 R8, R10, R12）
+            elif arrangement and len(arrangement) == 9:
+                # 檢查是否所有元素都是 None（空白排列）
+                all_none = all(item is None for item in arrangement)
+                if all_none:
+                    debug_log("檢測到有效的空白排列（所有元素為 None），這是符合 flow.md 的正確行為")
+                else:
+                    debug_log(f"檢測到有效的混合排列，包含 {sum(1 for item in arrangement if item is not None)} 個非空元素")
             
             debug_log(f"最終使用排列: {arrangement}")
             
