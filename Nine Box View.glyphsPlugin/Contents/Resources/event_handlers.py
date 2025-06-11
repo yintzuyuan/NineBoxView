@@ -39,8 +39,20 @@ class EventHandlers:
                     debug_log("沒有選擇字符，但在上鎖狀態下有鎖定字符，重新生成排列")
                     self.generate_new_arrangement()
                 
+                # 直接同步當前排列到預覽視圖 (增強型)
+                if (hasattr(self.plugin.windowController, 'previewView') and 
+                    self.plugin.windowController.previewView is not None):
+                    # 同步當前排列到預覽視圖
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        debug_log("update_interface: 同步 currentArrangement 到預覽視圖")
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                    # 同步縮放因子到預覽視圖
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.plugin.windowController.previewView.zoomFactor = self.plugin.zoomFactor
+                
                 # 官方模式：觸發重繪
                 if hasattr(self.plugin.windowController, 'update'):
+                    debug_log("update_interface: 強制觸發重繪")
                     self.plugin.windowController.update()
                 
                 # 更新控制面板 - 一般情況下不更新鎖定輸入框
@@ -63,6 +75,25 @@ class EventHandlers:
             # 重新生成排列以反映當前編輯字符的變更
             debug_log("字符選擇變更，重新生成排列")
             self.generate_new_arrangement()
+            
+            # 確保預覽視圖更新 - 如果主視窗已顯示則直接更新預覽
+            if (hasattr(self.plugin, 'windowController') and 
+                self.plugin.windowController is not None):
+                
+                # 更新 preview view 的屬性設定器 (確保同步)
+                if (hasattr(self.plugin.windowController, 'previewView') and 
+                    self.plugin.windowController.previewView is not None):
+                    # 同步當前排列到預覽視圖
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                        debug_log("已同步 currentArrangement 到預覽視圖")
+                    # 同步縮放因子到預覽視圖
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.plugin.windowController.previewView.zoomFactor = self.plugin.zoomFactor
+                
+                # 官方模式：使用標準更新方法強制重繪
+                self.plugin.windowController.update()
+                debug_log("已強制重繪預覽視圖")
             
             # 更新介面
             self.update_interface(None)
@@ -140,11 +171,23 @@ class EventHandlers:
                 self.plugin.windowController.request_controls_panel_ui_update(update_lock_fields=False)
     
     def update_interface_for_search_field(self, sender):
-        """專為搜尋欄位的更新（官方模式）"""
+        """專為搜尋欄位的更新（官方模式）- 增強型"""
         try:
             if hasattr(self.plugin, 'windowController') and self.plugin.windowController is not None:
+                # 同步資料到預覽視圖
+                if (hasattr(self.plugin.windowController, 'previewView') and 
+                    self.plugin.windowController.previewView is not None):
+                    # 同步當前排列到預覽視圖
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        debug_log("update_interface_for_search_field: 同步 currentArrangement 到預覽視圖")
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                    # 同步縮放因子到預覽視圖
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.plugin.windowController.previewView.zoomFactor = self.plugin.zoomFactor
+                
                 # 官方模式：使用標準更新方法
                 self.plugin.windowController.update()
+                debug_log("update_interface_for_search_field: 已觸發強制重繪")
         except Exception as e:
             error_log("更新搜尋欄位介面錯誤", e)
     

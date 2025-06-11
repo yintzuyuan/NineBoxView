@@ -312,7 +312,7 @@ class NineBoxPreviewView(NSView):
             error_log("繪製字符時發生錯誤", e)
 
     def drawRect_(self, rect):
-        """繪製畫面內容（官方模式）"""
+        """繪製畫面內容（官方模式）- 增強版"""
         try:
             debug_log(f"預覽重繪：{rect.size.width}x{rect.size.height}")
             
@@ -334,6 +334,23 @@ class NineBoxPreviewView(NSView):
             if not currentMaster:
                 debug_log("沒有選擇主板，中止繪製")
                 return
+                
+            # 檢查切換字符 - 如果 plugin 存在且視窗顯示中，嘗試獲取最新數據
+            try:
+                if hasattr(self, 'plugin') and self.plugin:
+                    if hasattr(self.plugin, 'event_handlers') and self.plugin.event_handlers:
+                        current_char = self.plugin.event_handlers._get_current_editing_char()
+                        # 如果中心位置不同步，嘗試更新
+                        if (current_char and hasattr(self.plugin, 'currentArrangement') and 
+                            len(self.plugin.currentArrangement) >= 9 and 
+                            self.plugin.currentArrangement[4] != current_char):
+                            debug_log(f"檢測到字符變更: {self.plugin.currentArrangement[4]} -> {current_char}")
+                            # 主動觸發重新生成排列
+                            if hasattr(self.plugin.event_handlers, 'selection_changed'):
+                                self.plugin.event_handlers.selection_changed(None)
+            except Exception as e:
+                debug_log(f"檢查字符變更時出錯: {e}")
+                # 繼續繪製，不中斷流程
             
             # === 使用屬性設定器的值優先，然後是 plugin 的值 ===
             arrangement = self.currentArrangement

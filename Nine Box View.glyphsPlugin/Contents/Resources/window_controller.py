@@ -487,10 +487,22 @@ class NineBoxWindow(NSWindowController):
             error_log("[階段1.3] 處理視窗關閉錯誤", e)
     
     def update(self):
-        """標準更新方法（遵循官方 CanvasView 模式）"""
+        """標準更新方法（遵循官方 CanvasView 模式）- 增強型"""
         try:
             if hasattr(self, 'previewView') and self.previewView:
+                # 更新屬性設定器 (從 plugin 同步)
+                if hasattr(self, 'plugin'):
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.previewView.currentArrangement = self.plugin.currentArrangement
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.previewView.zoomFactor = self.plugin.zoomFactor
+                
+                # 調用官方更新方法
                 self.previewView.update()
+                
+                # 強制立即重繪 (確保即時反應)
+                self.previewView.setNeedsDisplay_(True)
+                debug_log("window_controller.update: 已觸發強制重繪")
         except Exception as e:
             error_log("更新主預覽錯誤", e)
     
@@ -594,7 +606,16 @@ class NineBoxWindow(NSWindowController):
                 if hasattr(self.plugin, 'zoomFactor'):
                     self.previewView.zoomFactor = self.plugin.zoomFactor
                 
-                debug_log("[官方模式] 已同步資料到預覽畫面的屬性設定器")
+                # 強制立即重繪
+                self.previewView.setNeedsDisplay_(True)
+                
+                debug_log("[官方模式] 已同步資料到預覽畫面的屬性設定器並強制重繪")
+            
+            # 設定一個簡短的延遲，然後再次強制重繪
+            # 這有助於解決某些情況下初始化後畫面仍未更新的問題
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                0.1, self, "delayedForceRedraw:", None, False
+            )
             
             debug_log("[初始化] 完成")
                 
@@ -635,6 +656,23 @@ class NineBoxWindow(NSWindowController):
     def _handleUserDefaultsChange_(self, notification):
         """處理用戶偏好設定變更通知"""
         self._update_settings_button_color()
+    
+    def delayedForceRedraw_(self, timer):
+        """延遲強制重繪（解決初始化問題）"""
+        try:
+            if hasattr(self, 'previewView') and self.previewView:
+                # 再次確保同步最新數據
+                if hasattr(self, 'plugin'):
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.previewView.currentArrangement = self.plugin.currentArrangement
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.previewView.zoomFactor = self.plugin.zoomFactor
+                
+                # 強制重繪
+                self.previewView.setNeedsDisplay_(True)
+                debug_log("delayedForceRedraw_: 執行延遲強制重繪")
+        except Exception as e:
+            error_log("延遲強制重繪時發生錯誤", e)
     
     def dealloc(self):
         """解構式"""
