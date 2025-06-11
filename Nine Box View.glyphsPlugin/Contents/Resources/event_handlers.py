@@ -76,15 +76,18 @@ class EventHandlers:
             error_log("更新介面時發生錯誤", e)
     
     def selection_changed(self, sender):
-        """選擇變更處理"""
+        """選擇變更處理（穩定版：只更新中心格，保持周圍格不變）"""
         try:
             # 清除快取
             if hasattr(self.plugin, 'clear_cache'):
                 self.plugin.clear_cache()
             
-            # 重新生成排列以反映當前編輯字符的變更
-            debug_log("字符選擇變更，重新生成排列")
-            self.generate_new_arrangement()
+            # 獲取新的 activeGlyph
+            new_active_glyph = self._get_current_editing_char()
+            debug_log(f"字符選擇變更，新的 activeGlyph: {new_active_glyph}")
+            
+            # 智慧更新：只更新中心格，保持周圍格穩定
+            self._update_center_position_only(new_active_glyph)
             
             # 確保預覽視圖更新 - 如果主視窗已顯示則直接更新預覽
             if (hasattr(self.plugin, 'windowController') and 
@@ -622,6 +625,65 @@ class EventHandlers:
             arrangement[i] = random.choice(batchChars)
     
     # === 輔助方法 ===
+    
+    def _update_center_position_only(self, new_active_glyph):
+        """只更新中心格，保持周圍格排列穩定
+        
+        Args:
+            new_active_glyph: 新的中央編輯字符
+        """
+        try:
+            # 檢查是否有搜尋欄內容（批量字符）
+            has_batch = bool(getattr(self.plugin, 'selectedChars', []))
+            
+            # 如果搜尋欄包含有效字符，只更新中心格
+            if has_batch:
+                debug_log("[中心更新] 搜尋欄包含有效字符，只更新中心格，保持周圍格穩定")
+                
+                # 確保有 currentArrangement
+                if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                    debug_log("[中心更新] 沒有現有排列，生成新排列")
+                    self.generate_new_arrangement()
+                    return
+                
+                # 確保 currentArrangement 是可變列表且長度正確
+                current_arr = list(self.plugin.currentArrangement)
+                
+                # 確保排列長度是9格
+                while len(current_arr) < FULL_ARRANGEMENT_SIZE:
+                    current_arr.append(None)
+                
+                # 檢查中心格是否被鎖定
+                if CENTER_POSITION in getattr(self.plugin, 'lockedChars', {}):
+                    debug_log("[中心更新] 中心格被鎖定，保持不變")
+                else:
+                    # 只更新中心位置（位置4）
+                    if new_active_glyph is not None:
+                        current_arr[CENTER_POSITION] = new_active_glyph
+                        debug_log(f"[中心更新] 中心格更新為: {new_active_glyph}")
+                    else:
+                        # 沒有 activeGlyph，從批量字符中選擇
+                        current_arr[CENTER_POSITION] = random.choice(self.plugin.selectedChars)
+                        debug_log(f"[中心更新] 中心格更新為隨機批量字符: {current_arr[CENTER_POSITION]}")
+                
+                # 更新 currentArrangement
+                self.plugin.currentArrangement = current_arr
+                
+                # 儲存變更
+                self.plugin.savePreferences()
+                
+                debug_log(f"[中心更新] 完成（穩定模式），當前排列: {self.plugin.currentArrangement}")
+                
+            else:
+                # 沒有搜尋欄內容，使用原始的完全重新生成邏輯
+                debug_log("[中心更新] 搜尋欄為空，重新生成完整排列")
+                self.generate_new_arrangement()
+            
+        except Exception as e:
+            error_log("[中心更新] 更新中心位置時發生錯誤", e)
+            # 如果發生錯誤，回退到完全重新生成
+            debug_log("[中心更新] 錯誤回退：重新生成完整排列")
+            self.generate_new_arrangement()
     
     def _update_single_position(self, position, input_text):
         """
