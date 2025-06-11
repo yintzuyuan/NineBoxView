@@ -23,43 +23,53 @@ class EventHandlers:
     # === 介面更新 ===
     
     def update_interface(self, sender):
-        """更新介面（官方模式）"""
+        """更新介面（官方模式 + 批次處理最佳化）"""
         try:
             # 避免重複更新
             if self.plugin._update_scheduled:
                 return
             
             if hasattr(self.plugin, 'windowController') and self.plugin.windowController is not None:
-                # 批次更新
-                self.plugin._update_scheduled = True
+                # 使用官方 API 的批次處理機制
+                font = Glyphs.font
+                if font:
+                    font.disableUpdateInterface()
                 
-                # 特殊情況處理：沒有選擇字符但有鎖定字符
-                if (not self.plugin.selectedChars and hasattr(self.plugin, 'lockedChars') and 
-                    self.plugin.lockedChars and not self._get_lock_state()):
-                    debug_log("沒有選擇字符，但在上鎖狀態下有鎖定字符，重新生成排列")
-                    self.generate_new_arrangement()
-                
-                # 直接同步當前排列到預覽視圖 (增強型)
-                if (hasattr(self.plugin.windowController, 'previewView') and 
-                    self.plugin.windowController.previewView is not None):
-                    # 同步當前排列到預覽視圖
-                    if hasattr(self.plugin, 'currentArrangement'):
-                        debug_log("update_interface: 同步 currentArrangement 到預覽視圖")
-                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
-                    # 同步縮放因子到預覽視圖
-                    if hasattr(self.plugin, 'zoomFactor'):
-                        self.plugin.windowController.previewView.zoomFactor = self.plugin.zoomFactor
-                
-                # 官方模式：觸發重繪
-                if hasattr(self.plugin.windowController, 'update'):
-                    debug_log("update_interface: 強制觸發重繪")
-                    self.plugin.windowController.update()
-                
-                # 更新控制面板 - 一般情況下不更新鎖定輸入框
-                if hasattr(self.plugin.windowController, 'request_controls_panel_ui_update'):
-                    self.plugin.windowController.request_controls_panel_ui_update(update_lock_fields=False)
+                try:
+                    # 批次更新標記
+                    self.plugin._update_scheduled = True
                     
-                self.plugin._update_scheduled = False
+                    # 特殊情況處理：沒有選擇字符但有鎖定字符
+                    if (not self.plugin.selectedChars and hasattr(self.plugin, 'lockedChars') and 
+                        self.plugin.lockedChars and not self._get_lock_state()):
+                        debug_log("沒有選擇字符，但在上鎖狀態下有鎖定字符，重新生成排列")
+                        self.generate_new_arrangement()
+                    
+                    # 直接同步當前排列到預覽視圖 (增強型)
+                    if (hasattr(self.plugin.windowController, 'previewView') and 
+                        self.plugin.windowController.previewView is not None):
+                        # 同步當前排列到預覽視圖
+                        if hasattr(self.plugin, 'currentArrangement'):
+                            debug_log("update_interface: 同步 currentArrangement 到預覽視圖")
+                            self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                        # 同步縮放因子到預覽視圖
+                        if hasattr(self.plugin, 'zoomFactor'):
+                            self.plugin.windowController.previewView.zoomFactor = self.plugin.zoomFactor
+                    
+                    # 官方模式：觸發重繪
+                    if hasattr(self.plugin.windowController, 'update'):
+                        debug_log("update_interface: 強制觸發重繪")
+                        self.plugin.windowController.update()
+                    
+                    # 更新控制面板 - 一般情況下不更新鎖定輸入框
+                    if hasattr(self.plugin.windowController, 'request_controls_panel_ui_update'):
+                        self.plugin.windowController.request_controls_panel_ui_update(update_lock_fields=False)
+                        
+                finally:
+                    # 確保重新啟用介面更新和重置標記
+                    if font:
+                        font.enableUpdateInterface()
+                    self.plugin._update_scheduled = False
                 
         except Exception as e:
             self.plugin._update_scheduled = False
@@ -690,28 +700,46 @@ class EventHandlers:
             error_log("[單一更新] 更新單個位置時發生錯誤", e)
     
     def _get_current_editing_char(self):
-        """取得目前正在編輯的字符（改進版，返回 None 表示無 activeGlyph）"""
+        """取得目前正在編輯的字符（官方 API 最佳化版本）"""
         try:
-            if Glyphs.font and Glyphs.font.selectedLayers:
-                current_layer = Glyphs.font.selectedLayers[0]
-                if current_layer and current_layer.parent:
-                    current_glyph = current_layer.parent
-                    # 優先返回 Unicode 字符
-                    if current_glyph.unicode:
-                        try:
-                            char = chr(int(current_glyph.unicode, 16))
-                            debug_log(f"取得 activeGlyph (Unicode): '{char}' ({current_glyph.unicode})")
-                            return char
-                        except:
-                            pass
-                    # 其次返回字符名稱
-                    if current_glyph.name:
-                        debug_log(f"取得 activeGlyph (Name): '{current_glyph.name}'")
-                        return current_glyph.name
+            # 使用官方 API 獲取當前字型和選中的圖層
+            font = Glyphs.font
+            if not font:
+                debug_log("無開啟的字型檔案")
+                return None
+                
+            selected_layers = font.selectedLayers
+            if not selected_layers:
+                debug_log("無選中的圖層")
+                return None
+                
+            # 獲取第一個選中的圖層
+            current_layer = selected_layers[0]
+            if not current_layer or not current_layer.parent:
+                debug_log("無效的圖層或字符")
+                return None
+                
+            current_glyph = current_layer.parent
+            
+            # 使用官方 API 屬性獲取字符資訊
+            # 優先返回 Unicode 字符（官方推薦方式）
+            if hasattr(current_glyph, 'unicode') and current_glyph.unicode:
+                try:
+                    char = chr(int(current_glyph.unicode, 16))
+                    debug_log(f"取得 activeGlyph (Unicode): '{char}' ({current_glyph.unicode})")
+                    return char
+                except (ValueError, OverflowError) as e:
+                    debug_log(f"Unicode 轉換失敗: {current_glyph.unicode}, 錯誤: {e}")
+                    
+            # 其次返回字符名稱（官方備選方式）
+            if hasattr(current_glyph, 'name') and current_glyph.name:
+                debug_log(f"取得 activeGlyph (Name): '{current_glyph.name}'")
+                return current_glyph.name
+                
         except Exception as e:
             debug_log(f"取得 activeGlyph 時發生錯誤: {e}")
         
-        # 沒有有效的編輯字符時返回 None
+        # 沒有有效的編輯字符時返回 None（符合 flow.md 規範）
         debug_log("無 activeGlyph")
         return None
     

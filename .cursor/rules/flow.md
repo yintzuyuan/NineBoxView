@@ -81,7 +81,8 @@ else (N)
                     2. 周圍格: 從 batchChars 隨機;
                 else (N)
                     :結果:
-                    所有九格皆為空白;
+                    1. 中心: 空白
+                    2. 周圍格: 空白;
                 endif
             endif
         else (N / 解鎖)
@@ -91,7 +92,8 @@ else (N)
                 2. 周圍格: 從 batchChars 隨機;
             else (N)
                 :結果:
-                所有九格皆為空白;
+                1. 中心: 空白
+                2. 周圍格: 空白;
             endif
         endif
     }

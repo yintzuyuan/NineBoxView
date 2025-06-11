@@ -26,10 +26,27 @@ _glyph_cache = {}
 _width_cache = {}
 
 def clear_cache():
-    """清除快取"""
+    """清除快取（包含官方和傳統快取）"""
     global _glyph_cache, _width_cache
+    
+    # 清除傳統快取
     _glyph_cache.clear()
     _width_cache.clear()
+    
+    # 清除官方字型快取（如果可用）
+    try:
+        font = Glyphs.font
+        if font and hasattr(font, 'tempData'):
+            # 清除字符快取
+            keys_to_remove = [key for key in font.tempData.keys() if key.startswith('glyph_cache_')]
+            for key in keys_to_remove:
+                del font.tempData[key]
+            
+            debug_log(f"已清除 {len(keys_to_remove)} 個官方字符快取項目")
+    except Exception as e:
+        debug_log(f"清除官方快取時發生錯誤: {e}")
+    
+    debug_log("已清除所有快取")
 
 # === 記錄相關 ===
 
@@ -303,10 +320,10 @@ def save_preferences(plugin):
 # === 字符處理 ===
 
 def get_cached_glyph(font, char_or_name):
-    """從快取或字型取得字符（最佳化版）
+    """從快取或字型取得字符（官方 API 最佳化版本）
     
     Args:
-        font: 字型物件
+        font: GSFont 字型物件
         char_or_name: 字符或字符名稱
         
     Returns:
@@ -315,50 +332,106 @@ def get_cached_glyph(font, char_or_name):
     if not font or not char_or_name:
         return None
     
-    # 檢查快取
-    cache_key = (id(font), char_or_name)
-    if CACHE_ENABLED and cache_key in _glyph_cache:
-        return _glyph_cache[cache_key]
+    # 使用官方 API 的安全快取機制
+    # 優先使用 font.tempData 進行快取（官方推薦）
+    cache_key = f"glyph_cache_{char_or_name}"
     
-    # 嘗試取得字符
-    glyph = None
+    # 檢查官方臨時快取
+    if CACHE_ENABLED and hasattr(font, 'tempData') and cache_key in font.tempData:
+        return font.tempData[cache_key]
     
-    # 最佳化：使用 Glyphs 內建的快速查找方法
+    # 如果官方快取不可用，使用傳統快取
+    fallback_cache_key = (id(font), char_or_name)
+    if CACHE_ENABLED and fallback_cache_key in _glyph_cache:
+        return _glyph_cache[fallback_cache_key]
+    
+    # 使用官方 API 查找字符
+    glyph = _find_glyph_with_official_api(font, char_or_name)
+    
+    # 存入快取
+    if glyph and CACHE_ENABLED:
+        # 優先存入官方快取
+        if hasattr(font, 'tempData'):
+            font.tempData[cache_key] = glyph
+        else:
+            # 備用快取
+            _glyph_cache[fallback_cache_key] = glyph
+    
+    return glyph
+
+
+def _find_glyph_with_official_api(font, char_or_name):
+    """使用官方 API 查找字符的內部函數
+    
+    Args:
+        font: GSFont 字型物件
+        char_or_name: 字符或字符名稱
+        
+    Returns:
+        GSGlyph 物件或 None
+    """
+    if not font or not char_or_name:
+        return None
+    
     try:
-        # 1. 直接通過 glyphs 字典存取（最快）
+        # 1. 使用官方推薦的字典訪問方式（最快速的方法）
+        # 根據 GSFont API 文檔，這是查找字符的首選方法
         glyph = font.glyphs[char_or_name]
         if glyph:
-            if CACHE_ENABLED:
-                _glyph_cache[cache_key] = glyph
+            debug_log(f"透過字典訪問找到字符: {char_or_name}")
             return glyph
-    except:
+    except (KeyError, TypeError):
+        # 正常的查找失敗，繼續嘗試其他方法
         pass
+    except Exception as e:
+        debug_log(f"字典訪問時發生未預期錯誤: {e}")
     
-    # 2. 如果是單一字符，嘗試通過 Unicode
+    # 2. 如果是單字符，嘗試 Unicode 十六進制查找
     if len(char_or_name) == 1:
         try:
-            unicode_val = format(ord(char_or_name), '04X')
-            glyph = font.glyphs[unicode_val]
+            unicode_hex = format(ord(char_or_name), '04X')
+            glyph = font.glyphs[unicode_hex]
             if glyph:
-                if CACHE_ENABLED:
-                    _glyph_cache[cache_key] = glyph
+                debug_log(f"透過 Unicode 找到字符: {char_or_name} -> {unicode_hex}")
                 return glyph
-        except:
+        except (KeyError, ValueError, TypeError):
             pass
+        except Exception as e:
+            debug_log(f"Unicode 查找時發生錯誤: {e}")
     
-    # 3. 嘗試用 glyphForName（Nice Name）
+    # 3. 使用官方 glyphForName_ 方法（支援 Nice Names）
     try:
-        glyph = font.glyphForName_(char_or_name)
-        if glyph:
-            if CACHE_ENABLED:
-                _glyph_cache[cache_key] = glyph
-            return glyph
-    except:
-        pass
+        if hasattr(font, 'glyphForName_'):
+            glyph = font.glyphForName_(char_or_name)
+            if glyph:
+                debug_log(f"透過 glyphForName_ 找到字符: {char_or_name}")
+                return glyph
+    except Exception as e:
+        debug_log(f"glyphForName_ 查找時發生錯誤: {e}")
     
-    # 移除遍歷所有字符的部分，這在大型字型中會造成嚴重效能問題
-    # 如果上述方法都找不到，就回傳 None
+    # 4. 嘗試 Unicode 字符值的其他格式
+    if len(char_or_name) == 1:
+        try:
+            # 嘗試不同的 Unicode 格式
+            unicode_variants = [
+                format(ord(char_or_name), 'X'),      # 不補零的十六進制
+                format(ord(char_or_name), '04x'),    # 小寫
+                format(ord(char_or_name), '08X'),    # 8位數大寫
+            ]
+            
+            for variant in unicode_variants:
+                try:
+                    glyph = font.glyphs[variant]
+                    if glyph:
+                        debug_log(f"透過 Unicode 變體找到字符: {char_or_name} -> {variant}")
+                        return glyph
+                except:
+                    continue
+        except Exception as e:
+            debug_log(f"Unicode 變體查找時發生錯誤: {e}")
     
+    # 未找到字符
+    debug_log(f"無法找到字符: {char_or_name}")
     return None
 
 def get_cached_width(layer):
