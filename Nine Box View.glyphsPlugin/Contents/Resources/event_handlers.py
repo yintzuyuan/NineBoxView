@@ -240,23 +240,8 @@ class EventHandlers:
                 # 驗證字符是否存在於當前字型中
                 if not get_cached_glyph(Glyphs.font, recognized_char):
                     debug_log(f"[智慧鎖定] 字符 '{input_text}' -> '{recognized_char}' 不存在於當前字型中")
-                    debug_log("[智慧鎖定] 無效字符：完全不保存到 lockedChars，符合 flow.md")
-                    
-                    # 從 lockedChars 中移除此位置（如果存在）
-                    if position in self.plugin.lockedChars:
-                        del self.plugin.lockedChars[position]
-                        arrangement_changed = True
-                        debug_log(f"[智慧鎖定] 移除位置 {position} 的無效鎖定")
-                        self.plugin.savePreferences()
-                        
-                        # 觸發清除該位置的預覽更新
-                        try:
-                            self._update_single_position(position, "")  # 清空該位置
-                            self.update_interface(None)
-                        except Exception as e:
-                            error_log("[智慧鎖定] 清除無效字符位置時發生錯誤", e)
-                    
-                    return  # 直接返回，不進行任何保存或更新
+                    debug_log("[智慧鎖定] 🔒 上鎖模式 - 無效字符：完全忽略，不進行任何處理")
+                    return  # 直接返回，完全忽略無效字符，不進行任何處理
                 
                 # 字符有效，檢查是否有變更
                 if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
