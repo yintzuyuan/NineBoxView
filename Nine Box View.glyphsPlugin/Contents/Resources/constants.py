@@ -26,6 +26,7 @@ LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.lockedChars"
 PREVIOUS_LOCKED_CHARS_KEY = f"{PLUGIN_ID_PREFIX}.previousLockedChars"
 LOCK_MODE_KEY = f"{PLUGIN_ID_PREFIX}.lockMode"  # 鎖頭狀態（True=解鎖，False=上鎖）
 ORIGINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.originalArrangement"  # 儲存原始隨機排列
+FINAL_ARRANGEMENT_KEY = f"{PLUGIN_ID_PREFIX}.finalArrangement"  # 儲存關閉前的最終狀態
 
 # 畫面尺寸常數
 DEFAULT_WINDOW_SIZE = (300, 340)

@@ -456,6 +456,13 @@ class NineBoxWindow(NSWindowController):
         try:
             debug_log("[階段1.3] 主視窗即將關閉")
             
+            # === 保存最終顯示狀態 ===
+            if hasattr(self, 'plugin') and self.plugin:
+                # 保存當前排列為最終狀態
+                if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                    self.plugin.finalArrangement = list(self.plugin.currentArrangement)
+                    debug_log(f"[關閉保存] 保存最終狀態: {self.plugin.finalArrangement}")
+            
             # 儲存狀態到外掛程式對象
             if hasattr(self, 'plugin'):
                 self.plugin.controlsPanelVisible = self.controlsPanelVisible

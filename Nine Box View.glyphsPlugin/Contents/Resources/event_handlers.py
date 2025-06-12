@@ -12,7 +12,6 @@ from AppKit import NSTextField
 from constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
 from utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph
 
-
 class EventHandlers:
     """集中管理所有事件處理邏輯"""
     
@@ -207,13 +206,18 @@ class EventHandlers:
     # === 鎖定字符相關 ===
     
     def smart_lock_character_callback(self, sender):
-        """智慧鎖定字符回呼（資料處理與即時更新）"""
+        """智慧鎖定字符回呼（符合 flow.md 邏輯的有效字符驗證版）"""
         try:
             if not Glyphs.font:
                 return
             
             # 取得鎖定狀態
             is_in_clear_mode = self._get_lock_state()
+            
+            # === 解鎖模式下完全忽略鎖定框輸入，符合 flow.md ===
+            if is_in_clear_mode:
+                debug_log("[智慧鎖定] 🔓 解鎖模式：鎖定框輸入不影響預覽，符合 flow.md")
+                return
             
             if not hasattr(self.plugin, 'lockedChars'):
                 self.plugin.lockedChars = {}
@@ -229,53 +233,58 @@ class EventHandlers:
                     arrangement_changed = True
                     debug_log(f"[智慧鎖定] 清除位置 {position} 的鎖定")
             else:
-                # 智慧辨識
+                # === 嚴格的有效字符驗證（符合 flow.md）===
+                # 先進行智慧辨識
                 recognized_char = self._recognize_character(input_text)
                 
-                # 檢查是否有變更
+                # 驗證字符是否存在於當前字型中
+                if not get_cached_glyph(Glyphs.font, recognized_char):
+                    debug_log(f"[智慧鎖定] 字符 '{input_text}' -> '{recognized_char}' 不存在於當前字型中")
+                    debug_log("[智慧鎖定] 無效字符：完全不保存到 lockedChars，符合 flow.md")
+                    
+                    # 從 lockedChars 中移除此位置（如果存在）
+                    if position in self.plugin.lockedChars:
+                        del self.plugin.lockedChars[position]
+                        arrangement_changed = True
+                        debug_log(f"[智慧鎖定] 移除位置 {position} 的無效鎖定")
+                        self.plugin.savePreferences()
+                        
+                        # 觸發清除該位置的預覽更新
+                        try:
+                            self._update_single_position(position, "")  # 清空該位置
+                            self.update_interface(None)
+                        except Exception as e:
+                            error_log("[智慧鎖定] 清除無效字符位置時發生錯誤", e)
+                    
+                    return  # 直接返回，不進行任何保存或更新
+                
+                # 字符有效，檢查是否有變更
                 if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
                     self.plugin.lockedChars[position] = recognized_char
                     arrangement_changed = True
-                    debug_log(f"[智慧鎖定] 位置 {position} 設定為: {recognized_char}")
+                    debug_log(f"[智慧鎖定] 位置 {position} 設定為有效字符: {recognized_char}")
             
-            # 有變更時更新
+            # 只有在上鎖模式且有變更時才更新
             if arrangement_changed:
                 self.plugin.savePreferences()
-                debug_log("[智慧鎖定] 已保存更改到偏好設定")
+                debug_log("[智慧鎖定] 🔒 上鎖狀態 - 更新預覽")
                 
-                # 根據當前狀態決定更新方式
-                if not is_in_clear_mode:
-                    debug_log("[智慧鎖定] 🔒 上鎖狀態 - 更新預覽")
-                    try:
-                        # 更新指定位置的字符
-                        self._update_single_position(position, input_text)
-                        
-                        # 官方模式：更新 preview view 的屬性設定器
-                        if (hasattr(self.plugin, 'windowController') and 
-                            self.plugin.windowController and
-                            hasattr(self.plugin.windowController, 'previewView')):
-                            debug_log("[智慧鎖定] 更新 currentArrangement 屬性")
-                            self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
-                        
-                        # 更新介面
-                        self.update_interface(None)
-                        
-                    except Exception as e:
-                        error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
-                else:
-                    debug_log("[智慧鎖定] 🔓 解鎖狀態")
-                    # 在解鎖狀態下，檢查是否需要更新當前字符排列
-                    if not (hasattr(self.plugin, 'lastInput') and self.plugin.lastInput):
-                        debug_log("[智慧鎖定] 搜索框為空，更新當前排列")
-                        current_char = self._get_current_editing_char()
-                        if hasattr(self.plugin, 'currentArrangement'):
-                            self.plugin.currentArrangement = [current_char] * FULL_ARRANGEMENT_SIZE
-                            # 官方模式：更新 preview view 的屬性設定器
-                            if (hasattr(self.plugin, 'windowController') and 
-                                self.plugin.windowController and
-                                hasattr(self.plugin.windowController, 'previewView')):
-                                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
-                
+                try:
+                    # 更新指定位置的字符
+                    self._update_single_position(position, input_text)
+                    
+                    # 官方模式：更新 preview view 的屬性設定器
+                    if (hasattr(self.plugin, 'windowController') and 
+                        self.plugin.windowController and
+                        hasattr(self.plugin.windowController, 'previewView')):
+                        debug_log("[智慧鎖定] 更新 currentArrangement 屬性")
+                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                    
+                    # 更新介面
+                    self.update_interface(None)
+                    
+                except Exception as e:
+                    error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
             else:
                 debug_log("[智慧鎖定] 無變更，跳過更新")
         
@@ -450,7 +459,14 @@ class EventHandlers:
     # === 字符排列生成 ===
     
     def generate_new_arrangement(self):
-        """生成新的字符排列（9格版本，遵循 flow.md 邏輯）"""
+        """生成新的字符排列（9格版本，遵循 flow.md 邏輯）
+        
+        注意：此方法會完整重新生成排列，包括隨機化其餘格
+        只應在以下情況使用：
+        1. 搜尋欄位變更（批量輸入框變更）
+        2. 用戶點擊隨機按鈕
+        3. 初始化載入
+        """
         try:
             debug_log("開始生成新的9格排列")
             
@@ -548,9 +564,9 @@ class EventHandlers:
                 self._fill_surrounding_with_batch(arrangement, batchChars)
                 debug_log("R5: activeGlyph + 解鎖 + 有batch")
             else:  # 無批量輸入
-                # R13: 中心: activeGlyph, 周圍格: activeGlyph
+                # R6: 中心: activeGlyph, 周圍格: activeGlyph
                 arrangement = [activeGlyph] * FULL_ARRANGEMENT_SIZE
-                debug_log("R13: activeGlyph + 解鎖 + 無batch")
+                debug_log("R6: activeGlyph + 解鎖 + 無batch")
         
         return arrangement
     
@@ -592,6 +608,224 @@ class EventHandlers:
                 debug_log("R12: 無activeGlyph + 解鎖 + 無batch")
         
         return arrangement
+    
+    # === 細粒度更新方法（符合 flow.md 邏輯）===
+    
+    def update_lock_mode_display(self):
+        """更新鎖定模式顯示邏輯（不觸發隨機排列）
+        
+        根據 flow.md 步驟2：只影響鎖定格的顯示/隱藏，不影響其餘格的隨機排列
+        """
+        try:
+            debug_log("[細粒度更新] 更新鎖定模式顯示邏輯")
+            
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[細粒度更新] 無現有排列，需要完整初始化")
+                self.generate_new_arrangement()
+                return
+            
+            # 確保 currentArrangement 是可變列表且長度正確
+            current_arr = list(self.plugin.currentArrangement)
+            while len(current_arr) < FULL_ARRANGEMENT_SIZE:
+                current_arr.append(None)
+            
+            # 取得當前狀態
+            is_in_clear_mode = self._get_lock_state()
+            lockedChars = getattr(self.plugin, 'lockedChars', {})
+            
+            debug_log(f"[細粒度更新] 鎖定模式: {'🔓 解鎖' if is_in_clear_mode else '🔒 上鎖'}")
+            debug_log(f"[細粒度更新] 鎖定字符: {lockedChars}")
+            
+            if is_in_clear_mode:
+                # 解鎖模式：鎖定格恢復為其他邏輯決定的內容
+                debug_log("[細粒度更新] 解鎖模式：清除鎖定格內容")
+                self._restore_non_locked_content(current_arr, lockedChars.keys())
+            else:
+                # 上鎖模式：應用鎖定字符到對應位置
+                debug_log("[細粒度更新] 上鎖模式：應用鎖定字符")
+                self._apply_locked_chars(current_arr, lockedChars)
+            
+            # 更新排列
+            self.plugin.currentArrangement = current_arr
+            self.plugin.savePreferences()
+            
+            # 更新預覽
+            self._update_preview_only()
+            
+            debug_log(f"[細粒度更新] 完成，最終排列: {self.plugin.currentArrangement}")
+            
+        except Exception as e:
+            error_log("[細粒度更新] 更新鎖定模式顯示時發生錯誤", e)
+    
+    def clear_locked_positions(self):
+        """清除鎖定位置（不觸發隨機排列）
+        
+        根據 flow.md 步驟3：只影響鎖定格內容，不影響其餘格的隨機排列
+        """
+        try:
+            debug_log("[細粒度更新] 清除鎖定位置")
+            
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[細粒度更新] 無現有排列，跳過清除")
+                return
+            
+            # 記錄要清除的位置
+            positions_to_clear = list(getattr(self.plugin, 'lockedChars', {}).keys())
+            debug_log(f"[細粒度更新] 要清除的位置: {positions_to_clear}")
+            
+            # 清除 lockedChars
+            if hasattr(self.plugin, 'lockedChars'):
+                self.plugin.lockedChars.clear()
+            
+            # 確保 currentArrangement 是可變列表
+            current_arr = list(self.plugin.currentArrangement)
+            
+            # 恢復被清除位置的內容
+            self._restore_non_locked_content(current_arr, positions_to_clear)
+            
+            # 更新排列
+            self.plugin.currentArrangement = current_arr
+            self.plugin.savePreferences()
+            
+            # 更新預覽
+            self._update_preview_only()
+            
+            debug_log(f"[細粒度更新] 清除完成，最終排列: {self.plugin.currentArrangement}")
+            
+        except Exception as e:
+            error_log("[細粒度更新] 清除鎖定位置時發生錯誤", e)
+    
+    def update_center_position(self, new_active_glyph):
+        """只更新中心格（不觸發隨機排列）
+        
+        根據 flow.md 步驟1：只影響中心格，不影響其餘格
+        """
+        try:
+            debug_log(f"[細粒度更新] 更新中心格為: {new_active_glyph}")
+            
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[細粒度更新] 無現有排列，生成新排列")
+                self.generate_new_arrangement()
+                return
+            
+            # 確保 currentArrangement 是可變列表且長度正確
+            current_arr = list(self.plugin.currentArrangement)
+            while len(current_arr) < FULL_ARRANGEMENT_SIZE:
+                current_arr.append(None)
+            
+            # 檢查中心格是否被鎖定
+            if CENTER_POSITION in getattr(self.plugin, 'lockedChars', {}):
+                debug_log("[細粒度更新] 中心格被鎖定，保持不變")
+                return
+            
+            # 更新中心位置
+            if new_active_glyph is not None:
+                current_arr[CENTER_POSITION] = new_active_glyph
+                debug_log(f"[細粒度更新] 中心格更新為: {new_active_glyph}")
+            
+            # 更新排列
+            self.plugin.currentArrangement = current_arr
+            self.plugin.savePreferences()
+            
+            # 更新預覽
+            self._update_preview_only()
+            
+            debug_log(f"[細粒度更新] 中心格更新完成")
+            
+        except Exception as e:
+            error_log("[細粒度更新] 更新中心格時發生錯誤", e)
+    
+    def update_locked_position(self, position, char):
+        """更新單個鎖定位置（不觸發隨機排列）
+        
+        Args:
+            position: 要更新的位置 (0-8)
+            char: 要設定的字符
+        """
+        try:
+            debug_log(f"[細粒度更新] 更新鎖定位置 {position} 為: {char}")
+            
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[細粒度更新] 無現有排列，生成新排列")
+                self.generate_new_arrangement()
+                return
+            
+            # 確保 currentArrangement 是可變列表且長度正確
+            current_arr = list(self.plugin.currentArrangement)
+            while len(current_arr) < FULL_ARRANGEMENT_SIZE:
+                current_arr.append(None)
+            
+            # 檢查是否在上鎖模式
+            is_in_clear_mode = self._get_lock_state()
+            if is_in_clear_mode:
+                debug_log("[細粒度更新] 解鎖模式下，鎖定位置不影響預覽")
+                return
+            
+            # 更新指定位置
+            if 0 <= position < FULL_ARRANGEMENT_SIZE:
+                current_arr[position] = char
+                debug_log(f"[細粒度更新] 位置 {position} 更新為: {char}")
+            
+            # 更新排列
+            self.plugin.currentArrangement = current_arr
+            self.plugin.savePreferences()
+            
+            # 更新預覽
+            self._update_preview_only()
+            
+            debug_log(f"[細粒度更新] 鎖定位置更新完成")
+            
+        except Exception as e:
+            error_log("[細粒度更新] 更新鎖定位置時發生錯誤", e)
+    
+    def _restore_non_locked_content(self, arrangement, positions):
+        """恢復非鎖定位置的內容
+        
+        Args:
+            arrangement: 當前排列（可變列表）
+            positions: 要恢復的位置列表
+        """
+        try:
+            # 優先使用原始排列
+            if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
+                for pos in positions:
+                    if pos < len(self.plugin.originalArrangement) and pos < len(arrangement):
+                        arrangement[pos] = self.plugin.originalArrangement[pos]
+                        debug_log(f"[恢復內容] 位置 {pos} 恢復為原始字符: {arrangement[pos]}")
+                return
+            
+            # 使用批量字符或當前字符填充
+            if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
+                for pos in positions:
+                    if pos < len(arrangement):
+                        replacement_char = random.choice(self.plugin.selectedChars)
+                        arrangement[pos] = replacement_char
+                        debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
+            else:
+                current_char = self._get_current_editing_char()
+                for pos in positions:
+                    if pos < len(arrangement):
+                        arrangement[pos] = current_char
+                        debug_log(f"[恢復內容] 位置 {pos} 使用當前字符: {current_char}")
+                        
+        except Exception as e:
+            error_log("[恢復內容] 恢復非鎖定內容時發生錯誤", e)
+    
+    def _update_preview_only(self):
+        """只更新預覽，不觸發其他邏輯（強制重繪版）"""
+        try:
+            if (hasattr(self.plugin, 'windowController') and 
+                self.plugin.windowController and
+                hasattr(self.plugin.windowController, 'previewView')):
+                # 同步排列到預覽視圖
+                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
+                debug_log("[預覽更新] 已同步 currentArrangement 到預覽視圖")
+                
+                # === 強制觸發重繪，確保主視窗立即更新 ===
+                self.plugin.windowController.update()
+                debug_log("[預覽更新] 已強制觸發主視窗重繪")
+        except Exception as e:
+            error_log("[預覽更新] 更新預覽時發生錯誤", e)
     
     # === 9格填充輔助方法 ===
     
@@ -690,14 +924,14 @@ class EventHandlers:
         更新單個位置的字符，而不重新生成整個排列
         
         Args:
-            position: 要更新的位置 (0-7)
+            position: 要更新的位置 (0-8，但排除中心位置4)
             input_text: 輸入的文字
         """
         import random  # 確保在函數開頭就匯入 random 模組
         
         try:
             # 確保有 currentArrangement
-            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement or len(self.plugin.currentArrangement) != 8:
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement or len(self.plugin.currentArrangement) != FULL_ARRANGEMENT_SIZE:
                 # 如果沒有目前排列，需要生成一個基礎排列
                 debug_log("[單一更新] currentArrangement 不存在或長度不對，重新生成。")
                 source_for_init = list(self.plugin.selectedChars) if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars else []
@@ -709,7 +943,7 @@ class EventHandlers:
                 
                 self.plugin.currentArrangement = generate_arrangement(
                     source_for_init,
-                    locked_map_for_init, 8
+                    locked_map_for_init, FULL_ARRANGEMENT_SIZE
                 )
             
             # 建立 currentArrangement 的可變複本
@@ -720,7 +954,7 @@ class EventHandlers:
                 current_arr = []
             
             # 確保排列有足夠的長度
-            while len(current_arr) < 8:
+            while len(current_arr) < FULL_ARRANGEMENT_SIZE:
                 if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
                     current_arr.append(random.choice(self.plugin.selectedChars))
                 else:

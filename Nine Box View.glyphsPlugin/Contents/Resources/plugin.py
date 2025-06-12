@@ -51,7 +51,7 @@ try:
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
-                ORIGINAL_ARRANGEMENT_KEY,
+                ORIGINAL_ARRANGEMENT_KEY, FINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
                 DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
             )
@@ -100,6 +100,7 @@ try:
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.LOCK_MODE_KEY = LOCK_MODE_KEY
             self.ORIGINAL_ARRANGEMENT_KEY = ORIGINAL_ARRANGEMENT_KEY
+            self.FINAL_ARRANGEMENT_KEY = FINAL_ARRANGEMENT_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             self.DEFAULT_WINDOW_SIZE = DEFAULT_WINDOW_SIZE
@@ -112,6 +113,7 @@ try:
             self.selectedChars = []
             self.currentArrangement = []
             self.originalArrangement = []  # 儲存原始隨機排列
+            self.finalArrangement = []  # 儲存關閉前的最終狀態
             self.windowController = None
             self.previousLockedChars = {}
             self.controlsPanelVisible = False
@@ -184,10 +186,13 @@ try:
                         self.debug_log("[切換視窗] 強制更新控制面板 UI")
                         self.windowController.controlsPanelView.update_ui(self, update_lock_fields=True)
                     
-                    # 重新生成排列以確保一致性
-                    if hasattr(self, 'event_handlers') and hasattr(self.event_handlers, 'generate_new_arrangement'):
-                        self.debug_log("[切換視窗] 重新生成字符排列")
-                        self.event_handlers.generate_new_arrangement()
+                    # 確保預覽視圖顯示最新狀態（不觸發隨機排列）
+                    if (hasattr(self, 'event_handlers') and 
+                        hasattr(self.windowController, 'previewView') and
+                        self.windowController.previewView and
+                        hasattr(self, 'currentArrangement')):
+                        self.debug_log("[切換視窗] 同步現有排列到預覽視圖")
+                        self.windowController.previewView.currentArrangement = self.currentArrangement
                 
                 # 確保視窗控制器有效後再顯示視窗
                 if self.windowController is not None:

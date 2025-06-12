@@ -15,7 +15,7 @@ from constants import (
     LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY, WINDOW_SIZE_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
-    ORIGINAL_ARRANGEMENT_KEY,
+    ORIGINAL_ARRANGEMENT_KEY, FINAL_ARRANGEMENT_KEY,
     DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, LEGACY_ARRANGEMENT_SIZE
 )
 
@@ -97,11 +97,25 @@ def load_preferences(plugin):
         plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
         
         # 載入排列並處理向前相容性
+        # 載入順序：finalArrangement > currentArrangement > originalArrangement
+        loaded_final = Glyphs.defaults[FINAL_ARRANGEMENT_KEY] or []
+        plugin.finalArrangement = _convert_arrangement_to_9_slots(loaded_final)
+        
         loaded_arrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
         plugin.currentArrangement = _convert_arrangement_to_9_slots(loaded_arrangement)
         
         loaded_original = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
         plugin.originalArrangement = _convert_arrangement_to_9_slots(loaded_original)
+        
+        # 優先順序邏輯：如果有最終狀態，使用最終狀態作為當前排列
+        if plugin.finalArrangement and any(item is not None for item in plugin.finalArrangement):
+            debug_log("使用 finalArrangement 作為初始排列")
+            plugin.currentArrangement = list(plugin.finalArrangement)
+        elif not plugin.currentArrangement or not any(item is not None for item in plugin.currentArrangement):
+            # 如果沒有有效的 currentArrangement，使用 originalArrangement
+            if plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement):
+                debug_log("使用 originalArrangement 作為初始排列")
+                plugin.currentArrangement = list(plugin.originalArrangement)
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
         
@@ -251,6 +265,11 @@ def save_preferences(plugin):
         original_arrangement = getattr(plugin, 'originalArrangement', [])
         safe_original_arrangement = [item if item is not None else "" for item in original_arrangement]
         Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = safe_original_arrangement
+        
+        # 處理 finalArrangement - 將 None 轉換為空字串
+        final_arrangement = getattr(plugin, 'finalArrangement', [])
+        safe_final_arrangement = [item if item is not None else "" for item in final_arrangement]
+        Glyphs.defaults[FINAL_ARRANGEMENT_KEY] = safe_final_arrangement
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         Glyphs.defaults[WINDOW_SIZE_KEY] = plugin.windowSize
         
