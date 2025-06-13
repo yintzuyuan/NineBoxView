@@ -206,72 +206,42 @@ class EventHandlers:
     # === 鎖定字符相關 ===
     
     def smart_lock_character_callback(self, sender):
-        """智慧鎖定字符回呼（符合 flow.md 邏輯的有效字符驗證版）"""
+        """智慧鎖定字符回呼（統一使用完整重新生成）"""
         try:
+            debug_log(f"[智慧鎖定] === 開始處理鎖定回呼 ===")
+            debug_log(f"[智慧鎖定] 位置: {sender.position}, 輸入: '{sender.stringValue()}'")
+            
             if not Glyphs.font:
+                debug_log("[智慧鎖定] 無字型檔案，中止處理")
                 return
             
-            # 取得鎖定狀態
-            is_in_clear_mode = self._get_lock_state()
+            # 檢查當前狀態
+            lock_state = self._get_lock_state()
             
-            # === 解鎖模式下完全忽略鎖定框輸入，符合 flow.md ===
-            if is_in_clear_mode:
-                debug_log("[智慧鎖定] 🔓 解鎖模式：鎖定框輸入不影響預覽，符合 flow.md")
+            debug_log(f"[智慧鎖定] 鎖定模式: {'🔓 解鎖' if lock_state else '🔒 上鎖'}")
+            
+            # === 解鎖模式下，鎖定框輸入僅更新 lockedChars，不影響預覽 ===
+            if lock_state:
+                debug_log("[智慧鎖定] 🔓 解鎖模式：鎖定框輸入不影響預覽，但仍更新 lockedChars")
+                self._update_locked_chars_only(sender)
                 return
             
-            if not hasattr(self.plugin, 'lockedChars'):
-                self.plugin.lockedChars = {}
+            debug_log("[智慧鎖定] 🔒 上鎖模式，處理輸入並更新預覽...")
             
-            position = sender.position
-            input_text = sender.stringValue()
-            arrangement_changed = False
+            # 上鎖模式：更新 lockedChars 並重新生成排列
+            self._update_locked_chars_only(sender)
             
-            if not input_text:
-                # 清除鎖定
-                if position in self.plugin.lockedChars:
-                    del self.plugin.lockedChars[position]
-                    arrangement_changed = True
-                    debug_log(f"[智慧鎖定] 清除位置 {position} 的鎖定")
-            else:
-                # === 嚴格的有效字符驗證（符合 flow.md）===
-                # 先進行智慧辨識
-                recognized_char = self._recognize_character(input_text)
-                
-                # 驗證字符是否存在於當前字型中
-                if not get_cached_glyph(Glyphs.font, recognized_char):
-                    debug_log(f"[智慧鎖定] 字符 '{input_text}' -> '{recognized_char}' 不存在於當前字型中")
-                    debug_log("[智慧鎖定] 🔒 上鎖模式 - 無效字符：完全忽略，不進行任何處理")
-                    return  # 直接返回，完全忽略無效字符，不進行任何處理
-                
-                # 字符有效，檢查是否有變更
-                if position not in self.plugin.lockedChars or self.plugin.lockedChars[position] != recognized_char:
-                    self.plugin.lockedChars[position] = recognized_char
-                    arrangement_changed = True
-                    debug_log(f"[智慧鎖定] 位置 {position} 設定為有效字符: {recognized_char}")
+            # 使用完整重新生成確保邏輯一致性
+            debug_log("[智慧鎖定] 🔒 上鎖模式 - 調用完整重新生成")
+            self.generate_new_arrangement()
             
-            # 只有在上鎖模式且有變更時才更新
-            if arrangement_changed:
-                self.plugin.savePreferences()
-                debug_log("[智慧鎖定] 🔒 上鎖狀態 - 更新預覽")
-                
-                try:
-                    # 更新指定位置的字符
-                    self._update_single_position(position, input_text)
-                    
-                    # 官方模式：更新 preview view 的屬性設定器
-                    if (hasattr(self.plugin, 'windowController') and 
-                        self.plugin.windowController and
-                        hasattr(self.plugin.windowController, 'previewView')):
-                        debug_log("[智慧鎖定] 更新 currentArrangement 屬性")
-                        self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
-                    
-                    # 更新介面
-                    self.update_interface(None)
-                    
-                except Exception as e:
-                    error_log("[智慧鎖定] 更新預覽時發生錯誤", e)
-            else:
-                debug_log("[智慧鎖定] 無變更，跳過更新")
+            # 儲存變更
+            self.plugin.savePreferences()
+            
+            # 更新介面
+            self.update_interface(None)
+            
+            debug_log(f"[智慧鎖定] === 完成處理鎖定回呼 ===")
         
         except Exception as e:
             error_log("智慧鎖定字符處理錯誤", e)
@@ -556,27 +526,35 @@ class EventHandlers:
         return arrangement
     
     def _handle_without_active_glyph(self, is_locked, has_locked, lockedChars, has_batch, batchChars):
-        """處理沒有 activeGlyph 的情況"""
+        """處理沒有 activeGlyph 的情況（修正版：符合 flow.md 邏輯）"""
         arrangement = [None] * FULL_ARRANGEMENT_SIZE
         
         if is_locked:  # 上鎖模式
             if has_locked:  # 有鎖定字符
                 if has_batch:  # 有批量輸入
                     # R7: 中心: 從 batchChars 隨機, 鎖定格: lockedChars, 其餘格: 從 batchChars 隨機
-                    self._apply_locked_chars(arrangement, lockedChars)
-                    self._fill_remaining_with_batch(arrangement, batchChars)
-                    if arrangement[CENTER_POSITION] is None:  # 中心未被鎖定
+                    # 1. 先設定中心格（如果中心格沒有被鎖定）
+                    if CENTER_POSITION not in lockedChars:
                         arrangement[CENTER_POSITION] = random.choice(batchChars)
+                    # 2. 再應用鎖定字符（可能會覆蓋中心格）
+                    self._apply_locked_chars(arrangement, lockedChars)
+                    # 3. 最後填充其餘位置
+                    self._fill_remaining_with_batch(arrangement, batchChars)
                     debug_log("R7: 無activeGlyph + 上鎖 + 有locked + 有batch")
                 else:  # 無批量輸入
                     # R8: 中心: 空白, 鎖定格: lockedChars, 其餘格: 空白
+                    # 1. 中心格保持 None（空白），除非被鎖定
+                    # 2. 應用鎖定字符
                     self._apply_locked_chars(arrangement, lockedChars)
-                    # 其餘位置保持 None（空白）
+                    # 3. 其餘位置保持 None（空白）
                     debug_log("R8: 無activeGlyph + 上鎖 + 有locked + 無batch")
             else:  # 無鎖定字符
                 if has_batch:  # 有批量輸入
                     # R9: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
-                    self._fill_all_with_batch(arrangement, batchChars)
+                    # 1. 先設定中心格
+                    arrangement[CENTER_POSITION] = random.choice(batchChars)
+                    # 2. 再填充周圍格
+                    self._fill_surrounding_with_batch(arrangement, batchChars)
                     debug_log("R9: 無activeGlyph + 上鎖 + 無locked + 有batch")
                 else:  # 無批量輸入
                     # R10: 所有九格皆為空白
@@ -585,7 +563,10 @@ class EventHandlers:
         else:  # 解鎖模式
             if has_batch:  # 有批量輸入
                 # R11: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
-                self._fill_all_with_batch(arrangement, batchChars)
+                # 1. 先設定中心格
+                arrangement[CENTER_POSITION] = random.choice(batchChars)
+                # 2. 再填充周圍格
+                self._fill_surrounding_with_batch(arrangement, batchChars)
                 debug_log("R11: 無activeGlyph + 解鎖 + 有batch")
             else:  # 無批量輸入
                 # R12: 所有九格皆為空白
@@ -764,7 +745,7 @@ class EventHandlers:
             error_log("[細粒度更新] 更新鎖定位置時發生錯誤", e)
     
     def _restore_non_locked_content(self, arrangement, positions):
-        """恢復非鎖定位置的內容
+        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯）
         
         Args:
             arrangement: 當前排列（可變列表）
@@ -779,19 +760,49 @@ class EventHandlers:
                         debug_log(f"[恢復內容] 位置 {pos} 恢復為原始字符: {arrangement[pos]}")
                 return
             
-            # 使用批量字符或當前字符填充
-            if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                for pos in positions:
-                    if pos < len(arrangement):
-                        replacement_char = random.choice(self.plugin.selectedChars)
-                        arrangement[pos] = replacement_char
-                        debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
+            # 根據 flow.md 邏輯決定恢復內容
+            activeGlyph = self._get_current_editing_char()
+            has_active = activeGlyph is not None
+            has_batch = bool(getattr(self.plugin, 'selectedChars', []))
+            
+            debug_log(f"[恢復內容] 決策參數: has_active={has_active}, has_batch={has_batch}")
+            
+            if has_active:
+                # 有 activeGlyph：根據是否有批量字符決定
+                if has_batch:
+                    # 有批量字符：使用批量字符
+                    for pos in positions:
+                        if pos < len(arrangement):
+                            if pos == CENTER_POSITION:
+                                # 中心格使用 activeGlyph
+                                arrangement[pos] = activeGlyph
+                                debug_log(f"[恢復內容] 中心位置 {pos} 使用 activeGlyph: {activeGlyph}")
+                            else:
+                                # 其他位置使用批量字符
+                                replacement_char = random.choice(self.plugin.selectedChars)
+                                arrangement[pos] = replacement_char
+                                debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
+                else:
+                    # 無批量字符：全部使用 activeGlyph
+                    for pos in positions:
+                        if pos < len(arrangement):
+                            arrangement[pos] = activeGlyph
+                            debug_log(f"[恢復內容] 位置 {pos} 使用 activeGlyph: {activeGlyph}")
             else:
-                current_char = self._get_current_editing_char()
-                for pos in positions:
-                    if pos < len(arrangement):
-                        arrangement[pos] = current_char
-                        debug_log(f"[恢復內容] 位置 {pos} 使用當前字符: {current_char}")
+                # 無 activeGlyph：根據是否有批量字符決定
+                if has_batch:
+                    # 有批量字符：使用批量字符
+                    for pos in positions:
+                        if pos < len(arrangement):
+                            replacement_char = random.choice(self.plugin.selectedChars)
+                            arrangement[pos] = replacement_char
+                            debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
+                else:
+                    # 無批量字符：設為空白（None）
+                    for pos in positions:
+                        if pos < len(arrangement):
+                            arrangement[pos] = None
+                            debug_log(f"[恢復內容] 位置 {pos} 設為空白（符合 flow.md）")
                         
         except Exception as e:
             error_log("[恢復內容] 恢復非鎖定內容時發生錯誤", e)
@@ -906,76 +917,91 @@ class EventHandlers:
     
     def _update_single_position(self, position, input_text):
         """
-        更新單個位置的字符，而不重新生成整個排列
+        更新單個位置的字符（增強 debug 版本：追蹤邏輯衝突）
         
         Args:
             position: 要更新的位置 (0-8，但排除中心位置4)
             input_text: 輸入的文字
         """
-        import random  # 確保在函數開頭就匯入 random 模組
-        
         try:
+            debug_log(f"[單一更新] === 開始處理位置 {position}，輸入文字: '{input_text}' ===")
+            
+            # 檢查當前狀態
+            current_active = self._get_current_editing_char()
+            has_batch = bool(getattr(self.plugin, 'selectedChars', []))
+            lock_state = self._get_lock_state()
+            
+            debug_log(f"[單一更新] 當前狀態檢查:")
+            debug_log(f"  - activeGlyph: {current_active}")
+            debug_log(f"  - has_batch: {has_batch}")
+            debug_log(f"  - lock_state (解鎖模式): {lock_state}")
+            debug_log(f"  - selectedChars: {getattr(self.plugin, 'selectedChars', [])}")
+            
             # 確保有 currentArrangement
-            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement or len(self.plugin.currentArrangement) != FULL_ARRANGEMENT_SIZE:
-                # 如果沒有目前排列，需要生成一個基礎排列
-                debug_log("[單一更新] currentArrangement 不存在或長度不對，重新生成。")
-                source_for_init = list(self.plugin.selectedChars) if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars else []
-                if not source_for_init:
-                    source_for_init = [self._get_current_editing_char()]
-                
-                # smart_lock_character_callback 應該已經更新了 self.plugin.lockedChars
-                locked_map_for_init = self.plugin.lockedChars if hasattr(self.plugin, 'lockedChars') else {}
-                
-                self.plugin.currentArrangement = generate_arrangement(
-                    source_for_init,
-                    locked_map_for_init, FULL_ARRANGEMENT_SIZE
-                )
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[單一更新] 無 currentArrangement，生成新排列")
+                self.generate_new_arrangement()
+                return
             
-            # 建立 currentArrangement 的可變複本
-            # 處理可能是不可變 NSArray 的情況
-            if hasattr(self.plugin, 'currentArrangement'):
-                current_arr = list(self.plugin.currentArrangement)
-            else:
-                current_arr = []
-            
-            # 確保排列有足夠的長度
+            # 建立可變複本
+            current_arr = list(self.plugin.currentArrangement)
             while len(current_arr) < FULL_ARRANGEMENT_SIZE:
-                if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                    current_arr.append(random.choice(self.plugin.selectedChars))
-                else:
-                    current_arr.append(self._get_current_editing_char())
+                current_arr.append(None)
             
-            # 更新特定位置
-            if position < len(current_arr):
-                if input_text:
-                    # 有輸入：更新為識別的字符
-                    recognized_char = self._recognize_character(input_text)
+            debug_log(f"[單一更新] 當前排列: {current_arr}")
+            debug_log(f"[單一更新] 位置 {position} 的當前值: {current_arr[position]}")
+            
+            # 檢查是否在上鎖模式
+            if lock_state:  # 解鎖模式
+                debug_log(f"[單一更新] 🔓 解鎖模式下，不更新預覽顯示")
+                return
+            
+            debug_log(f"[單一更新] 🔒 上鎖模式，繼續處理...")
+            
+            if input_text:
+                # 有輸入：驗證並更新
+                debug_log(f"[單一更新] 處理有效輸入: '{input_text}'")
+                recognized_char = self._recognize_character(input_text)
+                debug_log(f"[單一更新] 辨識結果: '{recognized_char}'")
+                
+                if get_cached_glyph(Glyphs.font, recognized_char):
                     current_arr[position] = recognized_char
-                    debug_log(f"[單一更新] 位置 {position} 更新為: {recognized_char}")
+                    self.plugin.currentArrangement = current_arr
+                    debug_log(f"[單一更新] ✅ 位置 {position} 更新為有效字符: {recognized_char}")
                 else:
-                    # 清空輸入：優先使用原始排列的字符
-                    if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement and position < len(self.plugin.originalArrangement):
-                        # 使用原始排列中的字符
-                        replacement_char = self.plugin.originalArrangement[position]
-                        current_arr[position] = replacement_char
-                        debug_log(f"[單一更新] 位置 {position} 清空，回復原始字符: {replacement_char}")
-                    elif hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                        # 沒有原始排列時，用隨機字符替換
-                        replacement_char = random.choice(self.plugin.selectedChars)
-                        current_arr[position] = replacement_char
-                        debug_log(f"[單一更新] 位置 {position} 清空，替換為: {replacement_char}")
-                    else:
-                        # 沒有選擇字符，使用目前編輯字符
-                        current_char = self._get_current_editing_char()
-                        current_arr[position] = current_char
-                        debug_log(f"[單一更新] 位置 {position} 清空，使用目前字符: {current_char}")
+                    debug_log(f"[單一更新] ❌ 位置 {position} 的字符 '{input_text}' -> '{recognized_char}' 無效，保持原狀")
+                    return
+            else:
+                # 清空輸入：根據 flow.md 邏輯決定填入內容
+                debug_log(f"[單一更新] 處理清空輸入")
+                
+                # 重新檢查 activeGlyph（可能狀態已變）
+                activeGlyph = self._get_current_editing_char()
+                debug_log(f"[單一更新] 重新檢查 activeGlyph: {activeGlyph}")
+                
+                if activeGlyph is not None:
+                    # 有 activeGlyph：根據 flow.md，應該填入 activeGlyph 而不是 None
+                    old_value = current_arr[position]
+                    current_arr[position] = activeGlyph
+                    debug_log(f"[單一更新] ✅ 有 activeGlyph - 位置 {position}: '{old_value}' -> '{activeGlyph}'")
+                else:
+                    # 無 activeGlyph：設為空白（None）
+                    old_value = current_arr[position]
+                    current_arr[position] = None
+                    debug_log(f"[單一更新] ❌ 無 activeGlyph - 位置 {position}: '{old_value}' -> None")
+                
+                self.plugin.currentArrangement = current_arr
+                
+                # 同時清除 lockedChars 中的記錄
+                if hasattr(self.plugin, 'lockedChars') and position in self.plugin.lockedChars:
+                    del self.plugin.lockedChars[position]
+                    debug_log(f"[單一更新] 已清除位置 {position} 的鎖定記錄")
             
-            # 將修改後的數組賦值回plugin
-            self.plugin.currentArrangement = current_arr
+            debug_log(f"[單一更新] 最終排列: {self.plugin.currentArrangement}")
             
             # 儲存更新
             self.plugin.savePreferences()
-            debug_log(f"[單一更新] 目前排列: {self.plugin.currentArrangement}")
+            debug_log(f"[單一更新] === 完成處理位置 {position} ===")
             
         except Exception as e:
             error_log("[單一更新] 更新單個位置時發生錯誤", e)
@@ -1037,8 +1063,13 @@ class EventHandlers:
         # 從plugin對象讀取（控制面板未初始化時）
         return getattr(self.plugin, 'isInClearMode', False)  # 預設為上鎖
     
-    def _recognize_character(self, input_text):
-        """辨識字符，優先考慮完整輸入、區分大小寫"""
+    def _recognize_character(self, input_text, allow_fallback=True):
+        """辨識字符，優先考慮完整輸入、區分大小寫
+        
+        Args:
+            input_text: 輸入的文字
+            allow_fallback: 是否允許使用fallback邏輯（預設True以保持向後相容）
+        """
         # 1. 嘗試完整輸入（區分大小寫）
         glyph = get_cached_glyph(Glyphs.font, input_text)
         if glyph:
@@ -1055,7 +1086,7 @@ class EventHandlers:
         parsed_chars = parse_input_text(input_text)
         if parsed_chars:
             return parsed_chars[0]
-        
+                
         # 4. 使用搜尋欄位的有效字符
         if hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
             for char in self.plugin.selectedChars:
@@ -1075,18 +1106,48 @@ class EventHandlers:
                         pass
                 if current_glyph.name:
                     return current_glyph.name
-        
-        # 6. 使用字型中的第一個有效字符
-        if Glyphs.font and Glyphs.font.glyphs:
-            for glyph in Glyphs.font.glyphs:
-                if glyph.unicode:
-                    try:
-                        char = chr(int(glyph.unicode, 16))
-                        return char
-                    except:
-                        continue
-                elif glyph.name:
-                    return glyph.name
-        
-        # 7. 絕對保底：回傳 "A"
-        return "A"
+                
+        # 6. 絕對保底：回傳空白
+        return None
+    
+    def _update_locked_chars_only(self, sender):
+        """僅更新 lockedChars，不影響預覽（統一版本）"""
+        try:
+            if not hasattr(self.plugin, 'lockedChars'):
+                self.plugin.lockedChars = {}
+            
+            position = sender.position
+            input_text = sender.stringValue()
+            
+            debug_log(f"[鎖定字符更新] 位置 {position}，輸入: '{input_text}'")
+            
+            if not input_text:
+                # 清除鎖定
+                if position in self.plugin.lockedChars:
+                    old_char = self.plugin.lockedChars[position]
+                    del self.plugin.lockedChars[position]
+                    debug_log(f"[鎖定字符更新] 清除位置 {position}: '{old_char}'")
+                else:
+                    debug_log(f"[鎖定字符更新] 位置 {position} 本來就沒有鎖定")
+            else:
+                # 驗證並設定鎖定字符
+                recognized_char = self._recognize_character(input_text)
+                debug_log(f"[鎖定字符更新] 字符辨識: '{input_text}' -> '{recognized_char}'")
+                
+                # 驗證字符是否存在於當前字型中
+                if not get_cached_glyph(Glyphs.font, recognized_char):
+                    debug_log(f"[鎖定字符更新] ❌ 字符 '{input_text}' -> '{recognized_char}' 不存在於字型中，忽略")
+                    return
+                
+                # 字符有效，檢查是否有變更
+                old_char = self.plugin.lockedChars.get(position, None)
+                if old_char != recognized_char:
+                    self.plugin.lockedChars[position] = recognized_char
+                    debug_log(f"[鎖定字符更新] ✅ 位置 {position} 設定: '{old_char}' -> '{recognized_char}'")
+                else:
+                    debug_log(f"[鎖定字符更新] 位置 {position} 字符無變更: '{recognized_char}'")
+            
+            debug_log(f"[鎖定字符更新] 最終 lockedChars: {self.plugin.lockedChars}")
+            
+        except Exception as e:
+            error_log("[鎖定字符更新] 更新鎖定字符時發生錯誤", e)

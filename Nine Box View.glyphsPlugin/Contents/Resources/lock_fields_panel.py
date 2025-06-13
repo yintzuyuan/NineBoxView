@@ -269,7 +269,7 @@ class LockFieldsPanel(NSView):
         self.addSubview_(self.clearAllButton)
     
     def toggleLockMode_(self, sender):
-        """切換鎖頭模式（遵循 flow.md 邏輯）"""
+        """切換鎖頭模式（統一使用完整重新生成）"""
         try:
             # 先儲存目前狀態
             was_in_clear_mode = self.isInClearMode
@@ -279,22 +279,22 @@ class LockFieldsPanel(NSView):
                 debug_log("警告：event_handlers 未初始化")
                 return
             
+            debug_log(f"[鎖頭切換] 從 {'🔓 解鎖' if was_in_clear_mode else '🔒 上鎖'} 模式開始切換")
+            
             # === 從解鎖切換到上鎖時，儲存目前的隨機排列 ===
             if was_in_clear_mode and hasattr(self.plugin, 'currentArrangement'):
                 # 儲存目前的隨機排列，供之後回復使用
                 self.plugin.originalArrangement = list(self.plugin.currentArrangement)
-                debug_log(f"儲存原始隨機排列: {self.plugin.originalArrangement}")
-                # 儲存到偏好設定
-                self.plugin.savePreferences()
+                debug_log(f"[鎖頭切換] 儲存原始隨機排列: {self.plugin.originalArrangement}")
             
-            # 從解鎖切換到上鎖時同步輸入框內容
+            # 從解鎖切換到上鎖時同步輸入框內容到 lockedChars
             if was_in_clear_mode:
-                debug_log("從🔓解鎖切換到🔒鎖定：同步鎖定字符")
+                debug_log("[鎖頭切換] 從🔓解鎖切換到🔒鎖定：同步鎖定字符")
                 self._sync_input_fields_to_locked_chars_without_regenerate()
             
             # 更新狀態
             self.isInClearMode = not self.isInClearMode
-            debug_log(f"鎖頭模式切換：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
+            debug_log(f"[鎖頭切換] 鎖頭模式切換完成：{'🔓 解鎖' if self.isInClearMode else '🔒 上鎖'}")
             
             # 更新 UI
             self.updateLockButton()
@@ -303,15 +303,19 @@ class LockFieldsPanel(NSView):
             if hasattr(self, 'plugin') and self.plugin:
                 # 更新 plugin 的狀態
                 self.plugin.isInClearMode = self.isInClearMode
-                debug_log(f"已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
+                debug_log(f"[鎖頭切換] 已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
                 
-                # === 使用細粒度更新方法，遵循 flow.md ===
-                debug_log("[鎖頭切換] 使用細粒度鎖定模式更新邏輯")
-                self.plugin.event_handlers.update_lock_mode_display()
+                # === 使用統一的完整重新生成，確保邏輯一致性 ===
+                debug_log("[鎖頭切換] 使用完整重新生成確保邏輯一致性")
+                self.plugin.event_handlers.generate_new_arrangement()
                 
                 # 儲存偏好設定
                 self.plugin.savePreferences()
-                debug_log("已儲存鎖頭狀態到偏好設定")
+                debug_log("[鎖頭切換] 已儲存鎖頭狀態到偏好設定")
+                
+                # 更新介面
+                self.plugin.event_handlers.update_interface(None)
+                debug_log("[鎖頭切換] 已觸發介面更新")
             
         except Exception as e:
             error_log("切換鎖頭模式錯誤", e)
@@ -586,99 +590,37 @@ class LockFieldsPanel(NSView):
                 self.lockButton.setImage_(None)
     
     def clearAllFields_(self, sender):
-        """清空所有鎖定輸入框（遵循 flow.md 邏輯）"""
+        """清空所有鎖定輸入框（修正版：符合 flow.md 邏輯）"""
         try:
             debug_log("清空所有欄位按鈕被點擊")
             
-            # === 修正：先記錄要清除的位置，再進行清空操作 ===
-            positions_to_clear = []
-            if hasattr(self, 'plugin') and self.plugin and hasattr(self.plugin, 'lockedChars'):
-                positions_to_clear = list(self.plugin.lockedChars.keys())
-                debug_log(f"[清除所有] 記錄要清除的位置: {positions_to_clear}")
-            
-            # 清空所有鎖定輸入框
+            # 清空所有鎖定輸入框的顯示
             if hasattr(self, 'lockFields') and self.lockFields:
-                for position, field in self.lockFields.items():
+                for field in self.lockFields.values():
                     field.setStringValue_("")
-                    debug_log(f"清空位置 {position} 的輸入框")
             
-            # 更新 plugin 的 lockedChars
+            # 清除 plugin 中的 lockedChars
             if hasattr(self, 'plugin') and self.plugin:
+                # 備份目前狀態（如果需要）
+                if hasattr(self.plugin, 'previousLockedChars'):
+                    self.plugin.previousLockedChars = getattr(self.plugin, 'lockedChars', {}).copy()
+                
+                # 清空鎖定字符
                 if hasattr(self.plugin, 'lockedChars'):
-                    # 備份目前狀態
-                    if hasattr(self.plugin, 'previousLockedChars'):
-                        self.plugin.previousLockedChars = self.plugin.lockedChars.copy()
-                    
-                    # 清空鎖定字符
                     self.plugin.lockedChars.clear()
-                    debug_log("已清空 plugin.lockedChars")
-                    
-                    # === 使用細粒度更新方法，但傳入記錄的位置 ===
-                    if hasattr(self.plugin, 'event_handlers') and positions_to_clear:
-                        debug_log(f"[清除所有] 使用細粒度清除邏輯，恢復位置: {positions_to_clear}")
-                        # 手動調用恢復邏輯
-                        self._restore_cleared_positions(positions_to_clear)
-                    
-                    # 儲存偏好設定
-                    self.plugin.savePreferences()
+                
+                # 直接重新生成排列，讓 flow.md 邏輯樹決定內容
+                if hasattr(self.plugin, 'event_handlers'):
+                    self.plugin.event_handlers.generate_new_arrangement()
+                
+                # 儲存偏好設定
+                self.plugin.savePreferences()
             
             debug_log("完成清空所有輸入框")
             
         except Exception as e:
             error_log("清空所有欄位錯誤", e)
     
-    def _restore_cleared_positions(self, positions_to_clear):
-        """恢復被清除位置的內容（修正版）"""
-        try:
-            if not positions_to_clear:
-                debug_log("[恢復位置] 沒有位置需要恢復")
-                return
-            
-            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
-                debug_log("[恢復位置] 無現有排列，跳過恢復")
-                return
-            
-            # 確保 currentArrangement 是可變列表
-            current_arr = list(self.plugin.currentArrangement)
-            while len(current_arr) < 9:  # 確保有9個位置
-                current_arr.append(None)
-            
-            # 恢復被清除位置的內容
-            for pos in positions_to_clear:
-                if 0 <= pos < len(current_arr):
-                    # 優先使用原始排列
-                    if (hasattr(self.plugin, 'originalArrangement') and 
-                        self.plugin.originalArrangement and 
-                        pos < len(self.plugin.originalArrangement)):
-                        current_arr[pos] = self.plugin.originalArrangement[pos]
-                        debug_log(f"[恢復位置] 位置 {pos} 恢復為原始字符: {current_arr[pos]}")
-                    # 使用批量字符
-                    elif hasattr(self.plugin, 'selectedChars') and self.plugin.selectedChars:
-                        import random
-                        replacement_char = random.choice(self.plugin.selectedChars)
-                        current_arr[pos] = replacement_char
-                        debug_log(f"[恢復位置] 位置 {pos} 使用批量字符: {replacement_char}")
-                    # 使用當前字符
-                    else:
-                        current_char = self._get_current_editing_char()
-                        current_arr[pos] = current_char
-                        debug_log(f"[恢復位置] 位置 {pos} 使用當前字符: {current_char}")
-            
-            # 更新排列
-            self.plugin.currentArrangement = current_arr
-            
-            # 強制更新預覽
-            if (hasattr(self.plugin, 'windowController') and 
-                self.plugin.windowController and
-                hasattr(self.plugin.windowController, 'previewView')):
-                self.plugin.windowController.previewView.currentArrangement = self.plugin.currentArrangement
-                self.plugin.windowController.update()
-                debug_log("[恢復位置] 已強制更新主視窗預覽")
-            
-            debug_log(f"[恢復位置] 恢復完成，最終排列: {self.plugin.currentArrangement}")
-            
-        except Exception as e:
-            error_log("[恢復位置] 恢復被清除位置時發生錯誤", e)
     
     def update_lock_fields(self, plugin_state):
         """更新鎖定輸入框內容"""

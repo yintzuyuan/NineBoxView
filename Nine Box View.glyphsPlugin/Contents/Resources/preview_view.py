@@ -438,11 +438,13 @@ class NineBoxPreviewView(NSView):
                         layer = glyph.layers[currentMaster.id]
                         debug_log(f"位置 {i}: 繪製字符 '{char_or_name}'")
                     else:
-                        debug_log(f"位置 {i}: 字符 '{char_or_name}' 在字型中不存在")
+                        debug_log(f"位置 {i}: 字符 '{char_or_name}' 在字型中不存在，跳過繪製")
+                        # 字符不存在時，確保不繪製任何內容
+                        layer = None
                 else:
-                    debug_log(f"位置 {i}: 空白格")
+                    debug_log(f"位置 {i}: 空白格（None），完全不繪製")
                 
-                # 繪製字符（如果有）
+                # 繪製字符（如果有有效的layer）
                 if layer:
                     # 計算單元格高度
                     cellHeight = metrics['gridHeight'] / 3 - metrics['SPACING']
@@ -453,6 +455,9 @@ class NineBoxPreviewView(NSView):
                         metrics['cellWidth'], cellHeight, 
                         metrics['scale'], is_black
                     )
+                else:
+                    # None 值或無效字符：完全不繪製任何內容，保持背景色
+                    debug_log(f"位置 {i}: 保持空白（無任何繪製）")
                     
         except Exception as e:
             error_log("繪製預覽畫面時發生錯誤", e)
