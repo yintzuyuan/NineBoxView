@@ -770,7 +770,7 @@ class EventHandlers:
             error_log("[細粒度更新] 更新鎖定位置時發生錯誤", e)
     
     def _restore_non_locked_content(self, arrangement, positions):
-        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯）
+        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯，並處理批次輸入變更）
         
         Args:
             arrangement: 當前排列（可變列表）
@@ -779,10 +779,18 @@ class EventHandlers:
         try:
             # 優先使用原始排列
             if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
+                batch_chars = list(getattr(self.plugin, 'selectedChars', []))
                 for pos in positions:
                     if pos < len(self.plugin.originalArrangement) and pos < len(arrangement):
-                        arrangement[pos] = self.plugin.originalArrangement[pos]
-                        debug_log(f"[恢復內容] 位置 {pos} 恢復為原始字符: {arrangement[pos]}")
+                        orig_char = self.plugin.originalArrangement[pos]
+                        # 若批次輸入存在且 orig_char 不在其中，則隨機選一個新字元
+                        if batch_chars and orig_char not in batch_chars:
+                            replacement = random.choice(batch_chars)
+                            arrangement[pos] = replacement
+                            debug_log(f"[恢復內容] 位置 {pos} 原字元 '{orig_char}' 已不存在於批次輸入，改用新字元: {replacement}")
+                        else:
+                            arrangement[pos] = orig_char
+                            debug_log(f"[恢復內容] 位置 {pos} 恢復為原始字符: {arrangement[pos]}")
                 return
             
             # 根據 flow.md 邏輯決定恢復內容
@@ -828,7 +836,7 @@ class EventHandlers:
                         if pos < len(arrangement):
                             arrangement[pos] = None
                             debug_log(f"[恢復內容] 位置 {pos} 設為空白（符合 flow.md）")
-                        
+                
         except Exception as e:
             error_log("[恢復內容] 恢復非鎖定內容時發生錯誤", e)
     
