@@ -670,3 +670,28 @@ def _convert_arrangement_to_9_slots(arrangement):
         # 其他長度，返回空的9格排列
         debug_log(f"無法識別的排列長度: {len(arrangement_list)}，返回空排列")
         return [None] * FULL_ARRANGEMENT_SIZE
+
+def generate_non_repeating_batch(batch_chars, num_slots):
+    """
+    根據 batch_chars 和 num_slots 產生一個排列，符合：
+    - 多於 num_slots：隨機抽取 num_slots 個不重複字元
+    - 等於 num_slots：隨機排列
+    - 少於 num_slots：每個字元至少出現一次，剩下的隨機補齊
+    Args:
+        batch_chars: 有效字元列表
+        num_slots: 欲產生的排列長度
+    Returns:
+        一個長度為 num_slots 的字元列表
+    """
+    import random
+    chars = list(batch_chars)
+    if not chars or num_slots <= 0:
+        return []
+    if len(chars) >= num_slots:
+        arrangement = random.sample(chars, num_slots)
+    else:
+        arrangement = chars.copy()
+        while len(arrangement) < num_slots:
+            arrangement.append(random.choice(chars))
+        random.shuffle(arrangement)
+    return arrangement

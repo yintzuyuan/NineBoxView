@@ -9,8 +9,8 @@ import traceback
 import random
 from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
-from constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
-from utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph
+from constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION, SURROUNDING_POSITIONS
+from utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph, generate_non_repeating_batch
 
 class EventHandlers:
     """集中管理所有事件處理邏輯"""
@@ -865,10 +865,12 @@ class EventHandlers:
                 arrangement[position] = char
     
     def _fill_remaining_with_batch(self, arrangement, batchChars):
-        """用批量字符填充剩餘的None位置"""
-        for i in range(FULL_ARRANGEMENT_SIZE):
-            if arrangement[i] is None:
-                arrangement[i] = random.choice(batchChars)
+        """用批量字符填充剩餘的None位置，依據細緻規則"""
+        # 找出所有 None 的位置
+        positions = [i for i in range(FULL_ARRANGEMENT_SIZE) if arrangement[i] is None]
+        chars_to_use = generate_non_repeating_batch(batchChars, len(positions))
+        for idx, pos in enumerate(positions):
+            arrangement[pos] = chars_to_use[idx] if idx < len(chars_to_use) else None
     
     def _fill_remaining_with_char(self, arrangement, char):
         """用指定字符填充剩餘的None位置"""
@@ -877,15 +879,16 @@ class EventHandlers:
                 arrangement[i] = char
     
     def _fill_surrounding_with_batch(self, arrangement, batchChars):
-        """用批量字符填充周圍8格（不包括中心格）"""
-        for i in range(FULL_ARRANGEMENT_SIZE):
-            if i != CENTER_POSITION:
-                arrangement[i] = random.choice(batchChars)
+        """用批量字符填充周圍8格（不包括中心格），依據細緻規則"""
+        chars_to_use = generate_non_repeating_batch(batchChars, len(SURROUNDING_POSITIONS))
+        for idx, pos in enumerate(SURROUNDING_POSITIONS):
+            arrangement[pos] = chars_to_use[idx] if idx < len(chars_to_use) else None
     
     def _fill_all_with_batch(self, arrangement, batchChars):
-        """用批量字符填充所有9格"""
-        for i in range(FULL_ARRANGEMENT_SIZE):
-            arrangement[i] = random.choice(batchChars)
+        """用批量字符填充所有9格，依據細緻規則"""
+        chars_to_use = generate_non_repeating_batch(batchChars, FULL_ARRANGEMENT_SIZE)
+        for idx in range(FULL_ARRANGEMENT_SIZE):
+            arrangement[idx] = chars_to_use[idx] if idx < len(chars_to_use) else None
     
     # === 輔助方法 ===
     
