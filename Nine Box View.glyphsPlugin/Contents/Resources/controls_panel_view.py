@@ -21,6 +21,9 @@ from utils import debug_log, error_log
 from search_panel import SearchPanel
 from lock_fields_panel import LockFieldsPanel
 
+# Constant for the internal margin used within SearchPanel for its NSScrollView
+SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN = 8
+
 
 class ControlsPanelView(NSView):
     """
@@ -73,30 +76,39 @@ class ControlsPanelView(NSView):
             
             # 取得畫面尺寸
             bounds = self.bounds()
-            
-            # 計算佈局
             margin = 10
             spacing = 12
             
             # 計算鎖定欄位面板的高度（3x3網格 + 清除按鈕）
             lock_field_height = 30
-            grid_spacing = 4
-            button_height = 22
-            lock_panel_height = (3 * lock_field_height + 2 * grid_spacing) + button_height + 8
+            lock_fields_internal_grid_spacing = 4 # From LockFieldsPanel._create_lock_fields
+            lock_fields_clear_button_height = 22 # From LockFieldsPanel._create_clear_button
+            lock_fields_spacing_above_button = 8 # From LockFieldsPanel._create_lock_fields current_y
+            lock_panel_height = (3 * lock_field_height + 2 * lock_fields_internal_grid_spacing) + lock_fields_clear_button_height + lock_fields_spacing_above_button
+            
+            # 容器可用寬度
+            container_content_width = bounds.size.width - 2 * margin
             
             # 建立搜尋面板（頂部，動態高度）
             search_panel_y = margin + lock_panel_height + spacing
             search_panel_height = bounds.size.height - search_panel_y - margin
             search_panel_height = max(search_panel_height, 50)  # 最小高度
+            search_panel_frame_width = container_content_width
             
-            searchRect = NSMakeRect(margin, search_panel_y, 
-                                   bounds.size.width - 2 * margin, search_panel_height)
+            searchRect = NSMakeRect(margin, search_panel_y,
+                                   search_panel_frame_width, search_panel_height)
             self.searchPanel = SearchPanel.alloc().initWithFrame_plugin_(searchRect, self.plugin)
             self.addSubview_(self.searchPanel)
             
-            # 建立鎖定欄位面板（底部，固定高度）
-            lockRect = NSMakeRect(margin, margin, 
-                                 bounds.size.width - 2 * margin, lock_panel_height)
+            # 建立鎖定欄位面板（底部，固定高度），寬度根據搜尋面板的內容寬度
+            # SearchPanel's scrollView width = search_panel_frame_width - 2 * SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN
+            lock_panel_target_width = search_panel_frame_width - 2 * SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN
+            
+            # 中心對齊鎖定面板
+            lock_panel_x = margin + (container_content_width - lock_panel_target_width) / 2.0
+            
+            lockRect = NSMakeRect(lock_panel_x, margin,
+                                 lock_panel_target_width, lock_panel_height)
             self.lockFieldsPanel = LockFieldsPanel.alloc().initWithFrame_plugin_(lockRect, self.plugin)
             self.addSubview_(self.lockFieldsPanel)
             
@@ -134,29 +146,38 @@ class ControlsPanelView(NSView):
             bounds = self.bounds()
             margin = 10
             spacing = 12
-            
+
             # 計算鎖定欄位面板的高度
             lock_field_height = 30
-            grid_spacing = 4
-            button_height = 22
-            lock_panel_height = (3 * lock_field_height + 2 * grid_spacing) + button_height + 8
-            
+            lock_fields_internal_grid_spacing = 4
+            lock_fields_clear_button_height = 22
+            lock_fields_spacing_above_button = 8
+            lock_panel_height = (3 * lock_field_height + 2 * lock_fields_internal_grid_spacing) + lock_fields_clear_button_height + lock_fields_spacing_above_button
+
+            container_content_width = bounds.size.width - 2 * margin
+
             # 調整搜尋面板位置和大小（頂部，動態高度）
             if self.searchPanel:
                 search_panel_y = margin + lock_panel_height + spacing
                 search_panel_height = bounds.size.height - search_panel_y - margin
                 search_panel_height = max(search_panel_height, 50)  # 最小高度
+                search_panel_frame_width = container_content_width
                 
-                searchRect = NSMakeRect(margin, search_panel_y, 
-                                       bounds.size.width - 2 * margin, search_panel_height)
+                searchRect = NSMakeRect(margin, search_panel_y,
+                                       search_panel_frame_width, search_panel_height)
                 self.searchPanel.setFrame_(searchRect)
-            
-            # 調整鎖定欄位面板位置（底部，固定高度）
+            else: # Fallback if searchPanel is somehow not yet created
+                search_panel_frame_width = container_content_width
+
+            # 調整鎖定欄位面板位置（底部，固定高度），寬度根據搜尋面板的內容寬度
             if self.lockFieldsPanel:
-                lockRect = NSMakeRect(margin, margin, 
-                                     bounds.size.width - 2 * margin, lock_panel_height)
+                lock_panel_target_width = search_panel_frame_width - 2 * SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN
+                lock_panel_x = margin + (container_content_width - lock_panel_target_width) / 2.0
+                
+                lockRect = NSMakeRect(lock_panel_x, margin,
+                                     lock_panel_target_width, lock_panel_height)
                 self.lockFieldsPanel.setFrame_(lockRect)
-            
+
             debug_log("完成 UI 佈局調整")
             
         except Exception as e:
