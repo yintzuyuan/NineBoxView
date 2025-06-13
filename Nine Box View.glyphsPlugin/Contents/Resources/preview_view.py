@@ -342,17 +342,21 @@ class NineBoxPreviewView(NSView):
             try:
                 if hasattr(self, 'plugin') and self.plugin:
                     if hasattr(self.plugin, 'event_handlers') and self.plugin.event_handlers:
-                        current_char = self.plugin.event_handlers._get_current_editing_char()
-                        # 正確處理 None 值的字符變更檢測
-                        if (hasattr(self.plugin, 'currentArrangement') and 
-                            len(self.plugin.currentArrangement) >= 9):
-                            current_center = self.plugin.currentArrangement[4]
-                            # 只有當字符確實不同時才觸發更新，正確處理 None 值
-                            if current_center != current_char:
-                                debug_log(f"檢測到字符變更: {current_center} -> {current_char}")
-                                # 主動觸發重新生成排列
-                                if hasattr(self.plugin.event_handlers, 'selection_changed'):
-                                    self.plugin.event_handlers.selection_changed(None)
+                        # === 安全檢查：如果正在進行細粒度更新，跳過字符變更檢測 ===
+                        if hasattr(self.plugin.event_handlers, '_performing_granular_update') and self.plugin.event_handlers._performing_granular_update:
+                            debug_log("正在進行細粒度更新，跳過字符變更檢測")
+                        else:
+                            current_char = self.plugin.event_handlers._get_current_editing_char()
+                            # 正確處理 None 值的字符變更檢測
+                            if (hasattr(self.plugin, 'currentArrangement') and 
+                                len(self.plugin.currentArrangement) >= 9):
+                                current_center = self.plugin.currentArrangement[4]
+                                # 只有當字符確實不同時才觸發更新，正確處理 None 值
+                                if current_center != current_char:
+                                    debug_log(f"檢測到字符變更: {current_center} -> {current_char}")
+                                    # 主動觸發重新生成排列
+                                    if hasattr(self.plugin.event_handlers, 'selection_changed'):
+                                        self.plugin.event_handlers.selection_changed(None)
             except Exception as e:
                 debug_log(f"檢查字符變更時出錯: {e}")
                 # 繼續繪製，不中斷流程

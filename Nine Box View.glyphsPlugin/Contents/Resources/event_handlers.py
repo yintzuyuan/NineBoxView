@@ -17,6 +17,8 @@ class EventHandlers:
     
     def __init__(self, plugin):
         self.plugin = plugin
+        # 添加細粒度更新標記，防止重繪時意外觸發其他邏輯
+        self._performing_granular_update = False
         
     
     # === 介面更新 ===
@@ -206,7 +208,7 @@ class EventHandlers:
     # === 鎖定字符相關 ===
     
     def smart_lock_character_callback(self, sender):
-        """智慧鎖定字符回呼（統一使用完整重新生成）"""
+        """智慧鎖定字符回呼（鎖定操作使用細粒度更新）"""
         try:
             debug_log(f"[智慧鎖定] === 開始處理鎖定回呼 ===")
             debug_log(f"[智慧鎖定] 位置: {sender.position}, 輸入: '{sender.stringValue()}'")
@@ -228,20 +230,30 @@ class EventHandlers:
             
             debug_log("[智慧鎖定] 🔒 上鎖模式，處理輸入並更新預覽...")
             
-            # 上鎖模式：更新 lockedChars 並重新生成排列
+            # 上鎖模式：更新 lockedChars 並使用細粒度更新
             self._update_locked_chars_only(sender)
             
-            # 使用完整重新生成確保邏輯一致性
-            debug_log("[智慧鎖定] 🔒 上鎖模式 - 調用完整重新生成")
-            self.generate_new_arrangement()
+            # === 使用細粒度更新，只影響鎖定位置，保持其他位置不變 ===
+            position = sender.position
+            input_text = sender.stringValue()
+            
+            if input_text:
+                # 有輸入：驗證並更新該位置
+                recognized_char = self._recognize_character(input_text)
+                if get_cached_glyph(Glyphs.font, recognized_char):
+                    debug_log(f"[智慧鎖定] 🔒 上鎖模式 - 使用細粒度更新位置 {position} 為 '{recognized_char}'")
+                    self.update_locked_position(position, recognized_char)
+                else:
+                    debug_log(f"[智慧鎖定] 字符 '{input_text}' -> '{recognized_char}' 無效，忽略")
+            else:
+                # 清空輸入：清除該位置的鎖定
+                debug_log(f"[智慧鎖定] 🔒 上鎖模式 - 清除位置 {position} 的鎖定")
+                self._clear_single_locked_position(position)
             
             # 儲存變更
             self.plugin.savePreferences()
             
-            # 更新介面
-            self.update_interface(None)
-            
-            debug_log(f"[智慧鎖定] === 完成處理鎖定回呼 ===")
+            debug_log(f"[智慧鎖定] === 完成處理鎖定回呼（細粒度更新）===")
         
         except Exception as e:
             error_log("智慧鎖定字符處理錯誤", e)
@@ -583,6 +595,8 @@ class EventHandlers:
         根據 flow.md 步驟2：只影響鎖定格的顯示/隱藏，不影響其餘格的隨機排列
         """
         try:
+            # 設置細粒度更新標記
+            self._performing_granular_update = True
             debug_log("[細粒度更新] 更新鎖定模式顯示邏輯")
             
             if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
@@ -622,6 +636,9 @@ class EventHandlers:
             
         except Exception as e:
             error_log("[細粒度更新] 更新鎖定模式顯示時發生錯誤", e)
+        finally:
+            # 清除細粒度更新標記
+            self._performing_granular_update = False
     
     def clear_locked_positions(self):
         """清除鎖定位置（不觸發隨機排列）
@@ -629,11 +646,9 @@ class EventHandlers:
         根據 flow.md 步驟3：只影響鎖定格內容，不影響其餘格的隨機排列
         """
         try:
+            # 設置細粒度更新標記
+            self._performing_granular_update = True
             debug_log("[細粒度更新] 清除鎖定位置")
-            
-            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
-                debug_log("[細粒度更新] 無現有排列，跳過清除")
-                return
             
             # 記錄要清除的位置
             positions_to_clear = list(getattr(self.plugin, 'lockedChars', {}).keys())
@@ -643,23 +658,33 @@ class EventHandlers:
             if hasattr(self.plugin, 'lockedChars'):
                 self.plugin.lockedChars.clear()
             
-            # 確保 currentArrangement 是可變列表
-            current_arr = list(self.plugin.currentArrangement)
+            # 如果有現有排列，才進行細粒度清除
+            if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                debug_log("[細粒度更新] 有現有排列，進行細粒度清除")
+                # 確保 currentArrangement 是可變列表
+                current_arr = list(self.plugin.currentArrangement)
+                
+                # 只有當有位置需要清除時才恢復內容
+                if positions_to_clear:
+                    self._restore_non_locked_content(current_arr, positions_to_clear)
+                    self.plugin.currentArrangement = current_arr
+                    debug_log(f"[細粒度更新] 已恢復 {len(positions_to_clear)} 個位置的內容")
+                else:
+                    debug_log("[細粒度更新] 沒有位置需要清除")
+            else:
+                debug_log("[細粒度更新] 無現有排列，僅清除鎖定狀態")
             
-            # 恢復被清除位置的內容
-            self._restore_non_locked_content(current_arr, positions_to_clear)
-            
-            # 更新排列
-            self.plugin.currentArrangement = current_arr
+            # 重要：不管有沒有排列，都要觸發重繪和儲存
             self.plugin.savePreferences()
+            self._update_preview_only()  # 確保主視窗重繪
             
-            # 更新預覽
-            self._update_preview_only()
-            
-            debug_log(f"[細粒度更新] 清除完成，最終排列: {self.plugin.currentArrangement}")
+            debug_log(f"[細粒度更新] 清除完成，最終排列: {getattr(self.plugin, 'currentArrangement', 'None')}")
             
         except Exception as e:
             error_log("[細粒度更新] 清除鎖定位置時發生錯誤", e)
+        finally:
+            # 清除細粒度更新標記
+            self._performing_granular_update = False
     
     def update_center_position(self, new_active_glyph):
         """只更新中心格（不觸發隨機排列）
@@ -1151,3 +1176,32 @@ class EventHandlers:
             
         except Exception as e:
             error_log("[鎖定字符更新] 更新鎖定字符時發生錯誤", e)
+    
+    def _clear_single_locked_position(self, position):
+        """清除單個鎖定位置（細粒度更新）"""
+        try:
+            debug_log(f"[清除單一鎖定] 清除位置 {position}")
+            
+            if not hasattr(self.plugin, 'currentArrangement') or not self.plugin.currentArrangement:
+                debug_log("[清除單一鎖定] 無現有排列，跳過清除")
+                return
+            
+            # 確保 currentArrangement 是可變列表且長度正確
+            current_arr = list(self.plugin.currentArrangement)
+            while len(current_arr) < FULL_ARRANGEMENT_SIZE:
+                current_arr.append(None)
+            
+            # 恢復該位置的內容
+            self._restore_non_locked_content(current_arr, [position])
+            
+            # 更新排列
+            self.plugin.currentArrangement = current_arr
+            self.plugin.savePreferences()
+            
+            # 更新預覽
+            self._update_preview_only()
+            
+            debug_log(f"[清除單一鎖定] 完成清除位置 {position}")
+            
+        except Exception as e:
+            error_log("[清除單一鎖定] 清除單個鎖定位置時發生錯誤", e)

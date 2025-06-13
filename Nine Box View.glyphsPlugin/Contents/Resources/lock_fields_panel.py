@@ -269,7 +269,7 @@ class LockFieldsPanel(NSView):
         self.addSubview_(self.clearAllButton)
     
     def toggleLockMode_(self, sender):
-        """切換鎖頭模式（統一使用完整重新生成）"""
+        """切換鎖頭模式（鎖定模式切換使用細粒度更新）"""
         try:
             # 先儲存目前狀態
             was_in_clear_mode = self.isInClearMode
@@ -305,17 +305,13 @@ class LockFieldsPanel(NSView):
                 self.plugin.isInClearMode = self.isInClearMode
                 debug_log(f"[鎖頭切換] 已同步鎖頭狀態到 plugin.isInClearMode = {self.isInClearMode}")
                 
-                # === 使用統一的完整重新生成，確保邏輯一致性 ===
-                debug_log("[鎖頭切換] 使用完整重新生成確保邏輯一致性")
-                self.plugin.event_handlers.generate_new_arrangement()
+                # === 使用細粒度更新，只影響鎖定格顯示，保持其他位置不變 ===
+                debug_log("[鎖頭切換] 使用細粒度鎖定模式更新，保持其他位置穩定")
+                self.plugin.event_handlers.update_lock_mode_display()
                 
                 # 儲存偏好設定
                 self.plugin.savePreferences()
                 debug_log("[鎖頭切換] 已儲存鎖頭狀態到偏好設定")
-                
-                # 更新介面
-                self.plugin.event_handlers.update_interface(None)
-                debug_log("[鎖頭切換] 已觸發介面更新")
             
         except Exception as e:
             error_log("切換鎖頭模式錯誤", e)
@@ -590,7 +586,7 @@ class LockFieldsPanel(NSView):
                 self.lockButton.setImage_(None)
     
     def clearAllFields_(self, sender):
-        """清空所有鎖定輸入框（修正版：符合 flow.md 邏輯）"""
+        """清空所有鎖定輸入框（細粒度清除並觸發主視窗重繪）"""
         try:
             debug_log("清空所有欄位按鈕被點擊")
             
@@ -598,25 +594,22 @@ class LockFieldsPanel(NSView):
             if hasattr(self, 'lockFields') and self.lockFields:
                 for field in self.lockFields.values():
                     field.setStringValue_("")
-            
-            # 清除 plugin 中的 lockedChars
+
+            # 細粒度清除鎖定狀態並觸發主視窗重繪
             if hasattr(self, 'plugin') and self.plugin:
                 # 備份目前狀態（如果需要）
                 if hasattr(self.plugin, 'previousLockedChars'):
                     self.plugin.previousLockedChars = getattr(self.plugin, 'lockedChars', {}).copy()
                 
-                # 清空鎖定字符
-                if hasattr(self.plugin, 'lockedChars'):
-                    self.plugin.lockedChars.clear()
-                
-                # 直接重新生成排列，讓 flow.md 邏輯樹決定內容
+                # 細粒度清除（會自動清空 lockedChars 並恢復排列）
                 if hasattr(self.plugin, 'event_handlers'):
-                    self.plugin.event_handlers.generate_new_arrangement()
+                    debug_log("使用細粒度清除鎖定位置，保持其他位置穩定並觸發主視窗重繪")
+                    self.plugin.event_handlers.clear_locked_positions()
                 
                 # 儲存偏好設定
                 self.plugin.savePreferences()
             
-            debug_log("完成清空所有輸入框")
+            debug_log("完成清空所有輸入框（細粒度清除+主視窗重繪）")
             
         except Exception as e:
             error_log("清空所有欄位錯誤", e)

@@ -5,8 +5,8 @@ alwaysApply: true
 ---
 ## 技術規格檔案 (TSD) - 九宮格預覽 (Nine Box Preview) v3.0.0 (模組化重構版)
 
-**檔案版本:** 1.1 (對應程式碼版本 3.0.0)
-**日期:** 2025-06-13 (規則模式切換一致性改進)
+**檔案版本:** 1.2 (對應程式碼版本 3.0.0)
+**日期:** 2025-06-13 (鎖定控制區塊細粒度更新)
 **變更摘要:** 
 1. **模組化重構**：將程式碼拆分為多個獨立模組 (`plugin.py`, `window_controller.py`, `preview_view.py`, `controls_panel_view.py`, `search_panel.py`, `lock_fields_panel.py`, `event_handlers.py`, `utils.py`, `constants.py`)，提高可讀性和可維護性。
 2. **集中式事件處理**：新增 `event_handlers.py` 模組，統一管理大部分 UI 事件和 Glyphs 回呼邏輯。
@@ -28,11 +28,16 @@ alwaysApply: true
     - 優化填充優先順序：優先使用搜尋框中的有效字符，其次使用當前編輯字符，最後使用備用字符。
     - 確保視窗初次顯示時即正確生成字符排列。
     - **鎖定輸入框字符驗證**：輸入的字符會先經過 `_recognize_character` 處理（可能回傳備用字符）。只有當辨識後的字符與該位置原鎖定的字符不同，且處於鎖定模式時，主視窗的預覽內容才會更新為此辨識後的字符。
-13. **規則模式切換一致性改進**：
-    - 統一所有控制面板變化使用完整重新生成 (`generate_new_arrangement`) 確保邏輯一致性。
-    - 移除了細粒度更新可能造成的邏輯不一致問題。
-    - 確保所有情況下都嚴格遵循 flow.md 的決策樹邏輯。
-    - `smart_lock_character_callback` 和 `toggleLockMode_` 都使用統一的完整重新生成機制。
+13. **雙重更新機制設計**：
+    - **鎖定控制區塊**：單個鎖定框輸入、鎖定模式切換、清空鎖定按鈕使用細粒度更新，只影響相關位置，保持其他位置穩定。
+    - **搜尋與隨機功能**：搜尋欄位變化、隨機排列按鈕使用完整重新生成，觸發完整的隨機化重排。
+    - 兩套機制分離，各司其職，解決了鎖定操作意外觸發隨機排列的問題。
+14. **細粒度更新方法**：
+    - `update_locked_position()`: 更新單個鎖定位置
+    - `update_lock_mode_display()`: 切換鎖定模式顯示
+    - `clear_locked_positions()`: 清除鎖定位置
+    - `_clear_single_locked_position()`: 清除單個鎖定位置
+    - 所有細粒度方法都使用 `_update_preview_only()` 進行預覽更新，避免觸發完整重新生成。
 
 
 ### 1. 系統架構 (System Architecture)
