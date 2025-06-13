@@ -19,7 +19,7 @@ from AppKit import (
     NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSFont,
     NSAttributedString, NSFontAttributeName, NSForegroundColorAttributeName,
     NSBezelStyleRounded, NSTexturedRoundedBezelStyle,
-    NSFocusRingTypeNone, NSWindowCloseButton,
+    NSWindowCloseButton,
     NSWindowMiniaturizeButton, NSWindowZoomButton, NSUserDefaults
 )
 from Foundation import NSObject, NSUserDefaultsDidChangeNotification, NSTimer

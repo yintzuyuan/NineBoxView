@@ -14,7 +14,7 @@ from AppKit import (
     NSMenu, NSMenuItem, NSNotificationCenter,
     NSViewWidthSizable, NSViewMaxYMargin,
     NSMakeRect, NSMakeSize, NSMakePoint,
-    NSFocusRingTypeNone, NSCenterTextAlignment,
+    NSCenterTextAlignment,
     NSBezelStyleRounded, NSBezelStyleRegularSquare,
     NSButtonTypeMomentaryPushIn, NSButtonTypeToggle,
     NSString, NSImage,
@@ -48,7 +48,6 @@ class LockCharacterField(NSTextField):
     def _setup_appearance(self):
         """設定外觀"""
         self.setFont_(NSFont.systemFontOfSize_(16.0))
-        self.setFocusRingType_(NSFocusRingTypeNone)
         self.setBezeled_(True)
         self.setEditable_(True)
         self.setUsesSingleLineMode_(True)

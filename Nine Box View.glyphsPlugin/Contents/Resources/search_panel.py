@@ -12,7 +12,7 @@ from AppKit import (
     NSView, NSTextView, NSScrollView, NSFont, NSColor, NSApp,
     NSMenu, NSMenuItem, NSNotificationCenter,
     NSViewWidthSizable, NSViewHeightSizable,
-    NSMakeRect, NSFocusRingTypeNone, NSTextContainer,
+    NSMakeRect, NSTextContainer,
     NSLayoutManager, NSTextStorage, NSBorderlessWindowMask
 )
 from Foundation import NSObject
@@ -51,7 +51,6 @@ class SearchTextView(NSTextView):
     def _setup_appearance(self):
         """設定外觀"""
         self.setFont_(NSFont.systemFontOfSize_(16.0))
-        self.setFocusRingType_(NSFocusRingTypeNone)
         self.setEditable_(True)
         self.setSelectable_(True)
         self.setRichText_(False)  # 只允許純文字
