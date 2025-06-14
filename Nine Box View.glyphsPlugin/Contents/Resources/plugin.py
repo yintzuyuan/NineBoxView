@@ -155,13 +155,16 @@ try:
         def toggleWindow_(self, sender):
             """切換視窗顯示狀態"""
             try:
-                # 確保每次開啟時都重新載入最新的偏好設定
-                self.loadPreferences()
-                self.debug_log("[切換視窗] 已重新載入偏好設定")
-                self.debug_log(f"  - lastInput: '{self.lastInput}'")
-                self.debug_log(f"  - selectedChars: {self.selectedChars}")
-                self.debug_log(f"  - lockedChars: {self.lockedChars}")
-                self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
+                # 只在視窗控制器不存在時載入偏好設定，避免覆蓋現有狀態
+                if self.windowController is None:
+                    self.loadPreferences()
+                    self.debug_log("[切換視窗] 首次開啟，已載入偏好設定")
+                    self.debug_log(f"  - lastInput: '{self.lastInput}'")
+                    self.debug_log(f"  - selectedChars: {self.selectedChars}")
+                    self.debug_log(f"  - lockedChars: {self.lockedChars}")
+                    self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
+                else:
+                    self.debug_log("[切換視窗] 使用現有視窗控制器，保持現有狀態")
                 
                 if self.windowController is None:
                     # 初次開啟視窗

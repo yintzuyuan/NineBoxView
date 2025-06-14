@@ -107,15 +107,27 @@ def load_preferences(plugin):
         loaded_original = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
         plugin.originalArrangement = _convert_arrangement_to_9_slots(loaded_original)
         
-        # 優先順序邏輯：如果有最終狀態，使用最終狀態作為當前排列
+        # 智慧載入優先順序：確保關閉前的狀態能被正確恢復
+        debug_log(f"載入排列狀態分析:")
+        debug_log(f"  - finalArrangement: {plugin.finalArrangement} (有效: {bool(plugin.finalArrangement and any(item is not None for item in plugin.finalArrangement))})")
+        debug_log(f"  - currentArrangement: {plugin.currentArrangement} (有效: {bool(plugin.currentArrangement and any(item is not None for item in plugin.currentArrangement))})")
+        debug_log(f"  - originalArrangement: {plugin.originalArrangement} (有效: {bool(plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement))})")
+        
+        # 1. 優先使用最終狀態（關閉前的狀態）
         if plugin.finalArrangement and any(item is not None for item in plugin.finalArrangement):
-            debug_log("使用 finalArrangement 作為初始排列")
             plugin.currentArrangement = list(plugin.finalArrangement)
-        elif not plugin.currentArrangement or not any(item is not None for item in plugin.currentArrangement):
-            # 如果沒有有效的 currentArrangement，使用 originalArrangement
-            if plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement):
-                debug_log("使用 originalArrangement 作為初始排列")
-                plugin.currentArrangement = list(plugin.originalArrangement)
+            debug_log("✅ 使用 finalArrangement 作為初始排列（關閉前狀態）")
+        # 2. 次選使用當前排列（如果有效）
+        elif plugin.currentArrangement and any(item is not None for item in plugin.currentArrangement):
+            debug_log("✅ 保持現有的 currentArrangement（已有有效排列）")
+        # 3. 最後使用原始排列
+        elif plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement):
+            plugin.currentArrangement = list(plugin.originalArrangement)
+            debug_log("✅ 使用 originalArrangement 作為初始排列（備用）")
+        else:
+            debug_log("⚠️ 沒有任何有效的已儲存排列，將由初始化邏輯生成新排列")
+        
+        debug_log(f"最終載入的 currentArrangement: {plugin.currentArrangement}")
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
         

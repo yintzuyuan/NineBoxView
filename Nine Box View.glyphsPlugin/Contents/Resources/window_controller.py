@@ -570,7 +570,7 @@ class NineBoxWindow(NSWindowController):
             # 檢查並重建控制面板
             self.rebuildControlsPanelIfNeeded()
             
-            # === 完整初始化：根據載入的狀態生成正確排列 ===
+            # === 智慧初始化：尊重已載入的排列狀態 ===
             if hasattr(self, 'plugin'):
                 # 先確保控制面板 UI 顯示正確的載入值
                 if self.controlsPanelView:
@@ -587,20 +587,31 @@ class NineBoxWindow(NSWindowController):
                             self.plugin.selectedChars = parsed_chars
                             debug_log(f"[初始化] 解析後的 selectedChars: {self.plugin.selectedChars}")
                 
-                # 無論是否有現有排列，都重新生成以確保一致性
-                if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
-                    debug_log("[初始化] 重新生成字符排列")
-                    
-                    # 設定一個標記來表示這是初始化
-                    self.plugin._is_initializing = True
-                    
-                    # 生成新排列
-                    self.plugin.event_handlers.generate_new_arrangement()
-                    
-                    # 清除標記
-                    self.plugin._is_initializing = False
-                    
-                    debug_log(f"[初始化] 生成的排列: {self.plugin.currentArrangement}")
+                # 檢查是否有有效的載入排列
+                has_valid_arrangement = (hasattr(self.plugin, 'currentArrangement') and 
+                                        self.plugin.currentArrangement and 
+                                        any(item is not None for item in self.plugin.currentArrangement))
+                
+                if has_valid_arrangement:
+                    debug_log(f"[初始化] 使用載入的排列: {self.plugin.currentArrangement}")
+                    # 不重新生成，直接使用載入的排列
+                    debug_log("[初始化] 跳過重新生成，保持載入的排列狀態")
+                else:
+                    debug_log("[初始化] 沒有有效的載入排列，生成新排列")
+                    # 只有在沒有有效排列時才生成新的
+                    if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
+                        debug_log("[初始化] 執行新排列生成")
+                        
+                        # 設定一個標記來表示這是初始化
+                        self.plugin._is_initializing = True
+                        
+                        # 生成新排列
+                        self.plugin.event_handlers.generate_new_arrangement()
+                        
+                        # 清除標記
+                        self.plugin._is_initializing = False
+                        
+                        debug_log(f"[初始化] 生成的新排列: {self.plugin.currentArrangement}")
                 
                 # 更新介面
                 self.plugin.updateInterface(None)
