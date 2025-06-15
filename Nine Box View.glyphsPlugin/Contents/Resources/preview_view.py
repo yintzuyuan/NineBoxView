@@ -80,6 +80,18 @@ class NineBoxPreviewView(NSView):
     
     def mouseDown_(self, event):
         """處理滑鼠點擊事件"""
+        # 取得點擊位置
+        click_point = event.locationInWindow()
+        view_point = self.convertPoint_fromView_(click_point, None)
+        
+        # 取得視窗標題列高度（約 22 點）
+        titlebar_height = 22
+        
+        # 如果點擊位置在標題列區域內，不觸發隨機排列
+        if view_point.y >= self.frame().size.height - titlebar_height:
+            return
+        
+        # 在非標題列區域點擊時，觸發隨機排列
         self.window().makeKeyWindow()
         self.window().makeFirstResponder_(self)
         self.plugin.randomizeCallback(self)
