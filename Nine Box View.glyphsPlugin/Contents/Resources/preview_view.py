@@ -9,6 +9,7 @@ from __future__ import division, print_function, unicode_literals
 import traceback
 import objc
 import random
+import time
 from GlyphsApp import Glyphs
 from AppKit import (
     NSView, NSColor, NSBezierPath, NSAffineTransform, NSRectFill,
@@ -91,6 +92,28 @@ class NineBoxPreviewView(NSView):
         if view_point.y >= self.frame().size.height - titlebar_height:
             return
         
+        # 動態防抖機制
+        current_time = time.time()
+        
+        # 初始化或取得上次點擊時間
+        if not hasattr(self, '_last_click_time'):
+            self._last_click_time = 0
+            self._is_first_click_after_focus = True
+        
+        # 計算時間差
+        time_diff = current_time - self._last_click_time
+        
+        # 根據是否為聚焦後第一次點擊決定防抖時間
+        debounce_time = 0.3 if self._is_first_click_after_focus else 0.1  # 300ms vs 100ms
+        
+        if time_diff < debounce_time:
+            return
+        
+        # 更新點擊時間和狀態
+        self._last_click_time = current_time
+        self._is_first_click_after_focus = False
+        
+        
         # 在非標題列區域點擊時，觸發隨機排列
         self.window().makeKeyWindow()
         self.window().makeFirstResponder_(self)
@@ -104,6 +127,9 @@ class NineBoxPreviewView(NSView):
     
     def _set_currentArrangement(self, arrangement):
         """設定目前排列（自動觸發重繪）"""
+        if arrangement == getattr(self, '_currentArrangement', []):
+            return  # 如果排列沒有改變，不觸發重繪
+    
         self._currentArrangement = arrangement if arrangement else []
         self.setNeedsDisplay_(True)  # 官方模式：屬性變更時立即重繪
         debug_log(f"currentArrangement 已更新，觸發重繪: {arrangement}")
