@@ -503,13 +503,13 @@ class EventHandlers:
         if is_locked:  # 上鎖模式
             if has_locked:  # 有鎖定字符
                 if has_batch:  # 有批量輸入
-                    # R1: 中心: activeGlyph, 鎖定格: lockedChars, 其餘格: 從 batchChars 隨機
+                    # R1: 中心: activeGlyph, 其餘格: 鎖定格+batchChars
                     arrangement[CENTER_POSITION] = activeGlyph
                     self._apply_locked_chars(arrangement, lockedChars)
                     self._fill_remaining_with_batch(arrangement, batchChars)
                     debug_log("R1: activeGlyph + 上鎖 + 有locked + 有batch")
                 else:  # 無批量輸入
-                    # R2: 中心: activeGlyph, 鎖定格: lockedChars, 其餘格: activeGlyph
+                    # R2: 中心: activeGlyph, 其餘格: 鎖定格+activeGlyph
                     arrangement[CENTER_POSITION] = activeGlyph
                     self._apply_locked_chars(arrangement, lockedChars)
                     self._fill_remaining_with_char(arrangement, activeGlyph)
@@ -544,45 +544,33 @@ class EventHandlers:
         if is_locked:  # 上鎖模式
             if has_locked:  # 有鎖定字符
                 if has_batch:  # 有批量輸入
-                    # R7: 中心: 從 batchChars 隨機, 鎖定格: lockedChars, 其餘格: 從 batchChars 隨機
-                    # 1. 先設定中心格（如果中心格沒有被鎖定）
-                    if CENTER_POSITION not in lockedChars:
-                        arrangement[CENTER_POSITION] = random.choice(batchChars)
-                    # 2. 再應用鎖定字符（可能會覆蓋中心格）
+                    # R7: 中心: 從 batchChars 隨機, 其餘格: 鎖定格+batchChars
+                    arrangement[CENTER_POSITION] = random.choice(batchChars)
                     self._apply_locked_chars(arrangement, lockedChars)
-                    # 3. 最後填充其餘位置
                     self._fill_remaining_with_batch(arrangement, batchChars)
                     debug_log("R7: 無activeGlyph + 上鎖 + 有locked + 有batch")
                 else:  # 無批量輸入
-                    # R8: 中心: 空白, 鎖定格: lockedChars, 其餘格: 空白
-                    # 1. 中心格保持 None（空白），除非被鎖定
-                    # 2. 應用鎖定字符
+                    # R8: 中心: 空白, 其餘格: 鎖定格+空白
+                    arrangement[CENTER_POSITION] = None
                     self._apply_locked_chars(arrangement, lockedChars)
-                    # 3. 其餘位置保持 None（空白）
                     debug_log("R8: 無activeGlyph + 上鎖 + 有locked + 無batch")
             else:  # 無鎖定字符
                 if has_batch:  # 有批量輸入
                     # R9: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
-                    # 1. 先設定中心格
                     arrangement[CENTER_POSITION] = random.choice(batchChars)
-                    # 2. 再填充周圍格
                     self._fill_surrounding_with_batch(arrangement, batchChars)
                     debug_log("R9: 無activeGlyph + 上鎖 + 無locked + 有batch")
                 else:  # 無批量輸入
                     # R10: 所有九格皆為空白
-                    # arrangement 已經全為 None
                     debug_log("R10: 無activeGlyph + 上鎖 + 無locked + 無batch")
         else:  # 解鎖模式
             if has_batch:  # 有批量輸入
                 # R11: 中心: 從 batchChars 隨機, 周圍格: 從 batchChars 隨機
-                # 1. 先設定中心格
                 arrangement[CENTER_POSITION] = random.choice(batchChars)
-                # 2. 再填充周圍格
                 self._fill_surrounding_with_batch(arrangement, batchChars)
                 debug_log("R11: 無activeGlyph + 解鎖 + 有batch")
             else:  # 無批量輸入
                 # R12: 所有九格皆為空白
-                # arrangement 已經全為 None
                 debug_log("R12: 無activeGlyph + 解鎖 + 無batch")
         
         return arrangement
@@ -770,12 +758,7 @@ class EventHandlers:
             error_log("[細粒度更新] 更新鎖定位置時發生錯誤", e)
     
     def _restore_non_locked_content(self, arrangement, positions):
-        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯，並處理批次輸入變更）
-        
-        Args:
-            arrangement: 當前排列（可變列表）
-            positions: 要恢復的位置列表
-        """
+        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯，並處理批次輸入變更）"""
         try:
             # 優先使用原始排列
             if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
@@ -806,15 +789,9 @@ class EventHandlers:
                     # 有批量字符：使用批量字符
                     for pos in positions:
                         if pos < len(arrangement):
-                            if pos == CENTER_POSITION:
-                                # 中心格使用 activeGlyph
-                                arrangement[pos] = activeGlyph
-                                debug_log(f"[恢復內容] 中心位置 {pos} 使用 activeGlyph: {activeGlyph}")
-                            else:
-                                # 其他位置使用批量字符
-                                replacement_char = random.choice(self.plugin.selectedChars)
-                                arrangement[pos] = replacement_char
-                                debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
+                            replacement_char = random.choice(self.plugin.selectedChars)
+                            arrangement[pos] = replacement_char
+                            debug_log(f"[恢復內容] 位置 {pos} 使用批量字符: {replacement_char}")
                 else:
                     # 無批量字符：全部使用 activeGlyph
                     for pos in positions:
@@ -919,18 +896,14 @@ class EventHandlers:
                 while len(current_arr) < FULL_ARRANGEMENT_SIZE:
                     current_arr.append(None)
                 
-                # 檢查中心格是否被鎖定
-                if CENTER_POSITION in getattr(self.plugin, 'lockedChars', {}):
-                    debug_log("[中心更新] 中心格被鎖定，保持不變")
+                # 只更新中心位置（位置4）
+                if new_active_glyph is not None:
+                    current_arr[CENTER_POSITION] = new_active_glyph
+                    debug_log(f"[中心更新] 中心格更新為: {new_active_glyph}")
                 else:
-                    # 只更新中心位置（位置4）
-                    if new_active_glyph is not None:
-                        current_arr[CENTER_POSITION] = new_active_glyph
-                        debug_log(f"[中心更新] 中心格更新為: {new_active_glyph}")
-                    else:
-                        # 沒有 activeGlyph，從批量字符中選擇
-                        current_arr[CENTER_POSITION] = random.choice(self.plugin.selectedChars)
-                        debug_log(f"[中心更新] 中心格更新為隨機批量字符: {current_arr[CENTER_POSITION]}")
+                    # 沒有 activeGlyph，從批量字符中選擇
+                    current_arr[CENTER_POSITION] = random.choice(self.plugin.selectedChars)
+                    debug_log(f"[中心更新] 中心格更新為隨機批量字符: {current_arr[CENTER_POSITION]}")
                 
                 # 更新 currentArrangement
                 self.plugin.currentArrangement = current_arr
