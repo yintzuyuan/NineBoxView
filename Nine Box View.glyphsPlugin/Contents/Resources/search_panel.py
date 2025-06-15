@@ -28,6 +28,7 @@ class SearchTextView(NSTextView):
         self = objc.super(SearchTextView, self).initWithFrame_(frame)
         if self:
             self.plugin = plugin
+            self._programmatic_update = False  # 標記是否為程式化更新
             self._setup_basic_properties()
             self._setup_context_menu()
             self._register_notifications()
@@ -85,11 +86,11 @@ class SearchTextView(NSTextView):
             # 自訂字符選擇功能
             pickGlyphItem = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 Glyphs.localize({
-                    'en': u'Select Glyphs from Font...',
-                    'zh-Hant': u'從字型中選擇字符...',
-                    'zh-Hans': u'从字体中选择字符...',
-                    'ja': u'フォントから文字を選択...',
-                    'ko': u'글꼴에서 글자 선택...',
+                    'en': u'Glyph Picker...',
+                    'zh-Hant': u'字符選擇器...',
+                    'zh-Hans': u'字符选择器...',
+                    'ja': u'グリフピッカー...',
+                    'ko': u'글리프 선택기...',
                 }),
                 "pickGlyphAction:",
                 ""
@@ -118,7 +119,12 @@ class SearchTextView(NSTextView):
     def textDidChange_(self, notification):
         """文字變更時的回呼"""
         try:
-            debug_log(f"搜尋欄位文字變更: {self.string()}")
+            # 檢查是否為程式化更新，如果是則不觸發回調
+            if self._programmatic_update:
+                debug_log(f"搜尋欄位程式化更新: {self.string()}，跳過觸發排列重新生成")
+                return
+            
+            debug_log(f"搜尋欄位使用者輸入變更: {self.string()}")
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
         except Exception as e:
@@ -212,13 +218,27 @@ class SearchPanel(NSView):
         debug_log("搜尋面板 UI 設定完成（簡化多行版）")
     
     def update_content(self, plugin_state):
-        """更新搜尋欄位內容"""
+        """更新搜尋欄位內容（程式化更新）"""
         try:
             if hasattr(plugin_state, 'lastInput') and self.searchField:
                 input_value = plugin_state.lastInput or ""
-                self.searchField.setStringValue_(input_value)
+                
+                # 設定程式化更新標記，避免觸發重新生成排列
+                self.searchField._programmatic_update = True
+                debug_log(f"程式化更新搜尋欄位內容: '{input_value}'")
+                
+                try:
+                    self.searchField.setStringValue_(input_value)
+                finally:
+                    # 確保標記被清除
+                    self.searchField._programmatic_update = False
+                    debug_log("程式化更新完成，已清除標記")
+                    
         except Exception as e:
             error_log("更新搜尋欄位內容錯誤", e)
+            # 發生錯誤時也要確保清除標記
+            if hasattr(self, 'searchField') and self.searchField:
+                self.searchField._programmatic_update = False
     
     def get_search_value(self):
         """取得搜尋欄位的值"""
@@ -227,9 +247,18 @@ class SearchPanel(NSView):
         return ""
     
     def set_search_value(self, value):
-        """設定搜尋欄位的值"""
+        """設定搜尋欄位的值（程式化更新）"""
         if self.searchField:
-            self.searchField.setStringValue_(value)
+            # 設定程式化更新標記，避免觸發重新生成排列
+            self.searchField._programmatic_update = True
+            debug_log(f"程式化設定搜尋欄位值: '{value}'")
+            
+            try:
+                self.searchField.setStringValue_(value)
+            finally:
+                # 確保標記被清除
+                self.searchField._programmatic_update = False
+                debug_log("程式化設定完成，已清除標記")
     
     def dealloc(self):
         """解構式"""

@@ -41,7 +41,7 @@ class LockCharacterField(NSTextField):
             self.position = position
             self.plugin = plugin
             self._setup_appearance()
-            self._setup_context_menu()
+            # self._setup_context_menu()
             self._register_notifications()
         return self
     
@@ -70,27 +70,27 @@ class LockCharacterField(NSTextField):
         })
         self.setToolTip_(lockedTooltip)
     
-    def _setup_context_menu(self):
-        """設定右鍵選單"""
-        try:
-            contextMenu = NSMenu.alloc().init()
+    # def _setup_context_menu(self):
+    #     """設定右鍵選單"""
+    #     try:
+    #         contextMenu = NSMenu.alloc().init()
             
-            pickGlyphItem = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                Glyphs.localize({
-                    'en': u'Select Glyphs from Font...',
-                    'zh-Hant': u'從字型中選擇字符...',
-                    'zh-Hans': u'从字体中选择字符...',
-                    'ja': u'フォントから文字を選択...',
-                    'ko': u'글꼴에서 글자 선택...',
-                }),
-                "pickGlyphAction:",
-                ""
-            )
-            contextMenu.addItem_(pickGlyphItem)
-            self.setMenu_(contextMenu)
+    #         pickGlyphItem = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+    #             Glyphs.localize({
+    #                 'en': u'Select Glyphs from Font...',
+    #                 'zh-Hant': u'從字型中選擇字符...',
+    #                 'zh-Hans': u'从字体中选择字符...',
+    #                 'ja': u'フォントから文字を選択...',
+    #                 'ko': u'글꼴에서 글자 선택...',
+    #             }),
+    #             "pickGlyphAction:",
+    #             ""
+    #         )
+    #         contextMenu.addItem_(pickGlyphItem)
+    #         self.setMenu_(contextMenu)
             
-        except Exception as e:
-            error_log("設定右鍵選單錯誤", e)
+    #     except Exception as e:
+    #         error_log("設定右鍵選單錯誤", e)
     
     def _register_notifications(self):
         """註冊通知"""
