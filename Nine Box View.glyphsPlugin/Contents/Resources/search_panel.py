@@ -124,9 +124,16 @@ class SearchTextView(NSTextView):
                 debug_log(f"搜尋欄位程式化更新: {self.string()}，跳過觸發排列重新生成")
                 return
             
+            # 保存當前游標位置
+            current_selection = self.selectedRange()
+            
             debug_log(f"搜尋欄位使用者輸入變更: {self.string()}")
             if hasattr(self, 'plugin') and self.plugin:
                 self.plugin.searchFieldCallback(self)
+                
+            # 恢復游標位置
+            self.setSelectedRange_(current_selection)
+            
         except Exception as e:
             error_log("文字變更處理錯誤", e)
     
@@ -137,10 +144,17 @@ class SearchTextView(NSTextView):
     def setStringValue_(self, value):
         """提供與 NSTextField 相容的 setStringValue 方法"""
         try:
+            # 保存當前游標位置
+            current_selection = self.selectedRange()
+            
             if value:
                 self.setString_(value)
             else:
                 self.setString_("")
+                
+            # 恢復游標位置
+            self.setSelectedRange_(current_selection)
+            
         except Exception as e:
             error_log("設定文字值時發生錯誤", e)
     
