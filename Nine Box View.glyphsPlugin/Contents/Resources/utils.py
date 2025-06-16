@@ -15,8 +15,8 @@ from constants import (
     LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY, WINDOW_SIZE_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
     LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY,
-    ORIGINAL_ARRANGEMENT_KEY,
-    DEFAULT_ZOOM, DEBUG_MODE
+    ORIGINAL_ARRANGEMENT_KEY, FINAL_ARRANGEMENT_KEY,
+    DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, LEGACY_ARRANGEMENT_SIZE
 )
 
 # === 快取相關 ===
@@ -26,10 +26,27 @@ _glyph_cache = {}
 _width_cache = {}
 
 def clear_cache():
-    """清除快取"""
+    """清除快取（包含官方和傳統快取）"""
     global _glyph_cache, _width_cache
+    
+    # 清除傳統快取
     _glyph_cache.clear()
     _width_cache.clear()
+    
+    # 清除官方字型快取（如果可用）
+    try:
+        font = Glyphs.font
+        if font and hasattr(font, 'tempData'):
+            # 清除字符快取
+            keys_to_remove = [key for key in font.tempData.keys() if key.startswith('glyph_cache_')]
+            for key in keys_to_remove:
+                del font.tempData[key]
+            
+            debug_log(f"已清除 {len(keys_to_remove)} 個官方字符快取項目")
+    except Exception as e:
+        debug_log(f"清除官方快取時發生錯誤: {e}")
+    
+    debug_log("已清除所有快取")
 
 # === 記錄相關 ===
 
@@ -78,8 +95,39 @@ def load_preferences(plugin):
         # 載入各項設定
         plugin.lastInput = Glyphs.defaults[LAST_INPUT_KEY] or ""
         plugin.selectedChars = Glyphs.defaults[SELECTED_CHARS_KEY] or []
-        plugin.currentArrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
-        plugin.originalArrangement = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
+        
+        # 載入排列並處理向前相容性
+        # 載入順序：finalArrangement > currentArrangement > originalArrangement
+        loaded_final = Glyphs.defaults[FINAL_ARRANGEMENT_KEY] or []
+        plugin.finalArrangement = _convert_arrangement_to_9_slots(loaded_final)
+        
+        loaded_arrangement = Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] or []
+        plugin.currentArrangement = _convert_arrangement_to_9_slots(loaded_arrangement)
+        
+        loaded_original = Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] or []
+        plugin.originalArrangement = _convert_arrangement_to_9_slots(loaded_original)
+        
+        # 智慧載入優先順序：確保關閉前的狀態能被正確恢復
+        debug_log(f"載入排列狀態分析:")
+        debug_log(f"  - finalArrangement: {plugin.finalArrangement} (有效: {bool(plugin.finalArrangement and any(item is not None for item in plugin.finalArrangement))})")
+        debug_log(f"  - currentArrangement: {plugin.currentArrangement} (有效: {bool(plugin.currentArrangement and any(item is not None for item in plugin.currentArrangement))})")
+        debug_log(f"  - originalArrangement: {plugin.originalArrangement} (有效: {bool(plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement))})")
+        
+        # 1. 優先使用最終狀態（關閉前的狀態）
+        if plugin.finalArrangement and any(item is not None for item in plugin.finalArrangement):
+            plugin.currentArrangement = list(plugin.finalArrangement)
+            debug_log("✅ 使用 finalArrangement 作為初始排列（關閉前狀態）")
+        # 2. 次選使用當前排列（如果有效）
+        elif plugin.currentArrangement and any(item is not None for item in plugin.currentArrangement):
+            debug_log("✅ 保持現有的 currentArrangement（已有有效排列）")
+        # 3. 最後使用原始排列
+        elif plugin.originalArrangement and any(item is not None for item in plugin.originalArrangement):
+            plugin.currentArrangement = list(plugin.originalArrangement)
+            debug_log("✅ 使用 originalArrangement 作為初始排列（備用）")
+        else:
+            debug_log("⚠️ 沒有任何有效的已儲存排列，將由初始化邏輯生成新排列")
+        
+        debug_log(f"最終載入的 currentArrangement: {plugin.currentArrangement}")
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
         plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
         
@@ -219,8 +267,21 @@ def save_preferences(plugin):
         # 儲存各項設定
         Glyphs.defaults[LAST_INPUT_KEY] = plugin.lastInput
         Glyphs.defaults[SELECTED_CHARS_KEY] = plugin.selectedChars
-        Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = plugin.currentArrangement
-        Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = getattr(plugin, 'originalArrangement', [])
+        
+        # 處理 currentArrangement - 將 None 轉換為空字串
+        current_arrangement = getattr(plugin, 'currentArrangement', [])
+        safe_current_arrangement = [item if item is not None else "" for item in current_arrangement]
+        Glyphs.defaults[CURRENT_ARRANGEMENT_KEY] = safe_current_arrangement
+        
+        # 處理 originalArrangement - 將 None 轉換為空字串
+        original_arrangement = getattr(plugin, 'originalArrangement', [])
+        safe_original_arrangement = [item if item is not None else "" for item in original_arrangement]
+        Glyphs.defaults[ORIGINAL_ARRANGEMENT_KEY] = safe_original_arrangement
+        
+        # 處理 finalArrangement - 將 None 轉換為空字串
+        final_arrangement = getattr(plugin, 'finalArrangement', [])
+        safe_final_arrangement = [item if item is not None else "" for item in final_arrangement]
+        Glyphs.defaults[FINAL_ARRANGEMENT_KEY] = safe_final_arrangement
         Glyphs.defaults[ZOOM_FACTOR_KEY] = plugin.zoomFactor
         Glyphs.defaults[WINDOW_SIZE_KEY] = plugin.windowSize
         
@@ -290,10 +351,10 @@ def save_preferences(plugin):
 # === 字符處理 ===
 
 def get_cached_glyph(font, char_or_name):
-    """從快取或字型取得字符（最佳化版）
+    """從快取或字型取得字符（官方 API 最佳化版本）
     
     Args:
-        font: 字型物件
+        font: GSFont 字型物件
         char_or_name: 字符或字符名稱
         
     Returns:
@@ -302,50 +363,106 @@ def get_cached_glyph(font, char_or_name):
     if not font or not char_or_name:
         return None
     
-    # 檢查快取
-    cache_key = (id(font), char_or_name)
-    if CACHE_ENABLED and cache_key in _glyph_cache:
-        return _glyph_cache[cache_key]
+    # 使用官方 API 的安全快取機制
+    # 優先使用 font.tempData 進行快取（官方推薦）
+    cache_key = f"glyph_cache_{char_or_name}"
     
-    # 嘗試取得字符
-    glyph = None
+    # 檢查官方臨時快取
+    if CACHE_ENABLED and hasattr(font, 'tempData') and cache_key in font.tempData:
+        return font.tempData[cache_key]
     
-    # 最佳化：使用 Glyphs 內建的快速查找方法
+    # 如果官方快取不可用，使用傳統快取
+    fallback_cache_key = (id(font), char_or_name)
+    if CACHE_ENABLED and fallback_cache_key in _glyph_cache:
+        return _glyph_cache[fallback_cache_key]
+    
+    # 使用官方 API 查找字符
+    glyph = _find_glyph_with_official_api(font, char_or_name)
+    
+    # 存入快取
+    if glyph and CACHE_ENABLED:
+        # 優先存入官方快取
+        if hasattr(font, 'tempData'):
+            font.tempData[cache_key] = glyph
+        else:
+            # 備用快取
+            _glyph_cache[fallback_cache_key] = glyph
+    
+    return glyph
+
+
+def _find_glyph_with_official_api(font, char_or_name):
+    """使用官方 API 查找字符的內部函數
+    
+    Args:
+        font: GSFont 字型物件
+        char_or_name: 字符或字符名稱
+        
+    Returns:
+        GSGlyph 物件或 None
+    """
+    if not font or not char_or_name:
+        return None
+    
     try:
-        # 1. 直接通過 glyphs 字典存取（最快）
+        # 1. 使用官方推薦的字典訪問方式（最快速的方法）
+        # 根據 GSFont API 文檔，這是查找字符的首選方法
         glyph = font.glyphs[char_or_name]
         if glyph:
-            if CACHE_ENABLED:
-                _glyph_cache[cache_key] = glyph
+            debug_log(f"透過字典訪問找到字符: {char_or_name}")
             return glyph
-    except:
+    except (KeyError, TypeError):
+        # 正常的查找失敗，繼續嘗試其他方法
         pass
+    except Exception as e:
+        debug_log(f"字典訪問時發生未預期錯誤: {e}")
     
-    # 2. 如果是單一字符，嘗試通過 Unicode
+    # 2. 如果是單字符，嘗試 Unicode 十六進制查找
     if len(char_or_name) == 1:
         try:
-            unicode_val = format(ord(char_or_name), '04X')
-            glyph = font.glyphs[unicode_val]
+            unicode_hex = format(ord(char_or_name), '04X')
+            glyph = font.glyphs[unicode_hex]
             if glyph:
-                if CACHE_ENABLED:
-                    _glyph_cache[cache_key] = glyph
+                debug_log(f"透過 Unicode 找到字符: {char_or_name} -> {unicode_hex}")
                 return glyph
-        except:
+        except (KeyError, ValueError, TypeError):
             pass
+        except Exception as e:
+            debug_log(f"Unicode 查找時發生錯誤: {e}")
     
-    # 3. 嘗試用 glyphForName（Nice Name）
+    # 3. 使用官方 glyphForName_ 方法（支援 Nice Names）
     try:
-        glyph = font.glyphForName_(char_or_name)
-        if glyph:
-            if CACHE_ENABLED:
-                _glyph_cache[cache_key] = glyph
-            return glyph
-    except:
-        pass
+        if hasattr(font, 'glyphForName_'):
+            glyph = font.glyphForName_(char_or_name)
+            if glyph:
+                debug_log(f"透過 glyphForName_ 找到字符: {char_or_name}")
+                return glyph
+    except Exception as e:
+        debug_log(f"glyphForName_ 查找時發生錯誤: {e}")
     
-    # 移除遍歷所有字符的部分，這在大型字型中會造成嚴重效能問題
-    # 如果上述方法都找不到，就回傳 None
+    # 4. 嘗試 Unicode 字符值的其他格式
+    if len(char_or_name) == 1:
+        try:
+            # 嘗試不同的 Unicode 格式
+            unicode_variants = [
+                format(ord(char_or_name), 'X'),      # 不補零的十六進制
+                format(ord(char_or_name), '04x'),    # 小寫
+                format(ord(char_or_name), '08X'),    # 8位數大寫
+            ]
+            
+            for variant in unicode_variants:
+                try:
+                    glyph = font.glyphs[variant]
+                    if glyph:
+                        debug_log(f"透過 Unicode 變體找到字符: {char_or_name} -> {variant}")
+                        return glyph
+                except:
+                    continue
+        except Exception as e:
+            debug_log(f"Unicode 變體查找時發生錯誤: {e}")
     
+    # 未找到字符
+    debug_log(f"無法找到字符: {char_or_name}")
     return None
 
 def get_cached_width(layer):
@@ -494,7 +611,7 @@ def validate_locked_positions(locked_chars, font):
         # 驗證位置
         try:
             pos = int(position)
-            if pos < 0 or pos >= MAX_LOCKED_POSITIONS:
+            if pos < 0 or pos >= FULL_ARRANGEMENT_SIZE:
                 continue
         except:
             continue
@@ -522,3 +639,71 @@ def get_base_width():
     except Exception as e:
         error_log("取得基準寬度時發生錯誤", e)
         return DEFAULT_UPM
+
+# === 排列格式轉換 ===
+
+def _convert_arrangement_to_9_slots(arrangement):
+    """將排列轉換為9格格式
+    
+    Args:
+        arrangement: 原始排列（可能是8格或9格）
+        
+    Returns:
+        9格排列列表
+    """
+    if not arrangement:
+        return [None] * FULL_ARRANGEMENT_SIZE
+    
+    arrangement_list = list(arrangement)  # 確保是可變列表
+    
+    # 將空字串轉換回 None（從偏好設定載入時）
+    arrangement_list = [item if item != "" else None for item in arrangement_list]
+    
+    if len(arrangement_list) == LEGACY_ARRANGEMENT_SIZE:
+        # 8格轉9格：在位置4插入None作為中心格
+        debug_log(f"轉換8格排列為9格: {arrangement_list}")
+        new_arrangement = [None] * FULL_ARRANGEMENT_SIZE
+        
+        # 位置映射：0,1,2,3 -> 0,1,2,3，4,5,6,7 -> 5,6,7,8
+        for i in range(4):
+            new_arrangement[i] = arrangement_list[i]
+        # 位置4保持為None（中心格）
+        for i in range(4, 8):
+            new_arrangement[i + 1] = arrangement_list[i]
+            
+        debug_log(f"轉換結果: {new_arrangement}")
+        return new_arrangement
+        
+    elif len(arrangement_list) == FULL_ARRANGEMENT_SIZE:
+        # 已經是9格，直接返回
+        return arrangement_list
+        
+    else:
+        # 其他長度，返回空的9格排列
+        debug_log(f"無法識別的排列長度: {len(arrangement_list)}，返回空排列")
+        return [None] * FULL_ARRANGEMENT_SIZE
+
+def generate_non_repeating_batch(batch_chars, num_slots):
+    """
+    根據 batch_chars 和 num_slots 產生一個排列，符合：
+    - 多於 num_slots：隨機抽取 num_slots 個不重複字元
+    - 等於 num_slots：隨機排列
+    - 少於 num_slots：每個字元至少出現一次，剩下的隨機補齊
+    Args:
+        batch_chars: 有效字元列表
+        num_slots: 欲產生的排列長度
+    Returns:
+        一個長度為 num_slots 的字元列表
+    """
+    import random
+    chars = list(batch_chars)
+    if not chars or num_slots <= 0:
+        return []
+    if len(chars) >= num_slots:
+        arrangement = random.sample(chars, num_slots)
+    else:
+        arrangement = chars.copy()
+        while len(arrangement) < num_slots:
+            arrangement.append(random.choice(chars))
+        random.shuffle(arrangement)
+    return arrangement

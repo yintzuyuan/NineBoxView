@@ -51,9 +51,9 @@ try:
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
-                ORIGINAL_ARRANGEMENT_KEY,
+                ORIGINAL_ARRANGEMENT_KEY, FINAL_ARRANGEMENT_KEY,
                 DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE, CONTROLS_PANEL_WIDTH,
-                DEFAULT_ZOOM, DEBUG_MODE
+                DEFAULT_ZOOM, DEBUG_MODE, FULL_ARRANGEMENT_SIZE, CENTER_POSITION
             )
             
             # 匯入工具函數
@@ -100,6 +100,7 @@ try:
             self.PREVIOUS_LOCKED_CHARS_KEY = PREVIOUS_LOCKED_CHARS_KEY
             self.LOCK_MODE_KEY = LOCK_MODE_KEY
             self.ORIGINAL_ARRANGEMENT_KEY = ORIGINAL_ARRANGEMENT_KEY
+            self.FINAL_ARRANGEMENT_KEY = FINAL_ARRANGEMENT_KEY
             self.WINDOW_SIZE_KEY = WINDOW_SIZE_KEY
             self.DEFAULT_ZOOM = DEFAULT_ZOOM
             self.DEFAULT_WINDOW_SIZE = DEFAULT_WINDOW_SIZE
@@ -112,6 +113,7 @@ try:
             self.selectedChars = []
             self.currentArrangement = []
             self.originalArrangement = []  # 儲存原始隨機排列
+            self.finalArrangement = []  # 儲存關閉前的最終狀態
             self.windowController = None
             self.previousLockedChars = {}
             self.controlsPanelVisible = False
@@ -130,11 +132,16 @@ try:
                 newMenuItem = NSMenuItem(self.name, self.toggleWindow_)
                 Glyphs.menu[WINDOW_MENU].append(newMenuItem)
 
-                # 新增回呼函數
+                # 新增回呼函數 - 使用正確的 Glyphs API 事件
                 Glyphs.addCallback(self.updateInterface, UPDATEINTERFACE)
                 Glyphs.addCallback(self.updateInterface, DOCUMENTACTIVATED)
                 Glyphs.addCallback(self.selectionChanged_, DOCUMENTOPENED)
                 Glyphs.addCallback(self.selectionChanged_, SELECTIONCHANGED)
+                Glyphs.addCallback(self.selectionChanged_, CURRENTGLYPHCHANGED)  # 當前字符變更
+                Glyphs.addCallback(self.selectionChanged_, TABDIDOPEN)  # 分頁開啟
+                Glyphs.addCallback(self.selectionChanged_, TABWILLCLOSE)  # 分頁關閉
+                Glyphs.addCallback(self.selectionChanged_, DOCUMENTWASOPENED)  # 文檔開啟
+                Glyphs.addCallback(self.selectionChanged_, DOCUMENTWILLCLOSE)  # 文檔關閉
 
                 # 載入偏好設定
                 self.loadPreferences()
@@ -148,13 +155,16 @@ try:
         def toggleWindow_(self, sender):
             """切換視窗顯示狀態"""
             try:
-                # 確保每次開啟時都重新載入最新的偏好設定
-                self.loadPreferences()
-                self.debug_log("[切換視窗] 已重新載入偏好設定")
-                self.debug_log(f"  - lastInput: '{self.lastInput}'")
-                self.debug_log(f"  - selectedChars: {self.selectedChars}")
-                self.debug_log(f"  - lockedChars: {self.lockedChars}")
-                self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
+                # 只在視窗控制器不存在時載入偏好設定，避免覆蓋現有狀態
+                if self.windowController is None:
+                    self.loadPreferences()
+                    self.debug_log("[切換視窗] 首次開啟，已載入偏好設定")
+                    self.debug_log(f"  - lastInput: '{self.lastInput}'")
+                    self.debug_log(f"  - selectedChars: {self.selectedChars}")
+                    self.debug_log(f"  - lockedChars: {self.lockedChars}")
+                    self.debug_log(f"  - currentArrangement: {self.currentArrangement}")
+                else:
+                    self.debug_log("[切換視窗] 使用現有視窗控制器，保持現有狀態")
                 
                 if self.windowController is None:
                     # 初次開啟視窗
@@ -179,10 +189,13 @@ try:
                         self.debug_log("[切換視窗] 強制更新控制面板 UI")
                         self.windowController.controlsPanelView.update_ui(self, update_lock_fields=True)
                     
-                    # 重新生成排列以確保一致性
-                    if hasattr(self, 'event_handlers') and hasattr(self.event_handlers, 'generate_new_arrangement'):
-                        self.debug_log("[切換視窗] 重新生成字符排列")
-                        self.event_handlers.generate_new_arrangement()
+                    # 確保預覽視圖顯示最新狀態（不觸發隨機排列）
+                    if (hasattr(self, 'event_handlers') and 
+                        hasattr(self.windowController, 'previewView') and
+                        self.windowController.previewView and
+                        hasattr(self, 'currentArrangement')):
+                        self.debug_log("[切換視窗] 同步現有排列到預覽視圖")
+                        self.windowController.previewView.currentArrangement = self.currentArrangement
                 
                 # 確保視窗控制器有效後再顯示視窗
                 if self.windowController is not None:
@@ -288,8 +301,19 @@ try:
         def __del__(self):
             """解構式"""
             try:
-                Glyphs.removeCallback(self.updateInterface)
-                Glyphs.removeCallback(self.selectionChanged_)
+                # 移除所有回調
+                events_list = [
+                    UPDATEINTERFACE, DOCUMENTACTIVATED, DOCUMENTOPENED, 
+                    SELECTIONCHANGED, CURRENTGLYPHCHANGED, TABDIDOPEN, 
+                    TABWILLCLOSE, DOCUMENTWASOPENED, DOCUMENTWILLCLOSE
+                ]
+                
+                for callback in [self.updateInterface, self.selectionChanged_]:
+                    for event in events_list:
+                        try:
+                            Glyphs.removeCallback(callback, event)
+                        except:
+                            pass
             except:
                 pass
 

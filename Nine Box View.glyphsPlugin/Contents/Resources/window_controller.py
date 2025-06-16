@@ -19,7 +19,7 @@ from AppKit import (
     NSColor, NSButtonTypeToggle, NSButtonTypeMomentaryPushIn, NSFont,
     NSAttributedString, NSFontAttributeName, NSForegroundColorAttributeName,
     NSBezelStyleRounded, NSTexturedRoundedBezelStyle,
-    NSFocusRingTypeNone, NSWindowCloseButton,
+    NSWindowCloseButton,
     NSWindowMiniaturizeButton, NSWindowZoomButton, NSUserDefaults
 )
 from Foundation import NSObject, NSUserDefaultsDidChangeNotification, NSTimer
@@ -396,19 +396,14 @@ class NineBoxWindow(NSWindowController):
                 
                 debug_log(f"[階段1.3] 視窗調整：{frame.size.width}x{frame.size.height}，內容區域：{contentSize.width}x{contentSize.height}")
                 
-                # 調整預覽畫面 - 確保完全填滿內容區域
+                # 調整預覽畫面 - 確保完全填滿內容區域（官方模式）
                 if hasattr(self, 'previewView') and self.previewView:
                     # 使用內容畫面的實際邊界
                     newFrame = contentView.bounds()
                     self.previewView.setFrame_(newFrame)
                     
-                    # 立即觸發重繪確保畫面即時更新
-                    if hasattr(self.previewView, 'force_redraw'):
-                        self.previewView.force_redraw()
-                    else:
-                        self.previewView.setNeedsDisplay_(True)
-                    
-                    debug_log(f"[階段1.3] 已調整預覽畫面框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
+                    # 官方模式：框架變更會自動觸發重繪
+                    debug_log(f"[官方模式] 已調整預覽畫面框架：{newFrame.size.width}x{newFrame.size.height} at ({newFrame.origin.x}, {newFrame.origin.y})")
                 
                 # 更新控制面板位置和大小
                 if self.controlsPanelVisible and self.controlsPanelWindow:
@@ -461,6 +456,13 @@ class NineBoxWindow(NSWindowController):
         try:
             debug_log("[階段1.3] 主視窗即將關閉")
             
+            # === 保存最終顯示狀態 ===
+            if hasattr(self, 'plugin') and self.plugin:
+                # 保存當前排列為最終狀態
+                if hasattr(self.plugin, 'currentArrangement') and self.plugin.currentArrangement:
+                    self.plugin.finalArrangement = list(self.plugin.currentArrangement)
+                    debug_log(f"[關閉保存] 保存最終狀態: {self.plugin.finalArrangement}")
+            
             # 儲存狀態到外掛程式對象
             if hasattr(self, 'plugin'):
                 self.plugin.controlsPanelVisible = self.controlsPanelVisible
@@ -491,17 +493,25 @@ class NineBoxWindow(NSWindowController):
         except Exception as e:
             error_log("[階段1.3] 處理視窗關閉錯誤", e)
     
-    def request_main_redraw(self):
-        """請求主預覽畫面重繪"""
+    def update(self):
+        """標準更新方法（遵循官方 CanvasView 模式）- 增強型"""
         try:
             if hasattr(self, 'previewView') and self.previewView:
-                # 使用強制重繪機制（如果存在）
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
-                else:
-                    self.previewView.setNeedsDisplay_(True)
+                # 更新屬性設定器 (從 plugin 同步)
+                if hasattr(self, 'plugin'):
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.previewView.currentArrangement = self.plugin.currentArrangement
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.previewView.zoomFactor = self.plugin.zoomFactor
+                
+                # 調用官方更新方法
+                self.previewView.update()
+                
+                # 強制立即重繪 (確保即時反應)
+                self.previewView.setNeedsDisplay_(True)
+                debug_log("window_controller.update: 已觸發強制重繪")
         except Exception as e:
-            error_log("請求主預覽重繪錯誤", e)
+            error_log("更新主預覽錯誤", e)
     
     def request_controls_panel_ui_update(self, update_lock_fields=True):
         """請求控制面板UI更新
@@ -516,14 +526,6 @@ class NineBoxWindow(NSWindowController):
                     
         except Exception as e:
             error_log("請求控制面板UI更新錯誤", e)
-    
-    def redraw(self):
-        """重繪介面（向後相容）"""
-        self.request_main_redraw()
-    
-    def redrawIgnoreLockState(self):
-        """強制重繪"""
-        self.request_main_redraw()
     
     def makeKeyAndOrderFront(self):
         """顯示並激活視窗（完整初始化版本）"""
@@ -568,7 +570,7 @@ class NineBoxWindow(NSWindowController):
             # 檢查並重建控制面板
             self.rebuildControlsPanelIfNeeded()
             
-            # === 完整初始化：根據載入的狀態生成正確排列 ===
+            # === 智慧初始化：尊重已載入的排列狀態 ===
             if hasattr(self, 'plugin'):
                 # 先確保控制面板 UI 顯示正確的載入值
                 if self.controlsPanelView:
@@ -585,52 +587,59 @@ class NineBoxWindow(NSWindowController):
                             self.plugin.selectedChars = parsed_chars
                             debug_log(f"[初始化] 解析後的 selectedChars: {self.plugin.selectedChars}")
                 
-                # 無論是否有現有排列，都重新生成以確保一致性
-                if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
-                    debug_log("[初始化] 重新生成字符排列")
-                    
-                    # 設定一個標記來表示這是初始化
-                    self.plugin._is_initializing = True
-                    
-                    # 生成新排列
-                    self.plugin.event_handlers.generate_new_arrangement()
-                    
-                    # 清除標記
-                    self.plugin._is_initializing = False
-                    
-                    debug_log(f"[初始化] 生成的排列: {self.plugin.currentArrangement}")
+                # 檢查是否有有效的載入排列
+                has_valid_arrangement = (hasattr(self.plugin, 'currentArrangement') and 
+                                        self.plugin.currentArrangement and 
+                                        any(item is not None for item in self.plugin.currentArrangement))
+                
+                if has_valid_arrangement:
+                    debug_log(f"[初始化] 使用載入的排列: {self.plugin.currentArrangement}")
+                    # 不重新生成，直接使用載入的排列
+                    debug_log("[初始化] 跳過重新生成，保持載入的排列狀態")
+                else:
+                    debug_log("[初始化] 沒有有效的載入排列，生成新排列")
+                    # 只有在沒有有效排列時才生成新的
+                    if hasattr(self.plugin, 'event_handlers') and hasattr(self.plugin.event_handlers, 'generate_new_arrangement'):
+                        debug_log("[初始化] 執行新排列生成")
+                        
+                        # 設定一個標記來表示這是初始化
+                        self.plugin._is_initializing = True
+                        
+                        # 生成新排列
+                        self.plugin.event_handlers.generate_new_arrangement()
+                        
+                        # 清除標記
+                        self.plugin._is_initializing = False
+                        
+                        debug_log(f"[初始化] 生成的新排列: {self.plugin.currentArrangement}")
                 
                 # 更新介面
                 self.plugin.updateInterface(None)
             
-            # 強制重繪確保初次顯示
+            # 官方模式：設定初始資料到 preview view
             if hasattr(self, 'previewView') and self.previewView:
-                # 立即強制重繪
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
+                # 同步 plugin 的資料到 preview view 的屬性設定器
+                if hasattr(self.plugin, 'currentArrangement'):
+                    self.previewView.currentArrangement = self.plugin.currentArrangement
+                if hasattr(self.plugin, 'zoomFactor'):
+                    self.previewView.zoomFactor = self.plugin.zoomFactor
                 
-                # 也安排一個延遲重繪以確保
-                NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
-                    0.1, self, "delayedForceRedraw:", None, False
-                )
-                debug_log("[初始化] 已安排強制重繪")
+                # 強制立即重繪
+                self.previewView.setNeedsDisplay_(True)
+                
+                debug_log("[官方模式] 已同步資料到預覽畫面的屬性設定器並強制重繪")
+            
+            # 設定一個簡短的延遲，然後再次強制重繪
+            # 這有助於解決某些情況下初始化後畫面仍未更新的問題
+            NSTimer.scheduledTimerWithTimeInterval_target_selector_userInfo_repeats_(
+                0.1, self, "delayedForceRedraw:", None, False
+            )
             
             debug_log("[初始化] 完成")
                 
         except Exception as e:
             error_log("[makeKeyAndOrderFront] 初始化錯誤", e)
     
-    def delayedForceRedraw_(self, timer):
-        """延遲強制重繪（階段1.3）"""
-        try:
-            if hasattr(self, 'previewView') and self.previewView:
-                if hasattr(self.previewView, 'force_redraw'):
-                    self.previewView.force_redraw()
-                else:
-                    self.previewView.setNeedsDisplay_(True)
-                debug_log("[階段1.3] 完成延遲重繪")
-        except Exception as e:
-            error_log("[階段1.3] 延遲重繪錯誤", e)
             
     def _update_settings_button_color(self):
         """根據 Glyphs 預覽區域的背景色更新設定按鈕的圖示顏色"""
@@ -665,6 +674,23 @@ class NineBoxWindow(NSWindowController):
     def _handleUserDefaultsChange_(self, notification):
         """處理用戶偏好設定變更通知"""
         self._update_settings_button_color()
+    
+    def delayedForceRedraw_(self, timer):
+        """延遲強制重繪（解決初始化問題）"""
+        try:
+            if hasattr(self, 'previewView') and self.previewView:
+                # 再次確保同步最新數據
+                if hasattr(self, 'plugin'):
+                    if hasattr(self.plugin, 'currentArrangement'):
+                        self.previewView.currentArrangement = self.plugin.currentArrangement
+                    if hasattr(self.plugin, 'zoomFactor'):
+                        self.previewView.zoomFactor = self.plugin.zoomFactor
+                
+                # 強制重繪
+                self.previewView.setNeedsDisplay_(True)
+                debug_log("delayedForceRedraw_: 執行延遲強制重繪")
+        except Exception as e:
+            error_log("延遲強制重繪時發生錯誤", e)
     
     def dealloc(self):
         """解構式"""
