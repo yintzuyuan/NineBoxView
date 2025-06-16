@@ -16,7 +16,7 @@
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
 	<string>3.0.2</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>11</string>
+	<string>12</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
