@@ -249,7 +249,7 @@ class ControlsPanelView(NSView):
             # 在搜尋面板和鎖定面板之間繪製分隔線
             if self.searchPanel and self.lockFieldsPanel:
                 searchBottom = self.searchPanel.frame().origin.y
-                lineY = searchBottom - 8
+                lineY = searchBottom
                 
                 lineRect = NSMakeRect(margin, lineY, bounds.size.width - 2 * margin, 1)
                 NSColor.separatorColor().set()
