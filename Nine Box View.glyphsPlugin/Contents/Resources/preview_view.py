@@ -201,13 +201,13 @@ class NineBoxPreviewView(NSView):
             
             if char_info['is_valid'] and char_info['unicode']:
                 # 有效字符且有 Unicode
-                info_title = f"{position_info} - {char_info['glyph_name']} (U+{char_info['unicode']})"
+                info_title = f"{char_info['glyph_name']} (U+{char_info['unicode']})"
             elif char_info['is_valid']:
                 # 有效字符但無 Unicode
-                info_title = f"{position_info} - {char_info['glyph_name']}"
+                info_title = f"{char_info['glyph_name']}"
             else:
                 # 無效字符
-                info_title = f"{position_info} - 無效字符：{char_info['char_or_name']}"
+                info_title = f"{char_info['char_or_name']}"
             
             # 添加資訊顯示項目（不可點擊）
             info_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
@@ -223,7 +223,14 @@ class NineBoxPreviewView(NSView):
             if char_info['is_valid']:
                 # 添加「複製字符名稱」選項
                 copy_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                    "複製字符名稱", "copyGlyphName:", ""
+                    Glyphs.localize({
+                        'en': 'Copy Glyph Name',
+                        'zh-Hant': '複製字符名稱',
+                        'zh-Hans': '复制字符名称',
+                        'ja': 'グリフ名をコピー',
+                        'ko': '글리프 이름 복사'
+                    }),
+                    "copyGlyphName:", ""
                 )
                 copy_item.setTarget_(self)
                 copy_item.setRepresentedObject_(char_info['glyph_name'])
@@ -231,7 +238,14 @@ class NineBoxPreviewView(NSView):
                 
                 # 添加「在新分頁開啟字符」選項
                 new_tab_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                    "在新分頁開啟字符", "openGlyphInNewTab:", ""
+                    Glyphs.localize({
+                        'en': 'Open Glyph in New Tab',
+                        'zh-Hant': '在新分頁開啟字符',
+                        'zh-Hans': '在新标签页打开字符',
+                        'ja': '新しいタブでグリフを開く',
+                        'ko': '새 탭에서 글리프 열기'
+                    }),
+                    "openGlyphInNewTab:", ""
                 )
                 new_tab_item.setTarget_(self)
                 new_tab_item.setRepresentedObject_(char_info['glyph'])
@@ -239,7 +253,14 @@ class NineBoxPreviewView(NSView):
             else:
                 # 無效字符的提示
                 invalid_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
-                    "此字符在字型中不存在", None, ""
+                    Glyphs.localize({
+                        'en': 'This character does not exist in the font',
+                        'zh-Hant': '此字符在字型中不存在',
+                        'zh-Hans': '此字符在字体中不存在',
+                        'ja': 'この文字はフォントに存在しません',
+                        'ko': '이 글리프는 글꼴에 존재하지 않습니다'
+                    }),
+                    None, ""
                 )
                 invalid_item.setEnabled_(False)
                 menu.addItem_(invalid_item)
