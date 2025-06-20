@@ -14,15 +14,15 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.0.4</string>
+	<string>3.0.5</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>12</string>
+	<string>13</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>第三版發布：移除深淺色介面背景更動，讓介面使用系統原生風格；只在預覽區域保留黑白對比色彩。</string>
+	<string>加入主視窗的右鍵選單功能，複製字符名稱和在新分頁開啟字符</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>Copyright, Tzuyuan Yin, 2024</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
