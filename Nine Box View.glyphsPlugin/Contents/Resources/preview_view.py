@@ -59,6 +59,9 @@ class NineBoxPreviewView(NSView):
             self._currentArrangement = []
             self._zoomFactor = 1.0
             
+            # 狀態追蹤：用於檢測真正的字符變更
+            self._last_active_char = None
+            
             # 監聽主題變更
             NSNotificationCenter.defaultCenter().addObserver_selector_name_object_(
                 self,
@@ -385,16 +388,42 @@ class NineBoxPreviewView(NSView):
                             debug_log("正在進行細粒度更新，跳過字符變更檢測")
                         else:
                             current_char = self.plugin.event_handlers._get_current_editing_char()
-                            # 正確處理 None 值的字符變更檢測
+                            
+                            # === 使用狀態追蹤機制檢測真正的字符變更 ===
+                            previous_char = getattr(self, '_last_active_char', None)
+                            
+                            # 更新追蹤狀態
+                            self._last_active_char = current_char
+                            
+                            # 修正：更精確的字符變更檢測，避免視窗操作時誤觸發
                             if (hasattr(self.plugin, 'currentArrangement') and 
                                 len(self.plugin.currentArrangement) >= 9):
                                 current_center = self.plugin.currentArrangement[4]
-                                # 只有當字符確實不同時才觸發更新，正確處理 None 值
-                                if current_center != current_char:
-                                    debug_log(f"檢測到字符變更: {current_center} -> {current_char}")
+                                
+                                # === 關鍵修正：只檢測真正的狀態變更 ===
+                                should_update = (
+                                    # 情況1：有意義的字符變更（字符 → 字符）
+                                    (current_char is not None and 
+                                     current_center is not None and 
+                                     current_center != current_char and
+                                     hasattr(self.plugin, 'selectedChars') and 
+                                     self.plugin.selectedChars) or
+                                    
+                                    # 情況2：真正從有字符切換到無字符（狀態變更檢測）
+                                    (previous_char is not None and 
+                                     current_char is None and
+                                     current_center is not None and
+                                     hasattr(self.plugin, 'selectedChars') and 
+                                     self.plugin.selectedChars)
+                                )
+                                
+                                if should_update:
+                                    debug_log(f"檢測到真正的字符變更: {previous_char} -> {current_char} (center: {current_center})")
                                     # 主動觸發重新生成排列
                                     if hasattr(self.plugin.event_handlers, 'selection_changed'):
                                         self.plugin.event_handlers.selection_changed(None)
+                                else:
+                                    debug_log(f"字符狀態檢測: prev='{previous_char}', current='{current_char}', center='{current_center}' - 不觸發更新")
             except Exception as e:
                 debug_log(f"檢查字符變更時出錯: {e}")
                 # 繼續繪製，不中斷流程
