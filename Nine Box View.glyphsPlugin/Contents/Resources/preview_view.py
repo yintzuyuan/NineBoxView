@@ -17,7 +17,8 @@ from AppKit import (
     NSString, NSMakePoint, NSGradient, NSMakeRect, 
     NSFontManager, NSFontWeightThin, NSFontWeightBold,
     NSGraphicsContext, NSCompositingOperationSourceOver, NSInsetRect,
-    NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification
+    NSUserDefaults, NSNotificationCenter, NSUserDefaultsDidChangeNotification,
+    NSMenu, NSMenuItem, NSPasteboard
 )
 
 # 匯入常數和工具函數
@@ -79,8 +80,226 @@ class NineBoxPreviewView(NSView):
         except Exception as e:
             error_log("處理主題變更時發生錯誤", e)
     
+    def _get_grid_index_at_point(self, point):
+        """根據點擊位置計算對應的字符格索引
+        
+        Args:
+            point: 點擊位置 (NSPoint)
+            
+        Returns:
+            字符格索引 (0-8) 或 None（如果不在有效範圍內）
+        """
+        try:
+            rect = self.bounds()
+            if not Glyphs.font or not Glyphs.font.selectedFontMaster:
+                return None
+            
+            currentMaster = Glyphs.font.selectedFontMaster
+            
+            # 使用現有的網格度量計算方法
+            arrangement = self.currentArrangement or []
+            if len(arrangement) < 9:
+                return None
+            
+            display_chars = arrangement[:8]
+            metrics = self._calculate_grid_metrics(rect, display_chars, currentMaster)
+            if not metrics:
+                return None
+            
+            # 計算每個格子的邊界
+            for i in range(9):
+                row = i // 3
+                col = i % 3
+                
+                # 計算格子的中心位置
+                centerX = metrics['startX'] + (col + 0.5) * metrics['cellWidth'] + col * metrics['SPACING']
+                centerY = metrics['startY'] - (row + 0.5) * (metrics['gridHeight'] / 3)
+                
+                # 計算格子的邊界
+                halfWidth = metrics['cellWidth'] / 2
+                halfHeight = (metrics['gridHeight'] / 3) / 2
+                
+                left = centerX - halfWidth
+                right = centerX + halfWidth
+                bottom = centerY - halfHeight
+                top = centerY + halfHeight
+                
+                # 檢查點擊位置是否在此格子內
+                if left <= point.x <= right and bottom <= point.y <= top:
+                    debug_log(f"點擊位置 ({point.x:.1f}, {point.y:.1f}) 對應格子 {i}")
+                    return i
+            
+            debug_log(f"點擊位置 ({point.x:.1f}, {point.y:.1f}) 不在任何格子內")
+            return None
+            
+        except Exception as e:
+            error_log("計算網格索引時發生錯誤", e)
+            return None
+    
+    def _get_character_info_at_index(self, grid_index):
+        """取得指定索引位置的字符資訊
+        
+        Args:
+            grid_index: 字符格索引 (0-8)
+            
+        Returns:
+            字符資訊字典或 None
+        """
+        try:
+            if not Glyphs.font:
+                return None
+            
+            arrangement = self.currentArrangement or []
+            if grid_index >= len(arrangement):
+                return None
+            
+            char_or_name = arrangement[grid_index]
+            if char_or_name is None:
+                return None  # 空白格子
+            
+            # 取得字符物件
+            glyph = get_cached_glyph(Glyphs.font, char_or_name)
+            if not glyph:
+                return {
+                    'char_or_name': char_or_name,
+                    'glyph_name': char_or_name,
+                    'unicode': None,
+                    'is_valid': False,
+                    'grid_index': grid_index
+                }
+            
+            return {
+                'char_or_name': char_or_name,
+                'glyph_name': glyph.name,
+                'unicode': glyph.unicode,
+                'is_valid': True,
+                'glyph': glyph,
+                'grid_index': grid_index
+            }
+            
+        except Exception as e:
+            error_log("取得字符資訊時發生錯誤", e)
+            return None
+    
+    def _show_context_menu_for_character(self, char_info, point):
+        """為指定字符顯示右鍵選單
+        
+        Args:
+            char_info: 字符資訊字典
+            point: 選單顯示位置
+        """
+        try:
+            # 創建選單
+            menu = NSMenu.alloc().init()
+            
+            # 格式化字符資訊標題
+            # 檢查是否為中心格
+            position_info = "中心格" if char_info.get('grid_index') == CENTER_POSITION else "周圍格"
+            
+            if char_info['is_valid'] and char_info['unicode']:
+                # 有效字符且有 Unicode
+                info_title = f"{position_info} - {char_info['glyph_name']} (U+{char_info['unicode']})"
+            elif char_info['is_valid']:
+                # 有效字符但無 Unicode
+                info_title = f"{position_info} - {char_info['glyph_name']}"
+            else:
+                # 無效字符
+                info_title = f"{position_info} - 無效字符：{char_info['char_or_name']}"
+            
+            # 添加資訊顯示項目（不可點擊）
+            info_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                info_title, None, ""
+            )
+            info_item.setEnabled_(False)  # 設為不可點擊
+            menu.addItem_(info_item)
+            
+            # 添加分隔線
+            menu.addItem_(NSMenuItem.separatorItem())
+            
+            # 只有有效字符才顯示操作選項
+            if char_info['is_valid']:
+                # 添加「複製字符名稱」選項
+                copy_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    "複製字符名稱", "copyGlyphName:", ""
+                )
+                copy_item.setTarget_(self)
+                copy_item.setRepresentedObject_(char_info['glyph_name'])
+                menu.addItem_(copy_item)
+                
+                # 添加「在新分頁開啟字符」選項
+                new_tab_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    "在新分頁開啟字符", "openGlyphInNewTab:", ""
+                )
+                new_tab_item.setTarget_(self)
+                new_tab_item.setRepresentedObject_(char_info['glyph'])
+                menu.addItem_(new_tab_item)
+            else:
+                # 無效字符的提示
+                invalid_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    "此字符在字型中不存在", None, ""
+                )
+                invalid_item.setEnabled_(False)
+                menu.addItem_(invalid_item)
+            
+            # 顯示選單
+            menu.popUpMenuPositioningItem_atLocation_inView_(
+                None, point, self
+            )
+            
+            debug_log(f"顯示字符右鍵選單：{char_info['glyph_name'] if char_info['is_valid'] else char_info['char_or_name']}")
+            
+        except Exception as e:
+            error_log("顯示右鍵選單時發生錯誤", e)
+    
+    def copyGlyphName_(self, sender):
+        """複製字符名稱到剪貼簿"""
+        try:
+            glyph_name = sender.representedObject()
+            if glyph_name:
+                # 取得系統剪貼簿
+                pasteboard = NSPasteboard.generalPasteboard()
+                pasteboard.clearContents()
+                pasteboard.setString_forType_(glyph_name, "public.utf8-plain-text")
+                
+                debug_log(f"已複製字符名稱到剪貼簿：{glyph_name}")
+                
+                # 顯示通知（可選）
+                if hasattr(Glyphs, 'showNotification'):
+                    Glyphs.showNotification(
+                        "九宮格預覽",
+                        f"已複製字符名稱：{glyph_name}"
+                    )
+            
+        except Exception as e:
+            error_log("複製字符名稱時發生錯誤", e)
+    
+    def openGlyphInNewTab_(self, sender):
+        """在新分頁開啟字符"""
+        try:
+            glyph = sender.representedObject()
+            if glyph and Glyphs.font:
+                # 使用 Glyphs API 開啟新分頁
+                new_tab = Glyphs.font.newTab(f"/{glyph.name}")
+                if new_tab:
+                    debug_log(f"已在新分頁開啟字符：{glyph.name}")
+                    
+                    # 顯示通知（可選）
+                    if hasattr(Glyphs, 'showNotification'):
+                        Glyphs.showNotification(
+                            "九宮格預覽",
+                            f"已在新分頁開啟字符：{glyph.name}"
+                        )
+                else:
+                    error_log("無法開啟新分頁", None)
+            
+        except Exception as e:
+            error_log("開啟新分頁時發生錯誤", e)
+    
     def mouseDown_(self, event):
-        """處理滑鼠點擊事件"""
+        """處理滑鼠左鍵點擊事件，觸發隨機排列
+        
+        左鍵點擊任何格子（包括中心格）都會觸發隨機排列功能
+        """
         # 取得點擊位置
         click_point = event.locationInWindow()
         view_point = self.convertPoint_fromView_(click_point, None)
@@ -118,6 +337,44 @@ class NineBoxPreviewView(NSView):
         self.window().makeKeyWindow()
         self.window().makeFirstResponder_(self)
         self.plugin.randomizeCallback(self)
+    
+    def rightMouseDown_(self, event):
+        """處理右鍵點擊事件，顯示字符資訊選單
+        
+        支援所有 9 個格子（包括中心格）的右鍵選單功能：
+        - 顯示字符資訊（GlyphsName 和 Unicode）
+        - 複製 GlyphsName 到剪貼簿
+        - 在新分頁開啟字符
+        
+        注意：左鍵點擊仍然會觸發隨機排列（包括中心格）
+        """
+        try:
+            # 取得點擊位置
+            click_point = event.locationInWindow()
+            view_point = self.convertPoint_fromView_(click_point, None)
+            
+            # 檢查視窗標題列高度
+            titlebar_height = 22
+            if view_point.y >= self.frame().size.height - titlebar_height:
+                return  # 在標題列區域，不處理右鍵
+            
+            # 計算點擊位置對應的字符格索引
+            grid_index = self._get_grid_index_at_point(view_point)
+            
+            # 檢查是否為有效的格子位置
+            if grid_index is None:
+                return
+            
+            # 取得該位置的字符資訊
+            char_info = self._get_character_info_at_index(grid_index)
+            if not char_info:
+                return  # 空白格子不顯示選單
+            
+            # 創建並顯示右鍵選單
+            self._show_context_menu_for_character(char_info, view_point)
+            
+        except Exception as e:
+            error_log("處理右鍵點擊時發生錯誤", e)
 
     # === 官方模式：屬性設定器（參照 GlyphView 模式）===
     
