@@ -236,6 +236,21 @@ class NineBoxPreviewView(NSView):
                 copy_item.setRepresentedObject_(char_info['glyph_name'])
                 menu.addItem_(copy_item)
                 
+                # 添加「插入字符到目前分頁」選項
+                insert_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+                    Glyphs.localize({
+                        'en': 'Insert Character to Current Tab',
+                        'zh-Hant': '插入字符到目前分頁',
+                        'zh-Hans': '插入字符到当前标签页',
+                        'ja': '現在のタブに文字を挿入',
+                        'ko': '현재 탭에 글리프 삽입'
+                    }),
+                    "insertCharacterToCurrentTab:", ""
+                )
+                insert_item.setTarget_(self)
+                insert_item.setRepresentedObject_(char_info)
+                menu.addItem_(insert_item)
+                
                 # 添加「在新分頁開啟字符」選項
                 new_tab_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                     Glyphs.localize({
@@ -318,6 +333,250 @@ class NineBoxPreviewView(NSView):
             
         except Exception as e:
             error_log("開啟新分頁時發生錯誤", e)
+    
+    def insertCharacterToCurrentTab_(self, sender):
+        """插入字符到目前編輯分頁的遊標位置（統一使用官方 layers 方法）"""
+        try:
+            char_info = sender.representedObject()
+            if not char_info or not char_info.get('is_valid'):
+                debug_log("無效的字符資訊，不能插入")
+                return
+            
+            # 獲取目前字型和編輯分頁
+            if not Glyphs.font:
+                debug_log("無開啟的字型檔案")
+                return
+            
+            current_tab = Glyphs.font.currentTab
+            if not current_tab:
+                debug_log("無目前編輯分頁")
+                return
+            
+            # 獲取要插入的字符
+            glyph = char_info.get('glyph')
+            char_or_name = char_info.get('char_or_name')
+            
+            if not glyph or not char_or_name:
+                debug_log("無法獲取字符資訊")
+                return
+            
+            # 驗證字符是否真的存在於當前字型和主板中
+            current_master = Glyphs.font.selectedFontMaster
+            if not current_master:
+                debug_log("無選擇的主板")
+                return
+            
+            # 確認字符在當前主板中存在且有效
+            layer_to_insert = glyph.layers[current_master.id]
+            if not layer_to_insert:
+                debug_log(f"字符 '{char_or_name}' 在主板 '{current_master.name}' 中不存在")
+                if hasattr(Glyphs, 'showNotification'):
+                    Glyphs.showNotification(
+                        "九宮格預覽",
+                        Glyphs.localize({
+                            'en': f'Character "{char_or_name}" does not exist in current master',
+                            'zh-Hant': f'字符 "{char_or_name}" 在目前主板中不存在',
+                            'zh-Hans': f'字符 "{char_or_name}" 在当前主板中不存在',
+                            'ja': f'文字 "{char_or_name}" は現在のマスターに存在しません',
+                            'ko': f'글리프 "{char_or_name}" 은(는) 현재 마스터에 존재하지 않습니다'
+                        })
+                    )
+                return
+            
+            # === 統一使用官方 layers 方法（避免特殊字符名稱解析問題）===
+            debug_log(f"使用官方 layers 方法插入字符: '{glyph.name}' (原始輸入: '{char_or_name}')")
+            
+            # 備份目前狀態
+            original_layers = list(current_tab.layers) if current_tab.layers else []
+            original_cursor = current_tab.textCursor
+            
+            # 執行插入（使用 layers 方法）
+            insertion_success = self._insert_layer_safely(
+                current_tab, layer_to_insert, original_cursor, original_layers
+            )
+            
+            # 檢查插入結果
+            if insertion_success:
+                debug_log(f"成功插入字符 '{glyph.name}' 使用 layers 方法")
+                
+                # 顯示成功通知
+                if hasattr(Glyphs, 'showNotification'):
+                    Glyphs.showNotification(
+                        "九宮格預覽",
+                        Glyphs.localize({
+                            'en': f'Inserted "{glyph.name}" to current tab',
+                            'zh-Hant': f'已插入 "{glyph.name}" 到目前分頁',
+                            'zh-Hans': f'已插入 "{glyph.name}" 到当前标签页',
+                            'ja': f'現在のタブに "{glyph.name}" を挿入しました',
+                            'ko': f'현재 탭에 "{glyph.name}" 삽입되었습니다'
+                        })
+                    )
+            else:
+                debug_log(f"layers 方法插入失敗，字符: '{glyph.name}'")
+                
+                # 顯示失敗通知
+                if hasattr(Glyphs, 'showNotification'):
+                    Glyphs.showNotification(
+                        "九宮格預覽",
+                        Glyphs.localize({
+                            'en': f'Cannot insert "{glyph.name}" - insertion failed',
+                            'zh-Hant': f'無法插入 "{glyph.name}" - 插入失敗',
+                            'zh-Hans': f'无法插入 "{glyph.name}" - 插入失败',
+                            'ja': f'"{glyph.name}" を挿入できません - 挿入失敗',
+                            'ko': f'"{glyph.name}" 삽입할 수 없음 - 삽입 실패'
+                        })
+                    )
+            
+        except Exception as e:
+            error_log("插入字符到編輯分頁時發生錯誤", e)
+            
+            # 顯示錯誤通知
+            if hasattr(Glyphs, 'showNotification'):
+                Glyphs.showNotification(
+                    "九宮格預覽",
+                    Glyphs.localize({
+                        'en': 'Failed to insert character due to system error',
+                        'zh-Hant': '因系統錯誤插入字符失敗',
+                        'zh-Hans': '因系统错误插入字符失败',
+                        'ja': 'システムエラーにより文字の挿入に失敗しました',
+                        'ko': '시스템 오류로 인한 글리프 삽입 실패'
+                    })
+                )
+    
+    def _insert_text_safely(self, current_tab, text_to_insert, original_cursor, original_text):
+        """
+        安全地使用文字插入方法
+        
+        Args:
+            current_tab: 當前編輯分頁
+            text_to_insert: 要插入的文字
+            original_cursor: 原始游標位置
+            original_text: 原始文字內容
+            
+        Returns:
+            bool: 插入是否成功
+        """
+        try:
+            # 安全檢查：確保游標位置合理
+            cursor_pos = original_cursor
+            if cursor_pos < 0:
+                cursor_pos = 0
+            elif cursor_pos > len(original_text):
+                cursor_pos = len(original_text)
+            
+            # 在游標位置插入字符
+            new_text = original_text[:cursor_pos] + text_to_insert + original_text[cursor_pos:]
+            debug_log(f"文字插入 - 原長度: {len(original_text)}, 新長度: {len(new_text)}, 插入: '{text_to_insert}'")
+            
+            # 執行插入
+            current_tab.text = new_text
+            
+            # 驗證插入是否成功（檢查內容是否被意外清空）
+            updated_text = current_tab.text or ""
+            if len(updated_text) == 0 and len(new_text) > 0:
+                # 內容被清空，恢復原始內容
+                debug_log("偵測到內容被清空，恢復原始內容")
+                current_tab.text = original_text
+                current_tab.textCursor = original_cursor
+                return False
+            
+            # 更新游標位置到插入文字之後
+            new_cursor_pos = cursor_pos + len(text_to_insert)
+            current_tab.textCursor = new_cursor_pos
+            
+            debug_log(f"文字插入成功 - 新游標位置: {new_cursor_pos}")
+            return True
+            
+        except Exception as e:
+            debug_log(f"文字插入失敗: {e}")
+            # 嘗試恢復原始狀態
+            try:
+                current_tab.text = original_text
+                current_tab.textCursor = original_cursor
+            except:
+                pass
+            return False
+    
+    def _insert_layer_safely(self, current_tab, layer_to_insert, original_cursor, original_layers):
+        """
+        安全地使用圖層插入方法（適用於特殊字符名稱，避免文字解析問題）
+        
+        Args:
+            current_tab: 當前編輯分頁
+            layer_to_insert: 要插入的圖層
+            original_cursor: 原始游標位置
+            original_layers: 原始圖層列表
+            
+        Returns:
+            bool: 插入是否成功
+        """
+        try:
+            if not layer_to_insert:
+                debug_log("無效的圖層，無法插入")
+                return False
+            
+            # 獲取當前圖層列表（確保複製以避免引用問題）
+            current_layers = list(current_tab.layers) if current_tab.layers else []
+            
+            # 確保游標位置合理
+            insert_pos = original_cursor
+            if insert_pos < 0:
+                insert_pos = 0
+            elif insert_pos > len(current_layers):
+                insert_pos = len(current_layers)
+            
+            debug_log(f"圖層插入準備 - 原數量: {len(current_layers)}, 插入位置: {insert_pos}, 字符: '{layer_to_insert.parent.name}'")
+            
+            # 創建新的圖層列表
+            new_layers = current_layers[:insert_pos] + [layer_to_insert] + current_layers[insert_pos:]
+            
+            # 驗證新圖層列表的合理性
+            if len(new_layers) != len(current_layers) + 1:
+                debug_log("新圖層列表長度不符合預期")
+                return False
+            
+            # 執行插入（使用 layers 屬性，避免文字解析問題）
+            current_tab.layers = new_layers
+            
+            # 立即驗證插入是否成功（檢查內容是否被意外清空）
+            updated_layers = current_tab.layers if current_tab.layers else []
+            
+            # 檢查是否成功插入且沒有被清空
+            if len(updated_layers) == 0 and len(new_layers) > 0:
+                debug_log("偵測到圖層列表被清空，恢復原始狀態")
+                try:
+                    current_tab.layers = original_layers
+                    current_tab.textCursor = original_cursor
+                except:
+                    pass
+                return False
+            
+            if len(updated_layers) != len(new_layers):
+                debug_log(f"圖層插入數量驗證失敗 - 期望: {len(new_layers)}, 實際: {len(updated_layers)}")
+                try:
+                    current_tab.layers = original_layers
+                    current_tab.textCursor = original_cursor
+                except:
+                    pass
+                return False
+            
+            # 更新文字游標位置到插入字符之後
+            new_cursor_pos = insert_pos + 1
+            current_tab.textCursor = new_cursor_pos
+            
+            debug_log(f"圖層插入成功 - 字符: '{layer_to_insert.parent.name}', 新游標位置: {new_cursor_pos}")
+            return True
+            
+        except Exception as e:
+            debug_log(f"圖層插入失敗: {e}")
+            # 嘗試恢復原始狀態
+            try:
+                current_tab.layers = original_layers
+                current_tab.textCursor = original_cursor
+                debug_log("已恢復到原始狀態")
+            except Exception as restore_error:
+                debug_log(f"恢復原始狀態時也發生錯誤: {restore_error}")
+            return False
     
     def mouseDown_(self, event):
         """處理滑鼠左鍵點擊事件，觸發隨機排列

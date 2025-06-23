@@ -14,15 +14,15 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.0.5</string>
+	<string>3.0.6</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>13</string>
+	<string>14</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>加入主視窗的右鍵選單功能，複製字符名稱和在新分頁開啟字符</string>
+	<string>加入新的右鍵選單功能，插入字符到目前分頁</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>Copyright, Tzuyuan Yin, 2024</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
