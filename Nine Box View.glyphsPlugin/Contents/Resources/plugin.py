@@ -1,22 +1,22 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 主程式（簡化版）
+九宮格預覽外掛 - 主程式
 Nine Box Preview Plugin - Main Class (Simplified)
 """
 
+from __future__ import division, print_function, unicode_literals
 import traceback
+import objc
+from Foundation import NSObject, NSNotificationCenter, NSUserDefaultsDidChangeNotification
+from AppKit import NSMenuItem, NSUserDefaults
+from GlyphsApp import *
+from GlyphsApp.plugins import *
 
 try:
-    import objc
-    from Foundation import NSObject, NSNotificationCenter, NSUserDefaultsDidChangeNotification
-    from AppKit import NSMenuItem, NSUserDefaults
-    from GlyphsApp import *
-    from GlyphsApp.plugins import *
-    
     # 設定 GeneralPlugin 子類別
     class NineBoxView(GeneralPlugin):
         """
-        九宮格預覽外掛主類別（簡化版）
+        九宮格預覽外掛主類別
         Nine Box Preview Plugin Main Class (Simplified)
         """
         

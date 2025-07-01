@@ -1,7 +1,7 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 視窗控制器（最佳化版）
-Nine Box Preview Plugin - Window Controller (Optimized)
+九宮格預覽外掛 - 視窗控制器
+Nine Box Preview Plugin - Window Controller
 """
 
 from __future__ import division, print_function, unicode_literals
@@ -34,8 +34,8 @@ from utils import debug_log, error_log
 
 class NineBoxWindow(NSWindowController):
     """
-    九宮格預覽視窗控制器（最佳化版）
-    Nine Box Window Controller (Optimized)
+    九宮格預覽視窗控制器
+    Nine Box Window Controller
     """
     
     def initWithPlugin_(self, plugin):
@@ -387,7 +387,7 @@ class NineBoxWindow(NSWindowController):
             error_log("控制面板按鈕動作錯誤", e)
     
     def windowDidResize_(self, notification):
-        """視窗大小調整處理（階段1.3：最佳化版）"""
+        """視窗大小調整處理（階段1.3）"""
         try:
             if notification.object() == self.window():
                 frame = self.window().frame()
@@ -528,7 +528,7 @@ class NineBoxWindow(NSWindowController):
             error_log("請求控制面板UI更新錯誤", e)
     
     def makeKeyAndOrderFront(self):
-        """顯示並激活視窗（完整初始化版本）"""
+        """顯示並激活視窗"""
         try:
             debug_log("[makeKeyAndOrderFront] 開始完整初始化")
             

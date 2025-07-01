@@ -226,10 +226,10 @@ class SearchPanel(NSView):
         # 將文字檢視設為滾動視圖的文檔檢視
         self.scrollView.setDocumentView_(self.searchField)
         
-        # 添加到當前檢視
+        # 新增到當前檢視
         self.addSubview_(self.scrollView)
         
-        debug_log("搜尋面板 UI 設定完成（簡化多行版）")
+        debug_log("搜尋面板 UI 設定完成")
     
     def update_content(self, plugin_state):
         """更新搜尋欄位內容（程式化更新）"""

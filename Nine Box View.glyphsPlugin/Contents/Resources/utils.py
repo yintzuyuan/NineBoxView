@@ -1,7 +1,7 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 工具函數（最佳化版）
-Nine Box Preview Plugin - Utility Functions (Optimized)
+九宮格預覽外掛 - 工具函數
+Nine Box Preview Plugin - Utility Functions
 """
 
 from __future__ import division, print_function, unicode_literals
@@ -351,7 +351,7 @@ def save_preferences(plugin):
 # === 字符處理 ===
 
 def get_cached_glyph(font, char_or_name):
-    """從快取或字型取得字符（官方 API 最佳化版本）
+    """從快取或字型取得字符
     
     Args:
         font: GSFont 字型物件

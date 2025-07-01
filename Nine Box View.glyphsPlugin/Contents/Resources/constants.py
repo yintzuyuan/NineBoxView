@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 常數定義（最佳化版）
+九宮格預覽外掛 - 常數定義
 Nine Box Preview Plugin - Constants Definition (Optimized)
 """
 

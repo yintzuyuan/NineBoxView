@@ -1,7 +1,7 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 預覽畫面（官方模式版）
-Nine Box Preview Plugin - Preview View (Official Mode Version)
+九宮格預覽外掛 - 預覽畫面
+Nine Box Preview Plugin - Preview View
 基於字身寬度的穩定佈局設計，採用官方 Glyphs UI 重繪模式
 """
 
@@ -30,9 +30,9 @@ from utils import debug_log, error_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """
-    九宮格預覽畫面類別（官方模式版）
-    Nine Box Preview View Class (Official Mode Version)
-    
+    九宮格預覽畫面類別
+    Nine Box Preview View Class
+
     設計原則：
     - 佈局計算完全基於 layer.width（字身寬度）
     - 不使用 LSB、RSB 或路徑邊界等動態資訊
@@ -209,19 +209,19 @@ class NineBoxPreviewView(NSView):
                 # 無效字符
                 info_title = f"{char_info['char_or_name']}"
             
-            # 添加資訊顯示項目（不可點擊）
+            # 新增資訊顯示項目（不可點擊）
             info_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                 info_title, None, ""
             )
             info_item.setEnabled_(False)  # 設為不可點擊
             menu.addItem_(info_item)
             
-            # 添加分隔線
+            # 新增分隔線
             menu.addItem_(NSMenuItem.separatorItem())
             
             # 只有有效字符才顯示操作選項
             if char_info['is_valid']:
-                # 添加「複製字符名稱」選項
+                # 新增「複製字符名稱」選項
                 copy_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                     Glyphs.localize({
                         'en': 'Copy Glyph Name',
@@ -236,7 +236,7 @@ class NineBoxPreviewView(NSView):
                 copy_item.setRepresentedObject_(char_info['glyph_name'])
                 menu.addItem_(copy_item)
                 
-                # 添加「插入字符到目前分頁」選項
+                # 新增「插入字符到目前分頁」選項
                 insert_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                     Glyphs.localize({
                         'en': 'Insert Character to Current Tab',
@@ -251,7 +251,7 @@ class NineBoxPreviewView(NSView):
                 insert_item.setRepresentedObject_(char_info)
                 menu.addItem_(insert_item)
                 
-                # 添加「在新分頁開啟字符」選項
+                # 新增「在新分頁開啟字符」選項
                 new_tab_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
                     Glyphs.localize({
                         'en': 'Open Glyph in New Tab',
@@ -893,7 +893,7 @@ class NineBoxPreviewView(NSView):
             error_log("繪製字符時發生錯誤", e)
 
     def drawRect_(self, rect):
-        """繪製畫面內容（官方模式）- 增強版"""
+        """繪製畫面內容"""
         try:
             debug_log(f"預覽重繪：{rect.size.width}x{rect.size.height}")
             

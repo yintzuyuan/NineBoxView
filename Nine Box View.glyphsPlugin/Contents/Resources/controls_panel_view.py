@@ -1,6 +1,6 @@
 # encoding: utf-8
 """
-九宮格預覽外掛 - 控制面板畫面（重構版）
+九宮格預覽外掛 - 控制面板畫面
 Nine Box Preview Plugin - Controls Panel View (Refactored)
 """
 
@@ -27,8 +27,8 @@ SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN = 8
 
 class ControlsPanelView(NSView):
     """
-    控制面板畫面類別（重構版）
-    Controls Panel View class (Refactored)
+    控制面板畫面類別
+    Controls Panel View class
     """
     
     def initWithFrame_plugin_(self, frame, plugin):

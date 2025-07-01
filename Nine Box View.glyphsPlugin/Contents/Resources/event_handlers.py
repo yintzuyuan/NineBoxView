@@ -17,7 +17,7 @@ class EventHandlers:
     
     def __init__(self, plugin):
         self.plugin = plugin
-        # 添加細粒度更新標記，防止重繪時意外觸發其他邏輯
+        # 新增細粒度更新標記，防止重繪時意外觸發其他邏輯
         self._performing_granular_update = False
         
     
@@ -77,7 +77,7 @@ class EventHandlers:
             error_log("更新介面時發生錯誤", e)
     
     def selection_changed(self, sender):
-        """選擇變更處理（穩定版：只更新中心格，保持周圍格不變）"""
+        """選擇變更處理（只更新中心格，保持周圍格不變）"""
         try:
             # 清除快取
             if hasattr(self.plugin, 'clear_cache'):
@@ -128,7 +128,7 @@ class EventHandlers:
     # === 搜尋欄位相關 ===
     
     def search_field_callback(self, sender):
-        """處理搜尋欄位輸入（最佳化版）"""
+        """處理搜尋欄位輸入"""
         if not Glyphs.font:
             debug_log("警告：沒有開啟字型檔案")
             return
@@ -373,7 +373,7 @@ class EventHandlers:
             error_log("選擇字符錯誤", e)
     
     def randomize_callback(self, sender):
-        """隨機排列按鈕回呼（最佳化版）"""
+        """隨機排列按鈕回呼"""
         # 確保 selectedChars 是可變列表
         if hasattr(self.plugin, 'selectedChars'):
             self.plugin.selectedChars = list(self.plugin.selectedChars) if self.plugin.selectedChars else []
@@ -758,7 +758,7 @@ class EventHandlers:
             error_log("[細粒度更新] 更新鎖定位置時發生錯誤", e)
     
     def _restore_non_locked_content(self, arrangement, positions):
-        """恢復非鎖定位置的內容（修正版：遵循 flow.md 邏輯，並處理批次輸入變更）"""
+        """恢復非鎖定位置的內容（遵循 flow.md 邏輯，並處理批次輸入變更）"""
         try:
             # 優先使用原始排列
             if hasattr(self.plugin, 'originalArrangement') and self.plugin.originalArrangement:
