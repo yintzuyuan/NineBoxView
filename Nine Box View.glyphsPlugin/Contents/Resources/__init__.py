@@ -7,4 +7,4 @@ Nine Box Preview Plugin - Module Initialization
 from __future__ import division, print_function, unicode_literals
 
 # 版本資訊
-__version__ = "3.0.0" 
+__version__ = "3.0.0"
