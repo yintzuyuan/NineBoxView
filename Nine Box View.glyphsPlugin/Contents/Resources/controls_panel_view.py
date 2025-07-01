@@ -16,14 +16,14 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from constants import DEBUG_MODE
+from constants import (
+    DEBUG_MODE, SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN,
+    LOCK_FIELD_HEIGHT, LOCK_FIELDS_INTERNAL_GRID_SPACING,
+    LOCK_FIELDS_CLEAR_BUTTON_HEIGHT, LOCK_FIELDS_SPACING_ABOVE_BUTTON
+)
 from utils import debug_log, error_log
 from search_panel import SearchPanel
 from lock_fields_panel import LockFieldsPanel
-
-# Constant for the internal margin used within SearchPanel for its NSScrollView
-SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN = 8
-
 
 class ControlsPanelView(NSView):
     """
@@ -82,11 +82,7 @@ class ControlsPanelView(NSView):
             spacing = 6  # 原本是12，改小一點
             
             # 計算鎖定欄位面板的高度（3x3網格 + 清除按鈕）
-            lock_field_height = 30
-            lock_fields_internal_grid_spacing = 4 # From LockFieldsPanel._create_lock_fields
-            lock_fields_clear_button_height = 22 # From LockFieldsPanel._create_clear_button
-            lock_fields_spacing_above_button = 8 # From LockFieldsPanel._create_lock_fields current_y
-            lock_panel_height = (3 * lock_field_height + 2 * lock_fields_internal_grid_spacing) + lock_fields_clear_button_height + lock_fields_spacing_above_button
+            lock_panel_height = (3 * LOCK_FIELD_HEIGHT + 2 * LOCK_FIELDS_INTERNAL_GRID_SPACING) + LOCK_FIELDS_CLEAR_BUTTON_HEIGHT + LOCK_FIELDS_SPACING_ABOVE_BUTTON
             
             # 容器可用寬度
             container_content_width = bounds.size.width - 2 * margin
@@ -152,11 +148,7 @@ class ControlsPanelView(NSView):
             spacing = 6
 
             # 計算鎖定欄位面板的高度
-            lock_field_height = 30
-            lock_fields_internal_grid_spacing = 4
-            lock_fields_clear_button_height = 22
-            lock_fields_spacing_above_button = 8
-            lock_panel_height = (3 * lock_field_height + 2 * lock_fields_internal_grid_spacing) + lock_fields_clear_button_height + lock_fields_spacing_above_button
+            lock_panel_height = (3 * LOCK_FIELD_HEIGHT + 2 * LOCK_FIELDS_INTERNAL_GRID_SPACING) + LOCK_FIELDS_CLEAR_BUTTON_HEIGHT + LOCK_FIELDS_SPACING_ABOVE_BUTTON
 
             container_content_width = bounds.size.width - 2 * margin
 

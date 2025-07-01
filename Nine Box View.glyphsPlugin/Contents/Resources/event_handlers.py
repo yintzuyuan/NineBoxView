@@ -349,11 +349,9 @@ class EventHandlers:
                         # 將選取的字符用空格連接
                         chars_to_insert = ' '.join(selected_chars)
                         
-                        # 如果目前文字不是空的，且最後一個字符不是空格，則加入空格
-                        if current_text and not current_text.endswith(' '):
-                            new_text = current_text + ' ' + chars_to_insert
-                        else:
-                            new_text = current_text + chars_to_insert
+                        # 智能插入：獲取游標位置並在正確位置插入
+                        new_text = self._smart_insert_text(
+                            search_panel.searchField, current_text, chars_to_insert)
                         
                         # 設定新的文字
                         search_panel.set_search_value(new_text)
@@ -1189,3 +1187,87 @@ class EventHandlers:
             
         except Exception as e:
             error_log("[清除單一鎖定] 清除單個鎖定位置時發生錯誤", e)
+    
+    def _smart_insert_text(self, text_view, current_text, chars_to_insert):
+        """智能文字插入：支援游標位置和選中文字替換
+        
+        Args:
+            text_view: NSTextView 對象（搜索框）
+            current_text: 當前文字內容
+            chars_to_insert: 要插入的字符串
+            
+        Returns:
+            str: 插入後的新文字
+        """
+        try:
+            debug_log(f"[智能插入] 當前文字: '{current_text}', 要插入: '{chars_to_insert}'")
+            
+            # 獲取當前選擇範圍（游標位置或選中範圍）
+            if hasattr(text_view, 'selectedRange'):
+                selection_range = text_view.selectedRange()
+                cursor_position = selection_range.location
+                selection_length = selection_range.length
+                
+                debug_log(f"[智能插入] 游標位置: {cursor_position}, 選中長度: {selection_length}")
+                
+                # 確保位置有效
+                if cursor_position < 0:
+                    cursor_position = 0
+                elif cursor_position > len(current_text):
+                    cursor_position = len(current_text)
+                
+                if selection_length > 0:
+                    # 有選中文字：替換選中內容
+                    debug_log("[智能插入] 替換選中文字")
+                    left_part = current_text[:cursor_position]
+                    right_part = current_text[cursor_position + selection_length:]
+                    
+                    # 智能空格處理：替換模式
+                    need_left_space = (left_part and not left_part.endswith(' ') and 
+                                     left_part.strip())  # 左邊有非空白內容且不以空格結尾
+                    need_right_space = (right_part and not right_part.startswith(' ') and 
+                                      right_part.strip())  # 右邊有非空白內容且不以空格開頭
+                    
+                    space_left = ' ' if need_left_space else ''
+                    space_right = ' ' if need_right_space else ''
+                    
+                    new_text = left_part + space_left + chars_to_insert + space_right + right_part
+                    debug_log(f"[智能插入] 替換結果: '{new_text}'")
+                    
+                else:
+                    # 只是游標位置：在當前位置插入
+                    debug_log("[智能插入] 在游標位置插入")
+                    left_part = current_text[:cursor_position]
+                    right_part = current_text[cursor_position:]
+                    
+                    # 智能空格處理：插入模式
+                    need_left_space = (left_part and not left_part.endswith(' ') and 
+                                     cursor_position > 0)  # 不在開頭且左邊不是空格
+                    need_right_space = (right_part and not right_part.startswith(' ') and 
+                                      cursor_position < len(current_text))  # 不在結尾且右邊不是空格
+                    
+                    space_left = ' ' if need_left_space else ''
+                    space_right = ' ' if need_right_space else ''
+                    
+                    new_text = left_part + space_left + chars_to_insert + space_right + right_part
+                    debug_log(f"[智能插入] 插入結果: '{new_text}'")
+                
+                return new_text
+                
+            else:
+                # 回退到原始邏輯（不支援 selectedRange 的情況）
+                debug_log("[智能插入] 回退到末尾插入")
+                return self._fallback_append_text(current_text, chars_to_insert)
+                
+        except Exception as e:
+            error_log("[智能插入] 智能插入發生錯誤", e)
+            # 發生錯誤時回退到原始邏輯
+            return self._fallback_append_text(current_text, chars_to_insert)
+    
+    def _fallback_append_text(self, current_text, chars_to_insert):
+        """回退邏輯：簡單的末尾插入"""
+        debug_log(f"[回退插入] 在末尾插入: '{chars_to_insert}'")
+        if current_text and not current_text.endswith(' '):
+            return current_text + ' ' + chars_to_insert
+        else:
+            return current_text + chars_to_insert

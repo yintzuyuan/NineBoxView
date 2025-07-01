@@ -316,26 +316,7 @@ class LockFieldsPanel(NSView):
             error_log("切換鎖頭模式錯誤", e)
             if hasattr(self, 'lockButton'):
                 self.updateLockButton()
-    
-    
-    def _get_current_editing_char(self):
-        """取得目前正在編輯的字符"""
-        try:
-            if Glyphs.font and Glyphs.font.selectedLayers:
-                current_layer = Glyphs.font.selectedLayers[0]
-                if current_layer and current_layer.parent:
-                    current_glyph = current_layer.parent
-                    if current_glyph.unicode:
-                        try:
-                            return chr(int(current_glyph.unicode, 16))
-                        except:
-                            pass
-                    if current_glyph.name:
-                        return current_glyph.name
-        except:
-            pass
-        return "A"  # 預設值
-    
+
     def _sync_input_fields_to_locked_chars(self):
         """同步輸入欄內容到 plugin.lockedChars（修正版）"""
         try:
