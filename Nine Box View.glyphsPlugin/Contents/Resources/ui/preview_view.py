@@ -22,11 +22,11 @@ from AppKit import (
 )
 
 # 匯入常數和工具函數
-from constants import (
+from core.constants import (
     MARGIN_RATIO, SPACING_RATIO, MIN_ZOOM, MAX_ZOOM, DEBUG_MODE,
     GRID_SIZE, GRID_TOTAL, CENTER_POSITION
 )
-from utils import debug_log, error_log, get_cached_glyph, get_cached_width
+from core.utils import debug_log, error_log, get_cached_glyph, get_cached_width
 
 class NineBoxPreviewView(NSView):
     """

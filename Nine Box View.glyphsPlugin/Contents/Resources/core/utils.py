@@ -10,7 +10,7 @@ import random
 from GlyphsApp import Glyphs, objc
 
 # 匯入常數
-from constants import (
+from .constants import (
     CACHE_ENABLED, DEFAULT_UPM, MAX_LOCKED_POSITIONS,
     LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY, WINDOW_SIZE_KEY,
     ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,

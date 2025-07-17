@@ -16,14 +16,14 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from constants import (
+from core.constants import (
     DEBUG_MODE, SEARCH_PANEL_INTERNAL_SCROLLVIEW_MARGIN,
     LOCK_FIELD_HEIGHT, LOCK_FIELDS_INTERNAL_GRID_SPACING,
     LOCK_FIELDS_CLEAR_BUTTON_HEIGHT, LOCK_FIELDS_SPACING_ABOVE_BUTTON
 )
-from utils import debug_log, error_log
-from search_panel import SearchPanel
-from lock_fields_panel import LockFieldsPanel
+from core.utils import debug_log, error_log
+from .search_panel import SearchPanel
+from .lock_fields_panel import LockFieldsPanel
 
 class ControlsPanelView(NSView):
     """

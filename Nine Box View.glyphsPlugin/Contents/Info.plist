@@ -14,17 +14,17 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.0.6</string>
+	<string>3.1.0</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>14</string>
+	<string>15</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
-	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/NineBoxViewer.glyphsPlugin/Contents/Info.plist</string>
+	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/Nine Box View.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>加入新的右鍵選單功能，插入字符到目前分頁</string>
+	<string>重構程式碼組織架構：採用模組化設計，將功能分為 core、ui、handlers 三個模組，提升程式碼維護性和可讀性</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
-	<string>Copyright, Tzuyuan Yin, 2024</string>
+	<string>© 2025 Yin Tzu Yuan</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
 	<string>NineBoxView</string>
 	<key>PyMainFileNames</key>
