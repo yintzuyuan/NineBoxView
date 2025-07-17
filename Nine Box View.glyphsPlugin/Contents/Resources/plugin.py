@@ -47,7 +47,7 @@ try:
         def _import_modules(self):
             """匯入所需模組"""
             # 匯入常數
-            from constants import (
+            from core.constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
@@ -57,17 +57,17 @@ try:
             )
             
             # 匯入工具函數
-            from utils import (
+            from core.utils import (
                 log_to_macro_window, debug_log, error_log, clear_cache,
                 load_preferences, save_preferences, get_base_width,
                 parse_input_text, get_cached_glyph, get_cached_width
             )
             
             # 匯入事件處理器
-            from event_handlers import EventHandlers
+            from handlers.event_handlers import EventHandlers
             
             # 匯入視窗控制器
-            from window_controller import NineBoxWindow
+            from ui.window_controller import NineBoxWindow
             
             # 儲存到 self 中
             self.NineBoxWindow = NineBoxWindow

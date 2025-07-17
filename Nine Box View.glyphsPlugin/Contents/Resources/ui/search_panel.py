@@ -16,8 +16,8 @@ from AppKit import (
 )
 from Foundation import NSObject
 
-from constants import DEBUG_MODE
-from utils import debug_log, error_log
+from core.constants import DEBUG_MODE
+from core.utils import debug_log, error_log
 
 
 class SearchTextView(NSTextView):

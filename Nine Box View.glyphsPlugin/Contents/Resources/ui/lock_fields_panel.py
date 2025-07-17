@@ -27,8 +27,8 @@ try:
 except ImportError:
     CGColorCreateGenericRGB = None
 
-from constants import DEBUG_MODE, MAX_LOCKED_POSITIONS
-from utils import debug_log, error_log, get_cached_glyph
+from core.constants import DEBUG_MODE, MAX_LOCKED_POSITIONS
+from core.utils import debug_log, error_log, get_cached_glyph
 
 
 class LockCharacterField(NSTextField):

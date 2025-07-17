@@ -24,12 +24,12 @@ from AppKit import (
 )
 from Foundation import NSObject, NSUserDefaultsDidChangeNotification, NSTimer
 
-from constants import (
+from core.constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
     CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT, CONTROLS_PANEL_SPACING,
     CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
 )
-from utils import debug_log, error_log
+from core.utils import debug_log, error_log
 
 
 class NineBoxWindow(NSWindowController):
@@ -42,8 +42,8 @@ class NineBoxWindow(NSWindowController):
         """初始化視窗控制器（階段1.2：加入控制面板）"""
         try:
             # 動態匯入以避免反覆依賴
-            from preview_view import NineBoxPreviewView
-            from controls_panel_view import ControlsPanelView
+            from .preview_view import NineBoxPreviewView
+            from .controls_panel_view import ControlsPanelView
             self.NineBoxPreviewView = NineBoxPreviewView
             self.ControlsPanelView = ControlsPanelView
             # 不再需要 NSArray，因為我們統一使用 Python list
