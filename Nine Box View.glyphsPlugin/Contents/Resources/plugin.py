@@ -14,10 +14,7 @@ from AppKit import NSMenuItem, NSUserDefaults
 from GlyphsApp import *
 from GlyphsApp.plugins import *
 
-# 確保外掛模組路徑正確
-plugin_dir = os.path.dirname(os.path.abspath(__file__))
-if plugin_dir not in sys.path:
-    sys.path.insert(0, plugin_dir)
+plugin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     # 設定 GeneralPlugin 子類別
