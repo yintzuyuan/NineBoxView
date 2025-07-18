@@ -9,8 +9,8 @@ import traceback
 import random
 from GlyphsApp import Glyphs, PickGlyphs, GSGlyph
 from AppKit import NSTextField
-from core.constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION, SURROUNDING_POSITIONS
-from core.utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph, generate_non_repeating_batch
+from .constants import DEBUG_MODE, DEFAULT_ZOOM, FULL_ARRANGEMENT_SIZE, CENTER_POSITION, SURROUNDING_POSITIONS
+from .utils import debug_log, error_log, parse_input_text, generate_arrangement, validate_locked_positions, get_cached_glyph, generate_non_repeating_batch
 
 class EventHandlers:
     """集中管理所有事件處理邏輯"""
