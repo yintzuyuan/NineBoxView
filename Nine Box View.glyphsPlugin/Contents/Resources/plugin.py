@@ -7,10 +7,17 @@ Nine Box Preview Plugin - Main Class (Simplified)
 from __future__ import division, print_function, unicode_literals
 import traceback
 import objc
+import sys
+import os
 from Foundation import NSObject, NSNotificationCenter, NSUserDefaultsDidChangeNotification
 from AppKit import NSMenuItem, NSUserDefaults
 from GlyphsApp import *
 from GlyphsApp.plugins import *
+
+# 確保外掛模組路徑正確
+plugin_dir = os.path.dirname(os.path.abspath(__file__))
+if plugin_dir not in sys.path:
+    sys.path.insert(0, plugin_dir)
 
 try:
     # 設定 GeneralPlugin 子類別
@@ -47,7 +54,7 @@ try:
         def _import_modules(self):
             """匯入所需模組"""
             # 匯入常數
-            from core.constants import (
+            from lib.core.constants import (
                 LAST_INPUT_KEY, SELECTED_CHARS_KEY, CURRENT_ARRANGEMENT_KEY,
                 ZOOM_FACTOR_KEY, WINDOW_POSITION_KEY, CONTROLS_PANEL_VISIBLE_KEY,
                 LOCKED_CHARS_KEY, PREVIOUS_LOCKED_CHARS_KEY, LOCK_MODE_KEY, WINDOW_SIZE_KEY,
@@ -57,17 +64,17 @@ try:
             )
             
             # 匯入工具函數
-            from core.utils import (
+            from lib.core.utils import (
                 log_to_macro_window, debug_log, error_log, clear_cache,
                 load_preferences, save_preferences, get_base_width,
                 parse_input_text, get_cached_glyph, get_cached_width
             )
             
             # 匯入事件處理器
-            from handlers.event_handlers import EventHandlers
+            from lib.core.event_handlers import EventHandlers
             
             # 匯入視窗控制器
-            from ui.window_controller import NineBoxWindow
+            from lib.ui.window_controller import NineBoxWindow
             
             # 儲存到 self 中
             self.NineBoxWindow = NineBoxWindow

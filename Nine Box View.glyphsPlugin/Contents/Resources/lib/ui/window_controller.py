@@ -24,12 +24,12 @@ from AppKit import (
 )
 from Foundation import NSObject, NSUserDefaultsDidChangeNotification, NSTimer
 
-from core.constants import (
+from ..core.constants import (
     WINDOW_SIZE_KEY, DEFAULT_WINDOW_SIZE, MIN_WINDOW_SIZE,
     CONTROLS_PANEL_WIDTH, CONTROLS_PANEL_MIN_HEIGHT, CONTROLS_PANEL_SPACING,
     CONTROLS_PANEL_VISIBLE_KEY, DEBUG_MODE
 )
-from core.utils import debug_log, error_log
+from ..core.utils import debug_log, error_log
 
 
 class NineBoxWindow(NSWindowController):
