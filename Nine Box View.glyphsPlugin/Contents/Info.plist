@@ -12,21 +12,21 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
-	<string>Nine Box View</string>
+	<string>Nine Box View (Develop)</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.1.1</string>
+	<string>3.3.2</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
 	<string>16</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
-	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/Nine Box View.glyphsPlugin/Contents/Info.plist</string>
+	<string>https://github.com/yintzuyuan/NineBoxView-dev/raw/main/Nine Box View.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
-	<string>https://github.com/yintzuyuan/NineBoxView</string>
+	<string>https://github.com/yintzuyuan/NineBoxView-dev</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>重構程式碼為標準的 MyPluginLib 模組化結構：採用符合 Glyphs 開發規範的架構，將模組組織為 MyPluginLib/core 和 MyPluginLib/ui，修正匯入路徑問題，提升程式碼維護性和可讀性</string>
+	<string>重構程式碼為標準的 MyPlugin 模組化結構：採用符合 Glyphs 開發規範的架構，採用減法重構和官方建議的最佳實踐</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>© 2025 Yin Tzu Yuan</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
-	<string>NineBoxView</string>
+	<string>NineBoxViewDev</string>
 	<key>PyMainFileNames</key>
 	<array>
 		<string>plugin.py</string>
