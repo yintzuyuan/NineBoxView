@@ -311,12 +311,15 @@ class NineBoxViewController:
         # 第一層：從最底層 base_glyphs 開始
         arrangement = self.base_glyphs[:]
         
-        # 第二層：條件性套用 base_arrangement（只在有**有效**搜尋輸入時覆寫 base_glyphs）
-        # 關鍵修復：當沒有有效搜尋輸入時，保持 base_glyphs 的即時內容
-        if self.has_valid_search_input():  # 只有在有有效字符時才用 base_arrangement 覆寫
-            for pos in range(GRID_TOTAL):
-                if self.base_arrangement[pos]:
-                    arrangement[pos] = self.base_arrangement[pos]
+        # 第二層：條件性套用 base_arrangement（差異化處理：即時重繪 + 行為一致性）
+        # 平衡修復：既保持即時重繪，又確保無效字符與空輸入行為一致
+        if self.lastInput:  # 有任何輸入內容就處理（恢復即時重繪）
+            if self.has_valid_search_input():
+                # 有效輸入：使用搜尋排列結果
+                for pos in range(GRID_TOTAL):
+                    if self.base_arrangement[pos]:
+                        arrangement[pos] = self.base_arrangement[pos]
+            # 無效輸入：保持 base_glyphs 即時內容（維持您的核心改進：與空輸入行為一致）
         
         # 第三層：只在上鎖狀態時套用鎖定覆寫層（排除中央格）
         if self.isLockFieldsActive:

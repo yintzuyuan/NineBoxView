@@ -96,24 +96,23 @@ class InputGuardService:
             # 防護機制1: 重複輸入檢查
             if not InputGuardService.should_process_input(search_text, plugin_state):
                 return {'processed': False, 'reason': 'duplicate_input'}
-            
-            # 更新輸入狀態
-            plugin_state.lastInput = search_text
-            
+
             if not search_text:
                 # 空輸入：完全重置狀態確保下次任何輸入都被視為新狀態
                 plugin_state.lastInput = ""  # 設為空字串，確保狀態轉換被正確辨認
-                plugin_state.selectedChars = []  # 同時重置字符狀態，避免第二層防護攔截
+                # 移除 selectedChars 賦值：現在是動態 property，會基於 lastInput 自動返回 []
                 randomize_callback()
                 return {'processed': True, 'action': 'randomize'}
             else:
                 # 有輸入：解析並處理
                 chars = parse_glyph_input(search_text)
-                
-                # 防護機制2: 狀態同步檢查
+
+                # 防護機制2: 狀態同步檢查（修復：在狀態更新前檢查，避免循環依賴）
                 if InputGuardService.should_update_state(chars, plugin_state):
-                    plugin_state.selectedChars = chars
-                    
+                    # 更新輸入狀態（修復：移到狀態檢查之後，確保比較基於舊狀態）
+                    plugin_state.lastInput = search_text
+                    # 移除 selectedChars 賦值：現在是動態 property，會基於 lastInput 自動解析
+
                     if chars:
                         # 有效字符：更新排列
                         update_callback(chars)
