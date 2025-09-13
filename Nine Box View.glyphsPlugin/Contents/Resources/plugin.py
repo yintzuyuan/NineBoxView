@@ -18,7 +18,7 @@ from GlyphsApp import Glyphs, WINDOW_MENU, DOCUMENTACTIVATED, DOCUMENTOPENED, UP
 from GlyphsApp.plugins import GeneralPlugin
 from AppKit import NSMenuItem
 
-class NineBoxViewDev(GeneralPlugin):
+class NineBoxView(GeneralPlugin):
     """九宮格預覽外掛"""
     
     @objc.python_method

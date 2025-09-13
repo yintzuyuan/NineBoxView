@@ -8,8 +8,6 @@
 
 ## 繁體中文
 
-**(v3.3.2 - 2025 年 9 月更新)**
-
 這是一個為 [Glyphs 字型編輯軟體](http://glyphsapp.com/) 開發的外掛，專為字型設計師提供即時預覽功能。透過 Python、Objective-C 和 AppKit 框架實作，利用 NSView 的子類別實作繪製功能。此工具讓設計師能同時預覽字符在不同環境下的搭配效果。
 
 第三版經歷了從 v3.0.0 到 v3.3.2 的漸進式發展，從初期的模組化重構，發展至當前的多國語言支援、智慧主題監測和三層即時重繪系統。整個開發歷程跨越兩個儲存庫，結合了社群回饋和 AI 協作開發，旨在提供更專注、更高效、更國際化的預覽體驗。
@@ -47,7 +45,7 @@
 4.  在控制面板中：
       - **參考輸入框：** 輸入多個參考字符（以空格分隔），外掛會將其隨機排列於周圍的格子中。支援 CJK、Nice Names、Unicode Names。
       - **鎖定輸入框：** 8 個獨立輸入框，為特定位置指定固定字符。
-      - **鎖頭圖示：** 點擊 (🔒/🔓) 切換鎖定模式。
+      - **鎖頭圖示：** 點擊（🔒/🔓）切換鎖定模式。
       - **清空鎖定：** 一鍵清除所有鎖定框內容。
       - **字符選擇器：** 右鍵點擊輸入框使用官方「字符選擇器」，方便加入多個字符。
 
@@ -66,16 +64,13 @@
 
 ### 系統需求
 
-  - **基本支援：** Glyphs 3.2.3 或更高版本
-  - **完整功能：** 建議使用 Glyphs 3.2+，以獲得對原生字符選擇器 (PickGlyphs API) 和 Light Table 比較的完整支援。
-  - **主題監測：** 分頁層級主題切換需要較新版本。
-  - **多語言：** 支援所有 Glyphs 3.2+ 版本的內建本地化功能。
+此外掛在 Glyphs 3.2.3 版本或更高版本中測試通過。部分功能（如官方字符選擇器 PickGlyphs API）需要 Glyphs 3.2 或更高版本。
 
 ### 技術特點與改進
 
 九宮格預覽 v3.3.2 經歷了從 v3.0.0 到當前版本的全面演進，專注於使用者體驗、效能和國際化：
 
-#### 🏗️ **DrawBot 模式架構**
+#### 🏗️ **借鑑 [DrawBot](https://github.com/schriftgestalt/DrawBotGlyphsPlugin) 模式架構**
 
   - **高度模組化架構**：程式碼被組織在 15 個專業模組中，採用 Glyphs 官方推薦的架構模式，大幅提升外掛的穩定性與可維護性。
   - **平面座標系統**：採用 0-8 直觀座標管理，替代了原始較為複雜的三層架構。
@@ -96,7 +91,7 @@
 #### 🖥️ **分頁層級主題監測**
 
   - **精準的主題偵測**：修正了以往的全域偵測方式，改為偵測當前編輯分頁的主題設定，確保預覽視窗的顏色與你當下的工作區完全同步。
-  - **Georg Seifert 建議**：採用 Glyphs 官方開發者[建議](https://forum.glyphsapp.com/t/inverted-negativebutton-in-preview-panel-vs-preview-area-at-bottom-of-edit-view/7442/2)的 `Font.currentTab.previewView().setBlack_()` API，確保穩定性與相容性。
+  - **官方建議**：採用 Glyphs 官方開發者[建議](https://forum.glyphsapp.com/t/inverted-negativebutton-in-preview-panel-vs-preview-area-at-bottom-of-edit-view/7442/2)的 `Font.currentTab.previewView().setBlack_()` API，確保穩定性與相容性。
   - **智慧復原機制**：新增 `theme_detector.py` 實作多層級偵測器，在無法偵測到分頁時能優雅地回復至備用方案。
 
 #### 🔍 **統一字符辨識系統**
@@ -117,7 +112,7 @@
   - **Light Table 整合**：支援在 Light Table 外掛的工作模式下，即時預覽前後版本的差異。此外掛具備優雅降級機制，即使未安裝 Light Table 也能正常運作。
   - **備份圖層支援**：可即時預覽不同主板和備份圖層的內容。
   - **減法重構原則**：秉持「統一而非新增」的設計哲學，消除重複的程式碼，提升穩定性。
-  - **測試驅動開發 (TDD)**：擁有完整的單元測試套件 (`test_localization.py` 等)，確保每次更新的功能都經過驗證，提供更可靠的使用體驗。
+  - **測試驅動開發（TDD）**：擁有完整的單元測試套件（`test_localization.py` 等），確保每次更新的功能都經過驗證，提供更可靠的使用體驗。
 
 ### 回饋與建議
 
@@ -132,7 +127,7 @@
 特別感謝 Aaron Bell 的 [RotateView](https://github.com/aaronbell/RotateView) 外掛，讓我了解如何使用 NSView 子類別實作即時預覽。
 也要感謝大曲都市的 [Waterfall](https://github.com/Tosche/Waterfall) 外掛，啟發了我如何實作 UI 互動功能。
 
-感謝 Light Table 外掛作者的幫助 (相關討論見 [Issue #59](https://github.com/yintzuyuan/NineBoxView/issues/59))，讓九宮格預覽能夠整合 Light Table 的版本比對功能。由於 Light Table 是一個獨立的外掛工具而非 Glyphs 內建功能，本外掛也為此設計了優雅降級（graceful degradation）機制，即使你沒有安裝 Light Table 也能正常使用所有核心功能。
+感謝 Light Table 外掛作者的幫助（相關討論見 [Issue #59](https://github.com/yintzuyuan/NineBoxView/issues/59)），讓九宮格預覽能夠整合 Light Table 的版本比對功能。由於 Light Table 是一個獨立的外掛工具而非 Glyphs 內建功能，本外掛也為此設計了優雅降級（graceful degradation）機制，即使你沒有安裝 Light Table 也能正常使用所有核心功能。
 
 從 v3.0.0 到 v3.3.2 的漸進式發展，深度依賴現代化 AI 協作開發模式。特別是利用 Claude Code 工具進行 TDD 測試驅動開發、程式碼重構和多國語言本地化。整個開發歷程跨越兩個儲存庫（原始版→開發版），結合了社群回饋、官方論壇建議和 AI 輔助的技術實作。
 
@@ -150,8 +145,6 @@
 ---
 
 ## English
-
-**(v3.3.2 - Updated September 2025)**
 
 This is a plugin developed for [Glyphs font editing software](http://glyphsapp.com/), providing real-time preview functionality for font designers. Implemented using Python, Objective-C, and the AppKit framework, it utilizes an NSView subclass for drawing functionality. This tool allows designers to preview character combinations in different contexts simultaneously.
 
@@ -209,16 +202,13 @@ The third version has undergone progressive development from v3.0.0 to v3.3.2, e
 
 ### System Requirements
 
-  - **Basic Support:** Glyphs 3.2.3 or higher
-  - **Full Functionality:** Recommended Glyphs 3.2+ for complete support of native Glyph Picker (PickGlyphs API) and Light Table comparison
-  - **Theme Detection:** Tab-level theme switching requires newer versions
-  - **Multi-language:** Supports all Glyphs 3.2+ versions' built-in localization features
+This plugin has been tested on Glyphs 3.2.3 or higher. Some features (like the official PickGlyphs API character picker) require Glyphs 3.2 or higher.
 
 ### Technical Features and Improvements
 
 Nine Box Preview v3.3.2 has undergone comprehensive evolution from v3.0.0 to the current version, focusing on user experience, performance, and internationalization:
 
-#### 🏗️ **DrawBot Mode Architecture**
+#### 🏗️ **Redesigned [DrawBot](https://github.com/schriftgestalt/DrawBotGlyphsPlugin) Mode Architecture**
 
   - **Highly Modular Architecture:** Code is organized in 15 professional modules, adopting Glyphs official recommended architectural patterns, significantly improving plugin stability and maintainability.
   - **Flat Coordinate System:** Uses intuitive 0-8 coordinate management, replacing the original more complex three-tier architecture.
@@ -239,7 +229,7 @@ Nine Box Preview v3.3.2 has undergone comprehensive evolution from v3.0.0 to the
 #### 🖥️ **Tab-level Theme Detection**
 
   - **Precise Theme Detection:** Fixed previous global detection method, changed to detect current editing tab's theme settings, ensuring preview window colors are completely synchronized with your current workspace.
-  - **Georg Seifert Recommendation:** Adopts Glyphs official developer [recommended](https://forum.glyphsapp.com/t/inverted-negativebutton-in-preview-panel-vs-preview-area-at-bottom-of-edit-view/7442/2) `Font.currentTab.previewView().setBlack_()` API, ensuring stability and compatibility.
+  - **Official Recommendation:** Adopts Glyphs official developer [recommended](https://forum.glyphsapp.com/t/inverted-negativebutton-in-preview-panel-vs-preview-area-at-bottom-of-edit-view/7442/2) `Font.currentTab.previewView().setBlack_()` API, ensuring stability and compatibility.
   - **Smart Restoration Mechanism:** Added `theme_detector.py` implementing multi-level detectors, gracefully falling back to backup solutions when unable to detect tabs.
 
 #### 🔍 **Unified Character Recognition System**
