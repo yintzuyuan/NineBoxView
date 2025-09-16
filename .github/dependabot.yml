@@ -1,0 +1,29 @@
+# Dependabot 配置檔
+# 詳細說明: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # 暫時禁用 Dependabot 的依賴更新檢查
+  # NineBoxView 是純 Python + Objective-C/AppKit 實作的 Glyphs 外掛
+  # 不依賴任何 web 相關套件 (urllib3, requests, jinja2, setuptools)
+
+  # 如果未來需要管理 Python 依賴，可以取消註解以下配置：
+  # - package-ecosystem: "pip"
+  #   directory: "/"
+  #   schedule:
+  #     interval: "monthly"
+  #   target-branch: "develop"
+  #   reviewers:
+  #     - "yintzuyuan"
+  #   commit-message:
+  #     prefix: "deps"
+  #     include: "scope"
+
+# 專案說明：
+# NineBoxView v3.3.2 是 Glyphs 字型編輯軟體的外掛
+# 主要技術棧：
+# - Python (內建於 Glyphs)
+# - Objective-C/AppKit (macOS 原生 UI)
+# - 無外部 Python 套件依賴
+#
+# 因此不需要 Dependabot 進行依賴管理

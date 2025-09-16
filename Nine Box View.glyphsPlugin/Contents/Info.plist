@@ -14,9 +14,9 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.3.2</string>
+	<string>3.3.3</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>16</string>
+	<string>17</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/Nine Box View.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->

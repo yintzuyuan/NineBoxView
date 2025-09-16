@@ -75,22 +75,26 @@ class ThemeDetector:
             return self._get_system_theme_is_dark()
     
     def _is_in_edit_view_with_font(self, font=None):
-        """檢查是否在 Edit View 且有字型檔案開啟"""
+        """
+        檢查是否在 Edit View 且有字型檔案開啟
+
+        基於 Georg Seifert 官方建議，Edit View 的核心特徵是 currentTab 的存在，
+        而非 selectedLayers。未選擇字符時仍應使用 Tab 層級主題。
+        """
         try:
             current_font = font or Glyphs.font if Glyphs else None
-            
+
             # 條件1：必須有字型檔案開啟
             if not current_font:
                 return False
-                
-            # 條件2：必須有當前 Tab（Edit View 特徵）
+
+            # 條件2：必須有當前 Tab（Edit View 的核心特徵）
+            # 有 currentTab 即表示在 Edit View，無論是否有字符選擇
             if not hasattr(current_font, 'currentTab') or not current_font.currentTab:
                 return False
-                
-            # 條件3：必須有選中的圖層（Edit View 特徵）
-            if not hasattr(current_font, 'selectedLayers') or not current_font.selectedLayers:
-                return False
-                
+
+            # Edit View 判斷完成：有字體且有 currentTab 即為 Edit View
+            # 移除 selectedLayers 檢查：即使無字符選擇也應使用 Tab 層級主題
             return True
         except Exception:
             return False
@@ -280,13 +284,16 @@ class SystemThemeMonitor(NSObject):
         except Exception:
             print(traceback.format_exc())
     
-    def observeValueForKeyPath_ofObject_change_context_(self, keyPath, object, change, context):
+    def observeValueForKeyPath_ofObject_change_context_(self, keyPath, observed_object, change, context):
         """KVO 回呼：系統主題變更時觸發"""
         try:
+            # 標記未使用的參數（KVO 回呼必須有這些參數）
+            _ = observed_object, change, context
+
             if keyPath == "effectiveAppearance":
                 # 清除主題偵測器快取
                 clear_theme_cache()
-                
+
                 # 通知所有註冊的回呼函數
                 for callback in self._theme_change_callbacks:
                     try:

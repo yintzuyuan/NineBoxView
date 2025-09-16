@@ -29,7 +29,7 @@
 #### 🎨 使用者體驗
 
   - **視覺回饋系統：** 無效字符標註
-  - **可調整縮放：** 預覽內容縮放比例控制
+  - **響應式佈局：** 九宮格隨視窗大小自動縮放
   - **偏好記憶：** 視窗大小、位置、設定狀態完整保存
 
 ## 使用方法
@@ -167,7 +167,7 @@ The third version has undergone progressive development from v3.0.0 to v3.3.2, e
 #### 🎨 User Experience
 
   - **Visual Feedback System:** invalid character annotations
-  - **Adjustable Zoom:** Preview content zoom ratio control
+  - **Responsive Layout:** Grid auto-scales with window resizing
   - **Preference Memory:** Complete preservation of window size, position, settings state
 
 ### How to Use
