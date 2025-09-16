@@ -37,7 +37,7 @@ class TestThemeDetector(unittest.TestCase):
     def test_create_detector(self):
         """測試建立 ThemeDetector 實例"""
         self.assertIsNotNone(self.detector)
-        self.assertTrue(hasattr(self.detector, 'detect_current_theme'))
+        self.assertTrue(hasattr(self.detector, 'get_theme_is_black'))
     
     def test_detect_theme_basic(self):
         """測試基本主題偵測"""
@@ -46,7 +46,7 @@ class TestThemeDetector(unittest.TestCase):
         mock_tab = MockGSTab()
         self.mock_glyphs.font.currentTab = mock_tab
         
-        theme = self.detector.detect_current_theme(self.mock_glyphs.font)
+        theme = self.detector.get_theme_is_black(self.mock_glyphs.font)
         
         # 應該返回布爾值或主題資訊
         self.assertIsInstance(theme, (bool, dict, str))
@@ -66,7 +66,7 @@ class TestThemeDetector(unittest.TestCase):
         # 測試沒有 currentTab 的情況
         self.mock_glyphs.font.currentTab = None
         
-        theme = self.detector.detect_current_theme(self.mock_glyphs.font)
+        theme = self.detector.get_theme_is_black(self.mock_glyphs.font)
         
         # 應該有合理的復原值
         self.assertIsNotNone(theme)
@@ -107,8 +107,8 @@ class TestThemeDetectionMethods(unittest.TestCase):
         self.mock_glyphs.font.currentTab = mock_tab
         
         # 多次偵測應該返回一致結果（在同一條件下）
-        theme1 = self.detector.detect_current_theme(self.mock_glyphs.font)
-        theme2 = self.detector.detect_current_theme(self.mock_glyphs.font)
+        theme1 = self.detector.get_theme_is_black(self.mock_glyphs.font)
+        theme2 = self.detector.get_theme_is_black(self.mock_glyphs.font)
         
         self.assertEqual(theme1, theme2)
 

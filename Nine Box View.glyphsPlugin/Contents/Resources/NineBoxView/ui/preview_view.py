@@ -61,7 +61,11 @@ class NineBoxPreviewView(NSView):
             
             # 可選：保留寬度偵測快取用於特殊情況
             self._width_change_cache = {}
-            
+
+            # 防抖機制狀態（修復聚焦後立即點擊的雙重隨機排列問題）
+            self._last_randomize_time = 0
+            self._debounce_interval = 0.05  # 50ms 防抖間隔
+
             # 初始化
             self._setup_view()
             self._load_initial_state()
@@ -674,29 +678,38 @@ class NineBoxPreviewView(NSView):
     
     def mouseDown_(self, event):
         """處理滑鼠左鍵點擊事件，觸發隨機排列
-        
+
         左鍵點擊九宮格字符位置觸發隨機排列功能（減法重構：複用右鍵偵測邏輯）
-        
+        包含防抖機制，避免聚焦後立即點擊導致的雙重隨機排列
+
         Args:
             event: 滑鼠點擊事件
         """
         try:
+            # 防抖檢查：避免與 UPDATEINTERFACE 事件衝突
+            current_time = time.time()
+            if current_time - self._last_randomize_time < self._debounce_interval:
+                return  # 在防抖間隔內，忽略這次點擊
+
             # 取得點擊位置
             click_point = event.locationInWindow()
             view_point = self.convertPoint_fromView_(click_point, None)
-            
+
             # 使用現有的九宮格點擊偵測邏輯（減法重構：統一而非新增）
             from ..core.menu_manager import MenuManager
             grid_index = MenuManager.get_grid_index_at_point(self, view_point)
-            
+
             # 只在九宮格有效範圍內觸發隨機排列
             if grid_index is None:
                 return  # 點擊位置不在九宮格範圍內
-            
+
+            # 更新防抖時間戳
+            self._last_randomize_time = current_time
+
             # 在九宮格範圍內點擊時，觸發隨機排列
             self.window().makeKeyWindow()
             self.window().makeFirstResponder_(self)
-            
+
             # 呼叫 plugin 的隨機排列回呼方法
             if hasattr(self.plugin, 'randomizeAction_'):
                 self.plugin.randomizeAction_(self)
@@ -704,7 +717,7 @@ class NineBoxPreviewView(NSView):
                 # 如果沒有回呼方法，通過統一入口觸發隨機排列
                 if hasattr(self.plugin, 'event_handler'):
                     self.plugin.event_handler.update_and_redraw_grid(force_randomize=True)
-                    
+
         except Exception:
             print(traceback.format_exc())
     

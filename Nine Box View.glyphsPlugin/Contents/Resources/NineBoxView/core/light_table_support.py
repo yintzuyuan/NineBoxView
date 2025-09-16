@@ -161,12 +161,8 @@ def is_light_table_active(font=None):
                         safe_class_lookup("LightTableInterface")
                     )
                     light_table_active = light_table_class and tool.isKindOfClass_(light_table_class)
-                    
-                    # 偵測手形工具
-                    hand_tool_class = safe_class_lookup("GlyphsToolHand")
-                    hand_tool_active = hand_tool_class and tool.isKindOfClass_(hand_tool_class)
-                    
-                    return light_table_active or hand_tool_active
+                                        
+                    return light_table_active
         
     return False
 

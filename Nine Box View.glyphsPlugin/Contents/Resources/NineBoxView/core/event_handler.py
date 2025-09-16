@@ -651,6 +651,6 @@ class NineBoxEventHandler:
             success = glyphs_service.unregister_font_change_callback(self)
             if success:
                 pass
-                
+
         except Exception:
             print(traceback.format_exc())
