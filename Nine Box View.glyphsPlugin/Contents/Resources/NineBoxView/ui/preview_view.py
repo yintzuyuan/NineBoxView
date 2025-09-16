@@ -687,7 +687,7 @@ class NineBoxPreviewView(NSView):
         """
         try:
             # 防抖檢查：避免與 UPDATEINTERFACE 事件衝突
-            current_time = time.time()
+            current_time = time.monotonic()
             if current_time - self._last_randomize_time < self._debounce_interval:
                 return  # 在防抖間隔內，忽略這次點擊
 
