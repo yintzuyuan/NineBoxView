@@ -64,7 +64,7 @@ class NineBoxPreviewView(NSView):
 
             # 防抖機制狀態（修復聚焦後立即點擊的雙重隨機排列問題）
             self._last_randomize_time = 0
-            self._debounce_interval = 0.05  # 50ms 防抖間隔
+            self._debounce_interval = 0.08  # 80ms 防抖間隔
 
             # 初始化
             self._setup_view()
