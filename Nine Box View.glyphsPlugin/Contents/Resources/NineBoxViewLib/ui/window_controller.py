@@ -61,8 +61,19 @@ class NineBoxWindow(NSWindowController):
             savedPosition = plugin.windowPosition # plugin.loadPreferences() 已經載入
             debug_log(f"window_controller.initWithPlugin_: Received savedPosition from plugin: {savedPosition} (type: {type(savedPosition)})")
             
-            # 建立主視窗
-            windowRect = NSMakeRect(0, 0, savedSize[0], savedSize[1])
+            # 建立主視窗 - 確保視窗大小數值轉換安全
+            try:
+                width = float(str(savedSize[0]))
+                height = float(str(savedSize[1]))
+                windowRect = NSMakeRect(0, 0, width, height)
+                debug_log(f"window_controller.initWithPlugin_: 使用載入的視窗大小: {width}x{height}")
+            except (ValueError, TypeError, IndexError) as e:
+                # 使用預設大小
+                from ..core.constants import DEFAULT_WINDOW_SIZE
+                width = float(DEFAULT_WINDOW_SIZE[0])
+                height = float(DEFAULT_WINDOW_SIZE[1])
+                windowRect = NSMakeRect(0, 0, width, height)
+                debug_log(f"window_controller.initWithPlugin_: 視窗大小轉換失敗，使用預設大小: {width}x{height}. 錯誤: {e}. savedSize: {savedSize}")
             styleMask = (NSTitledWindowMask | NSClosableWindowMask |
                         NSResizableWindowMask | NSMiniaturizableWindowMask | NSFullSizeContentViewWindowMask)
             
@@ -71,7 +82,7 @@ class NineBoxWindow(NSWindowController):
             )
             
             panel.setTitle_(plugin.name)
-            panel.setMinSize_(NSMakeSize(MIN_WINDOW_SIZE[0], MIN_WINDOW_SIZE[1]))
+            panel.setMinSize_(NSMakeSize(float(MIN_WINDOW_SIZE[0]), float(MIN_WINDOW_SIZE[1])))
             panel.setLevel_(NSFloatingWindowLevel)
             panel.setReleasedWhenClosed_(False)
             
@@ -112,14 +123,18 @@ class NineBoxWindow(NSWindowController):
                 # 設定視窗位置
                 debug_log(f"window_controller.initWithPlugin_: Checking savedPosition '{savedPosition}' before applying.")
                 if savedPosition:
-                    # 處理 NSArray、list 或 tuple
+                    # 處理 NSArray、list 或 tuple - 加強類型檢查
                     try:
                         if len(savedPosition) >= 2:
-                            x = float(savedPosition[0])
-                            y = float(savedPosition[1])
-                            debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
-                            panel.setFrameOrigin_(NSMakePoint(x, y))
-                            debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
+                            # 確保數值轉換安全，處理可能的字串類型
+                            try:
+                                x = float(str(savedPosition[0]))
+                                y = float(str(savedPosition[1]))
+                                debug_log(f"window_controller.initWithPlugin_: Attempting to set panel origin to ({x}, {y})")
+                                panel.setFrameOrigin_(NSMakePoint(x, y))
+                                debug_log(f"window_controller.initWithPlugin_: Panel origin set to {panel.frame().origin.x}, {panel.frame().origin.y}")
+                            except (ValueError, TypeError) as conversion_error:
+                                debug_log(f"window_controller.initWithPlugin_: 數值轉換失敗: {conversion_error}. savedPosition[0]={savedPosition[0]} (type: {type(savedPosition[0])}), savedPosition[1]={savedPosition[1]} (type: {type(savedPosition[1])})")
                         else:
                             debug_log(f"window_controller.initWithPlugin_: savedPosition 長度不足: {len(savedPosition)}")
                     except (ValueError, TypeError, IndexError) as e:
@@ -433,15 +448,16 @@ class NineBoxWindow(NSWindowController):
                 # 儲存視窗位置
                 if hasattr(self, 'plugin'):
                     try:
-                        x = float(current_origin_x)
-                        y = float(current_origin_y)
+                        # 確保數值轉換安全，處理可能的字串類型
+                        x = float(str(current_origin_x))
+                        y = float(str(current_origin_y))
                         new_position_to_store = [x, y]
                         self.plugin.windowPosition = new_position_to_store
                         self.plugin.savePreferences() # 即時儲存狀態
-                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")                        
+                        debug_log(f"window_controller.windowDidMove_: Updated plugin.windowPosition and saved: {self.plugin.windowPosition}")
                         debug_log(f"window_controller.windowDidMove_: Saved windowPosition to Glyphs.defaults: {Glyphs.defaults.get(self.plugin.WINDOW_POSITION_KEY if hasattr(self.plugin, 'WINDOW_POSITION_KEY') else 'UNKNOWN_KEY')}")
                     except Exception as e:
-                        debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}")
+                        debug_log(f"window_controller.windowDidMove_: Error saving windowPosition to Glyphs.defaults: {e}. current_origin_x={current_origin_x} (type: {type(current_origin_x)}), current_origin_y={current_origin_y} (type: {type(current_origin_y)})")
                 
                 if self.controlsPanelVisible and self.controlsPanelWindow:
                     self.updateControlsPanelPosition()
@@ -557,12 +573,13 @@ class NineBoxWindow(NSWindowController):
             
             if position_to_apply:
                 try:
-                    x = float(position_to_apply[0])
-                    y = float(position_to_apply[1])
+                    # 確保數值轉換安全，處理可能的字串類型
+                    x = float(str(position_to_apply[0]))
+                    y = float(str(position_to_apply[1]))
                     self.window().setFrameOrigin_(NSMakePoint(x, y))
                     debug_log(f"[初始化] 視窗位置已設定為 ({x}, {y})")
                 except (ValueError, TypeError) as e:
-                    debug_log(f"[初始化] 設定視窗位置錯誤: {e}")
+                    debug_log(f"[初始化] 設定視窗位置錯誤: {e}. position_to_apply[0]={position_to_apply[0]} (type: {type(position_to_apply[0])}), position_to_apply[1]={position_to_apply[1]} (type: {type(position_to_apply[1])})")
             
             # 顯示主視窗
             self.window().makeKeyAndOrderFront_(None)

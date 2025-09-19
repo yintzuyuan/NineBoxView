@@ -129,7 +129,20 @@ def load_preferences(plugin):
         
         debug_log(f"最終載入的 currentArrangement: {plugin.currentArrangement}")
         plugin.zoomFactor = Glyphs.defaults[ZOOM_FACTOR_KEY] or DEFAULT_ZOOM
-        plugin.windowSize = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
+
+        # 處理視窗大小 - 加強類型檢查
+        window_size = Glyphs.defaults[WINDOW_SIZE_KEY] or plugin.DEFAULT_WINDOW_SIZE
+        if window_size and len(window_size) >= 2:
+            try:
+                # 確保視窗大小元素都是數值類型，處理可能的字串
+                plugin.windowSize = [float(str(window_size[0])), float(str(window_size[1]))]
+                debug_log(f"成功載入視窗大小: {plugin.windowSize}")
+            except (ValueError, TypeError, IndexError) as e:
+                plugin.windowSize = plugin.DEFAULT_WINDOW_SIZE
+                debug_log(f"視窗大小轉換失敗，使用預設值: {plugin.windowSize}. 錯誤: {e}. 原始值: {window_size}")
+        else:
+            plugin.windowSize = plugin.DEFAULT_WINDOW_SIZE
+            debug_log(f"視窗大小資料無效，使用預設值: {plugin.windowSize}")
         
         # 處理視窗位置 - 統一使用 list 格式
         window_pos = Glyphs.defaults[WINDOW_POSITION_KEY]
@@ -137,22 +150,22 @@ def load_preferences(plugin):
         # 檢查是否為 NSArray（Objective-C 陣列）
         if window_pos:
             try:
-                # 嘗試直接存取元素（NSArray 支援索引存取）
+                # 嘗試直接存取元素（NSArray 支援索引存取），處理可能的字串類型
                 if len(window_pos) >= 2:
-                    plugin.windowPosition = [float(window_pos[0]), float(window_pos[1])]
+                    plugin.windowPosition = [float(str(window_pos[0])), float(str(window_pos[1]))]
                     debug_log(f"成功從 NSArray/list/tuple 載入視窗位置: {plugin.windowPosition}")
                 else:
                     plugin.windowPosition = None
                     debug_log(f"視窗位置資料長度不足: {len(window_pos)}")
-            except (TypeError, IndexError):
+            except (TypeError, IndexError, ValueError):
                 # 如果不是陣列類型，檢查是否為字典
                 if isinstance(window_pos, dict) and 'x' in window_pos and 'y' in window_pos:
-                    # 向後相容：支援舊的字典格式
-                    plugin.windowPosition = [float(window_pos['x']), float(window_pos['y'])]
+                    # 向後相容：支援舊的字典格式，處理可能的字串類型
+                    plugin.windowPosition = [float(str(window_pos['x'])), float(str(window_pos['y']))]
                     debug_log(f"從字典格式載入視窗位置: {plugin.windowPosition}")
                 else:
                     plugin.windowPosition = None
-                    debug_log(f"無法解析視窗位置資料，類型: {type(window_pos)}")
+                    debug_log(f"無法解析視窗位置資料，類型: {type(window_pos)}，值: {window_pos}")
         else:
             plugin.windowPosition = None
             debug_log("沒有儲存的視窗位置")
@@ -288,12 +301,12 @@ def save_preferences(plugin):
         # 處理視窗位置 - 統一使用 list 格式
         if plugin.windowPosition:
             try:
-                # 確保儲存的是 Python list of floats
-                pos_list = [float(plugin.windowPosition[0]), float(plugin.windowPosition[1])]
+                # 確保儲存的是 Python list of floats，處理可能的字串類型
+                pos_list = [float(str(plugin.windowPosition[0])), float(str(plugin.windowPosition[1]))]
                 Glyphs.defaults[WINDOW_POSITION_KEY] = pos_list
                 debug_log(f"已儲存視窗位置 (from plugin.windowPosition)：{pos_list}")
             except (TypeError, IndexError, ValueError) as e:
-                error_log(f"儲存 plugin.windowPosition 錯誤, value: {plugin.windowPosition}, error: {e}")
+                error_log(f"儲存 plugin.windowPosition 錯誤, value: {plugin.windowPosition}, error: {e}. Types: [{type(plugin.windowPosition[0])}, {type(plugin.windowPosition[1])}]")
                 Glyphs.defaults[WINDOW_POSITION_KEY] = None # 儲存無效值時清除
         else:
             Glyphs.defaults[WINDOW_POSITION_KEY] = None # 如果 plugin.windowPosition 是 None，則儲存 None
