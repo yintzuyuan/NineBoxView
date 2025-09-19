@@ -27,15 +27,21 @@ class NineBoxEventHandler:
         self._register_font_change_callbacks()
     
     def update_interface(self, sender):
-        """檔案內即時更新處理（UPDATEINTERFACE 事件）"""
+        """檔案內即時更新處理（UPDATEINTERFACE 事件）- 性能優化版本"""
         try:
             # 使用新的視窗通訊介面檢查視窗狀態
             if not self.plugin.has_active_window():
                 return
-            
-            # 執行九宮格自動同步（檔案內即時操作，使用快速重繪）
-            self.update_and_redraw_grid()
-            
+
+            # 性能優化：只在檢測到寬度變更時才重繪
+            width_changed = self._detect_width_changes()
+
+            if width_changed:
+                # 只有寬度真的變了才執行重繪（跳過隨機排列）
+                self.update_and_redraw_grid(skip_randomize=True)
+
+            # 移除無條件的重繪操作以提升性能
+
         except Exception:
             print(traceback.format_exc())
 
@@ -303,12 +309,13 @@ class NineBoxEventHandler:
             if self.plugin.has_active_window():
                 # 更新預覽視圖的排列資料
                 self.plugin.update_preview_view()
-                
+
                 # 根據寬度變更決定重繪策略
                 self.plugin.trigger_preview_redraw(use_refresh=width_changed)
-            
-            # 使用官方重繪方法（會重繪所有視圖，包括周圍格）
-            Glyphs.redraw()
+
+                # 只在有實際變更時才執行全域重繪
+                if width_changed or should_randomize or force_font_change_fill:
+                    Glyphs.redraw()
             
         except Exception:
             print(traceback.format_exc())
