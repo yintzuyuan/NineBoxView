@@ -59,8 +59,9 @@ class NineBoxPreviewView(NSView):
             
             # 移除舊的主題快取（改用新的主題偵測器）
             
-            # 可選：保留寬度偵測快取用於特殊情況
+            # 寬度變更檢測機制
             self._width_change_cache = {}
+            self._last_check_time = 0  # 寬度檢測節流機制
 
             # 防抖機制狀態（修復聚焦後立即點擊的雙重隨機排列問題）
             self._last_randomize_time = 0
@@ -207,14 +208,75 @@ class NineBoxPreviewView(NSView):
             
         except Exception:
             print(traceback.format_exc())
-    
+
+    # ==========================================================================
+    # 寬度變更檢測（智慧被動模式）
+    # ==========================================================================
+
+    def _detect_width_changes(self):
+        """檢測字符寬度變更（智慧被動模式 - 修復版本）
+
+        採用原版的正確做法：在重繪時主動檢測寬度變更
+        只檢測當前選中字符，減少檢測範圍提升性能
+
+        Returns:
+            bool: True 如果檢測到寬度變更
+        """
+        try:
+            # 節流機制：避免過度頻繁檢查（每 100ms 最多檢查一次）
+            current_time = time.time() * 1000  # 轉換為毫秒
+            if current_time - self._last_check_time < 100:
+                return False
+
+            self._last_check_time = current_time
+
+            # 透過統一服務獲取字型上下文
+            glyphs_service = get_glyphs_service()
+            font, current_master = glyphs_service.get_current_font_context()
+
+            if not font or not current_master:
+                return False
+
+            width_changed = False
+
+            # 智慧檢測：只檢測當前選中的字符寬度（減少檢測範圍）
+            if hasattr(self.plugin, 'event_handler') and self.plugin.event_handler:
+                current_glyph = self.plugin.event_handler.get_selected_glyph()
+                if current_glyph:
+                    try:
+                        glyph = glyphs_service.get_glyph_from_font(font, current_glyph)
+                        if glyph and glyph.layers[current_master.id]:
+                            layer = glyph.layers[current_master.id]
+                            layer_id = f"{current_glyph}_{current_master.id}"
+                            current_width = layer.width
+                            cached_width = self._width_change_cache.get(layer_id)
+
+                            if cached_width != current_width:
+                                self._width_change_cache[layer_id] = current_width
+                                if cached_width is not None:  # 只有已有快取時才算變更
+                                    width_changed = True
+                    except Exception:
+                        pass
+
+            return width_changed
+
+        except Exception:
+            return False
+
     # ==========================================================================
     # 主要繪製方法
     # ==========================================================================
     
     def drawRect_(self, rect):
-        """繪製畫面內容（官方 NSView 模式：簡化狀態檢查）"""
+        """繪製畫面內容（官方 NSView 模式：智慧被動檢測）"""
         try:
+            # 修復：恢復被動寬度變更檢測
+            # 這是原版的正確做法：在每次重繪時檢測寬度變更
+            width_changed = self._detect_width_changes()
+            if width_changed:
+                # 寬度變更時清理佈局快取並觸發重新計算
+                self._invalidate_layout_cache()
+
             # === 繪製背景 ===
             is_black = self._get_theme_is_black()
             if is_black:
@@ -361,12 +423,14 @@ class NineBoxPreviewView(NSView):
                             layer_width = glyph.layers[currentMaster.id].width
                             maxWidth = max(maxWidth, layer_width)
             
-            # 考慮中央字符的寬度（通過統一偵測方法）
-            if self.plugin and self.plugin.event_handler:
-                current_glyph = self.plugin.event_handler.get_selected_glyph()
-                if current_glyph:
+            # 減法優化：移除即時字符獲取，改用現有排列中的字符
+            # 原本每次 drawRect_ 都重新獲取 selectedLayers，是性能殺手
+            # 改為直接從 currentArrangement 中獲取中央字符
+            if hasattr(self, '_currentArrangement') and len(self._currentArrangement) > 4:
+                center_char = self._currentArrangement[4]  # 中央位置
+                if center_char:
                     # 透過統一服務獲取字符
-                    glyph = glyphs_service.get_glyph_from_font(font, current_glyph)
+                    glyph = glyphs_service.get_glyph_from_font(font, center_char)
                     if glyph and glyph.layers[currentMaster.id]:
                         center_width = glyph.layers[currentMaster.id].width
                         maxWidth = max(maxWidth, center_width)
