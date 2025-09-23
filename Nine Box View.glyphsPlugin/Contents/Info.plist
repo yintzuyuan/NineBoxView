@@ -14,15 +14,15 @@
 	<key>CFBundleName</key> <!-- 外掛名稱（人腦） -->
 	<string>Nine Box View</string>
 	<key>CFBundleShortVersionString</key> <!-- 版本號（人腦） -->
-	<string>3.3.3a</string>
+	<string>3.3.3b</string>
 	<key>CFBundleVersion</key> <!-- 版本號（電腦） -->
-	<string>17</string>
+	<string>18</string>
 	<key>UpdateFeedURL</key> <!-- 產品Info.plist網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView/raw/main/Nine Box View.glyphsPlugin/Contents/Info.plist</string>
 	<key>productPageURL</key> <!-- 產品網頁連結 -->
 	<string>https://github.com/yintzuyuan/NineBoxView</string>
 	<key>productReleaseNotes</key> <!-- 發布新功能註解 -->
-	<string>預覽版 3.3.3a：優化檔案內即時更新處理，僅在寬度變更時重繪以提升性能，修復編輯視圖下移動或修改曲線造成的軟體卡頓問題</string>
+	<string>預覽版 3.3.3b：進一步優化事件處理與預覽視圖效能，改進事件處理器回應機制，提升使用者互動體驗，優化預覽視圖繪製邏輯</string>
 	<key>NSHumanReadableCopyright</key> <!-- 版權聲明, 姓名, 年份 -->
 	<string>© 2025 Yin Tzu Yuan</string>
 	<key>NSPrincipalClass</key> <!-- 外掛名稱（電腦） -->
