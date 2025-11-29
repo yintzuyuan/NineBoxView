@@ -22,20 +22,34 @@ class NineBoxEventHandler:
     def __init__(self, plugin):
         """初始化事件處理器"""
         self.plugin = plugin
-        
+
+        # 字符選擇快取機制（減法優化：避免過度查詢 selectedLayers）
+        self._cached_selected_glyph = None
+        self._cached_selected_layers_id = None
+
         # 註冊官方回呼系統
         self._register_font_change_callbacks()
     
     def update_interface(self, sender):
-        """檔案內即時更新處理（UPDATEINTERFACE 事件）"""
+        """檔案內即時更新處理（UPDATEINTERFACE 事件）- 智慧被動檢測"""
         try:
             # 使用新的視窗通訊介面檢查視窗狀態
             if not self.plugin.has_active_window():
                 return
-            
-            # 執行九宮格自動同步（檔案內即時操作，使用快速重繪）
-            self.update_and_redraw_grid()
-            
+
+            # 修復：恢復寬度快取清理，確保寬度資訊最新
+            # 這是被動檢測模式的必要步驟
+            try:
+                from NineBoxView.data.cache import clear_width_change_cache
+                clear_width_change_cache()
+            except ImportError:
+                print(traceback.format_exc())
+
+            # 保留最基本的狀態同步（不觸發重繪）
+            # 確保 base_glyphs 資料是最新的
+            if hasattr(self.plugin, '_update_base_glyphs'):
+                self.plugin._update_base_glyphs()
+
         except Exception:
             print(traceback.format_exc())
 
@@ -239,19 +253,41 @@ class NineBoxEventHandler:
             print(traceback.format_exc())
 
     def get_selected_glyph(self):
-        """取得當前選中的字符（採用官方模式統一上下文）
-        
-        使用官方推薦的 selectedLayers 偵測
-        沒有選擇時返回 None，由顯示邏輯處理空字符狀態
+        """取得當前選中的字符（智慧快取版本 - 減法優化）
+
+        減法優化：避免每次都查詢 selectedLayers，這是編輯卡頓的主因
+        只在 selectedLayers 真正改變時才更新快取
         """
-        from .utils import FontManager
-        font, _ = FontManager.getCurrentFontContext()
-        if Glyphs and font and font.selectedLayers:
-            layer = font.selectedLayers[0]
-            if layer and layer.parent:
-                return layer.parent.name
-        
-        return None  # 沒有選中任何字符，顯示為空
+        try:
+            from .utils import FontManager
+            font, _ = FontManager.getCurrentFontContext()
+
+            if not (Glyphs and font and font.selectedLayers):
+                # 沒有選擇時清空快取
+                self._cached_selected_glyph = None
+                self._cached_selected_layers_id = None
+                return None
+
+            # 檢查 selectedLayers 是否變更（使用物件 ID 比較）
+            current_layers_id = id(font.selectedLayers[0]) if font.selectedLayers else None
+
+            if current_layers_id != self._cached_selected_layers_id:
+                # selectedLayers 有變更，更新快取
+                layer = font.selectedLayers[0]
+                if layer and layer.parent:
+                    self._cached_selected_glyph = layer.parent.name
+                    self._cached_selected_layers_id = current_layers_id
+                else:
+                    self._cached_selected_glyph = None
+                    self._cached_selected_layers_id = None
+
+            return self._cached_selected_glyph
+
+        except Exception:
+            # 例外時清空快取
+            self._cached_selected_glyph = None
+            self._cached_selected_layers_id = None
+            return None
     
     # ==========================================================================
     # 中央格自動同步機制
@@ -273,43 +309,53 @@ class NineBoxEventHandler:
             force_font_change_fill: True時字型變更觸發的智慧填充（已在偵測階段處理）
         """
         try:
-            # === 寬度變更偵測（整合到統一流程）===
-            width_changed = self._detect_width_changes()
-            
+            # 修復：恢復智慧的寬度變更偵測
+            # 寬度檢測在 drawRect_ 中進行，這裡不重複檢測
+            # 但保留檔案切換等重要事件的寬度檢測
+            width_changed = False
+            if force_font_change_fill or not skip_randomize:
+                width_changed = self._detect_width_changes()
+
             # 檢查是否有可用的九宮格排列（檢查基礎排列層）
             if not hasattr(self.plugin, 'base_arrangement') or not any(self.plugin.base_arrangement):
                 # 如果沒有九宮格，生成初始排列（這種情況必須生成）
                 self.plugin.randomize_grid()
                 return
-            
-            # 統一的隨機排列邏輯：明確控制何時隨機排列（含字型變更處理）
+
+            # 智慧隨機排列邏輯：結合寬度變更和其他條件
             should_randomize = (
-                force_randomize or  # 強制隨機（清除鎖定、點擊預覽等）
-                (not skip_randomize and not self.plugin.has_valid_search_input() and not force_font_change_fill)  # 條件隨機（只有沒有有效輸入時）
+                force_randomize or  # 明確要求隨機
+                (not skip_randomize and not self.plugin.has_valid_search_input() and not force_font_change_fill)
             )
-            
+
             if should_randomize:
                 self.plugin.randomize_grid()
             elif force_font_change_fill:
                 # 字型變更時：無效字符已在偵測階段被替換，這裡只需要確保資料同步
                 # 不觸發隨機排列，保持現有的智慧填充結果
                 pass
-            
+
             # 確保 base_glyphs 資料是最新的
             if hasattr(self.plugin, '_update_base_glyphs'):
                 self.plugin._update_base_glyphs()
-            
+
             # 使用新的視窗通訊介面更新預覽視圖
             if self.plugin.has_active_window():
                 # 更新預覽視圖的排列資料
                 self.plugin.update_preview_view()
-                
-                # 根據寬度變更決定重繪策略
-                self.plugin.trigger_preview_redraw(use_refresh=width_changed)
-            
-            # 使用官方重繪方法（會重繪所有視圖，包括周圍格）
-            Glyphs.redraw()
-            
+
+                # 智慧重繪策略：根據變更類型決定重繪方式
+                if width_changed or should_randomize or force_font_change_fill:
+                    # 有重要變更時使用適當的重繪策略
+                    self.plugin.trigger_preview_redraw(use_refresh=width_changed)
+                elif not skip_randomize:
+                    # 一般更新使用輕量重繪
+                    self.plugin.trigger_preview_redraw(use_refresh=False)
+
+                # 精確控制全域重繪：只在真正必要時觸發
+                if should_randomize or force_font_change_fill:
+                    Glyphs.redraw()
+
         except Exception:
             print(traceback.format_exc())
 

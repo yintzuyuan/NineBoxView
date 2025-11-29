@@ -7,6 +7,7 @@ NineBoxView Controller
 """
 
 import objc
+import time
 import traceback
 from GlyphsApp import Glyphs
 
@@ -434,6 +435,9 @@ class NineBoxViewController:
     def randomize_grid(self):
         """兩層架構：填充基礎排列層（使用 tempData 快取優化）"""
         try:
+            # 更新防抖時間戳（修復首次開啟後快速雙擊的雙重隨機排列問題）
+            self._update_debounce_timestamp()
+            
             # 獲取當前 master 用於快取（暫時未使用，保留供未來優化）
             master = None
             try:
@@ -481,6 +485,26 @@ class NineBoxViewController:
                             self.base_arrangement[pos] = random.choice(chars)
             
         except Exception:
+            print(traceback.format_exc())
+    
+    def _update_debounce_timestamp(self):
+        """更新防抖時間戳（修復首次開啟後快速雙擊的雙重隨機排列問題）"""
+        try:
+            # 檢查是否有活躍的 preview_view
+            if (hasattr(self, 'parent_plugin') and self.parent_plugin and
+                hasattr(self.parent_plugin, 'window_controller') and 
+                self.parent_plugin.window_controller and
+                hasattr(self.parent_plugin.window_controller, 'previewView') and
+                self.parent_plugin.window_controller.previewView):
+                
+                preview_view = self.parent_plugin.window_controller.previewView
+                
+                # 更新防抖時間戳
+                if hasattr(preview_view, '_last_randomize_time'):
+                    preview_view._last_randomize_time = time.monotonic()
+
+        except Exception:
+            # 防抖時間戳更新失敗不應影響主要功能
             print(traceback.format_exc())
     
     def _get_available_chars(self):

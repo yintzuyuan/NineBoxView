@@ -26,11 +26,11 @@ class NineBoxView(GeneralPlugin):
         """設定外掛基本資訊 (ReporterPlugin 模式)"""
         # ReporterPlugin 使用 menuName 而非 name
         self.name = Glyphs.localize({
-            'en': u'Nine Box Preview',
+            'en': u'NineBoxView',
             'zh-Hant': u'九宮格預覽',
             'zh-Hans': u'九宫格预览',
-            'ja': u'九宮格プレビュー',
-            'ko': u'구궁격 미리보기',
+            'ja': u'九マスビュー',
+            'ko': u'나인박스뷰',
         })
         
         # 主控制器（延遲載入）
