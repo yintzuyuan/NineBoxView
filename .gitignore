@@ -11,3 +11,6 @@ pip-delete-this-directory.txt
 
 .DS_Store
 typings/
+
+# Claude Code local settings
+.claude/settings.local.json
