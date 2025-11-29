@@ -43,7 +43,7 @@ class NineBoxEventHandler:
                 from NineBoxView.data.cache import clear_width_change_cache
                 clear_width_change_cache()
             except ImportError:
-                pass
+                print(traceback.format_exc())
 
             # 保留最基本的狀態同步（不觸發重繪）
             # 確保 base_glyphs 資料是最新的
@@ -264,9 +264,8 @@ class NineBoxEventHandler:
 
             if not (Glyphs and font and font.selectedLayers):
                 # 沒有選擇時清空快取
-                if self._cached_selected_glyph is not None:
-                    self._cached_selected_glyph = None
-                    self._cached_selected_layers_id = None
+                self._cached_selected_glyph = None
+                self._cached_selected_layers_id = None
                 return None
 
             # 檢查 selectedLayers 是否變更（使用物件 ID 比較）

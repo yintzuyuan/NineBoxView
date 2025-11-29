@@ -256,11 +256,12 @@ class NineBoxPreviewView(NSView):
                                 if cached_width is not None:  # 只有已有快取時才算變更
                                     width_changed = True
                     except Exception:
-                        pass
+                        print(traceback.format_exc())
 
             return width_changed
 
         except Exception:
+            print(traceback.format_exc())
             return False
 
     # ==========================================================================

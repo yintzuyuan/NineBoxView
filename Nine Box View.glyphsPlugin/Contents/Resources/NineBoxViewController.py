@@ -7,6 +7,7 @@ NineBoxView Controller
 """
 
 import objc
+import time
 import traceback
 from GlyphsApp import Glyphs
 
@@ -500,12 +501,11 @@ class NineBoxViewController:
                 
                 # 更新防抖時間戳
                 if hasattr(preview_view, '_last_randomize_time'):
-                    import time
                     preview_view._last_randomize_time = time.monotonic()
-                    
+
         except Exception:
             # 防抖時間戳更新失敗不應影響主要功能
-            pass
+            print(traceback.format_exc())
     
     def _get_available_chars(self):
         """取得可用於填充的字符列表（使用 tempData 快取優化）
